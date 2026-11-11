@@ -1,8 +1,10 @@
 # Releasing Sunder
 
-CurseForge project: **1798860** (private). Current addon version: **0.9.11**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
+CurseForge project: **1798860** (approval/visibility last reported pending). Current addon version: **0.9.11**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
 
-## One-time setup
+The user confirmed green CI, a draft GitHub release and a successful CurseForge upload on 2026-11-11. Do not upload 0.9.11 again. See [session context](CONTEXT.md) for remaining launch checks.
+
+## One-time setup (completed; reference for recovery)
 
 1. Create an empty GitHub repository, without an initial README/license/gitignore, to preserve this repository's history. Add its real URL as `origin`, push the existing branch, and make that branch the GitHub default. Set `githubRepository` in `release.json` to the actual `owner/repository`.
 2. Enable GitHub Issues. Point CurseForge's Source and Issues links to the repository and its `/issues` page. Local issue forms and the pull-request template become available after pushing the default branch.
@@ -37,6 +39,6 @@ The first-upgrade bundle is attached to GitHub for manual migration, not sent as
 
 ## Current verification limits
 
-Local automated packaging and safety checks are available. GitHub Actions execution, authentication, actual CurseForge upload/approval and official-client support remain unverified until the remote, secret and supported versions are supplied.
+Local tests passed; the user confirmed green GitHub checks and a successful CurseForge upload. CurseForge approval/public availability and publication of the GitHub draft remain unconfirmed. Only WoW Forever is tested; Retail and other Classic flavors remain unverified. Native behavior still needs the in-game smoke checks above.
 
 API reference: [CurseForge Upload API](https://support.curseforge.com/support/solutions/articles/9000197321-curseforge-upload-api).

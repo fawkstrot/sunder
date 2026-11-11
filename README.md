@@ -17,7 +17,7 @@ Sunder is a modular World of Warcraft addon focused on clear messaging today and
 | `tests/` | Lua 5.1 regressions and migration checks |
 | `docs/` | Architecture, branding, migration and release guides |
 
-Start with [AGENTS.md](AGENTS.md) for agent work and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local setup.
+Start with [AGENTS.md](AGENTS.md) and the dated [session context](docs/CONTEXT.md) for agent work and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local setup.
 
 ## Local development
 

@@ -1,5 +1,7 @@
 # Sunder — agent working guide
 
+Read [docs/CONTEXT.md](docs/CONTEXT.md) at the start of a fresh session. This file holds durable product and architecture rules; the context file holds dated progress and outstanding work.
+
 ## Scope and source of truth
 This repository owns Sunder, a modular World of Warcraft addon. Current features are Sunder Chat, unified Whispers, and per-copy item protection; future quality-of-life modules register through the same platform. The primary development client is WoW Forever. Do not claim untested Retail/Classic compatibility from TOC numbers alone.
 
@@ -53,4 +55,4 @@ Keep legacy identifiers only in the migration module, companion loader, compatib
 ## Validation and release discipline
 Run relevant behavior checks after changes, then the standard test command. Do not silently remove coverage to make a test pass. The harness includes renderer/input, resizing, window state, previews, routing, history, favorites migration, item locks, bank sorting, Ellesmere edit registration, standalone fallback and Sunder migration/commands/assets.
 
-Report exactly what was tested. Native protected behavior, new APIs and visual changes need in-game verification; do not imply mocked checks are live validation. Current live testing/deployment is on WoW Forever. CurseForge project ID is 1798860. GitHub origin is https://github.com/fawkstrot/sunder.git; publishing credentials are not configured locally. See docs/RELEASING.md: curated versioned changelogs, explicit tagged releases, and manual upload only. Never commit tokens or invent supported game-version IDs.
+Report exactly what was tested. Native protected behavior, new APIs and visual changes need in-game verification; do not imply mocked checks are live validation. Current live testing/deployment is on WoW Forever. CurseForge project ID is 1798860. GitHub origin is https://github.com/fawkstrot/sunder.git; the upload token is stored as a GitHub Actions secret, never locally in source. The user confirmed successful CI and upload; approval/publication status is tracked in docs/CONTEXT.md. See docs/RELEASING.md: curated versioned changelogs, explicit tagged releases, and manual upload only. Never commit tokens or invent supported game-version IDs.
