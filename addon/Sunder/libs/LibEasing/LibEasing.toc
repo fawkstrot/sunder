@@ -1,0 +1,7 @@
+## Interface: 120100, 16001, 50504, 20506, 11509
+## Version: 1.0
+## Title: LibEasing
+## Author: mpstark
+## Notes: A set of easing functions with some helper functionality.
+
+LibEasing.lua

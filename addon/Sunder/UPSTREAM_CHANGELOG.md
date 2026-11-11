@@ -1,0 +1,229 @@
+# Changelog
+
+## 1.9.7 (2026-11-06)
+
+### What's new
+
+- EllesmereUI support: Glassy's windows use EllesmereUI's window skin, untouched label and separator colors and Glassy-style emotes use its accent color, and the default font becomes its UI font. Colors and fonts you set in Glassy still take priority.
+- Every Glassy setting is also available in EllesmereUI's options panel, in a Glassy section included in its search. Its Reset button restores the defaults of the section you are viewing.
+- The Compatibility section under About warns while the EllesmereUI Chat addon is enabled, since it restyles the same chat frames as Glassy.
+- "Move to Whisper Window" in a player's right-click menu now moves the conversation's messages into the new whisper tab.
+- Fixed chat tabs piling on top of each other when a tab's unread count changed.
+- Fixed the unread count overlapping the next tab, and whisper tabs keeping their count after being read.
+- Fixed a tab name staying a little higher after it was clicked.
+- The whisper tab icon and the new-message glow now line up with the tab name.
+
+## 1.9.6 (2026-11-06)
+
+### What's new
+
+- The mouse wheel now scrolls one message at a time, and Shift+mouse wheel scrolls within a long message. Chat no longer shifts out of place when you scroll during Retail boss encounters.
+- Search a tab's messages from its right-click menu. Results update as you type, keep their chat colors, and can be copied.
+- Docked tabs can show how many messages arrived since you last viewed them (Tabs → Unread count, off by default).
+- Character whisper tabs reopen with their last 100 messages after a reload or login (Tabs → Keep whisper tabs).
+- Right-click a recipe someone linked to track or untrack it (Retail and WoW Forever).
+- Built-in emotes: smileys such as `:)` and codes such as `:smile:` show as small faces, in Glassy's gold style or a classic yellow set (Messages → Emote style). ElvUI is no longer needed for emotes.
+- Fixed "blocked action" errors blamed on Glassy, such as when Shift-clicking map pins, on Retail and WoW Forever. The edit box now closes instantly there.
+- "Move to New Window" in a channel's right-click menu works again.
+- "Copy Character Name" in a player's right-click menu opens Glassy's copy window instead of failing.
+- Clicking a link in chat now acts on the chat window it was clicked in, for example when whispering a player.
+
+## 1.9.5 (2026-10-22)
+
+### What's new
+
+- Added WoW Forever support. Glassy now detects Forever's retail-style chat and no longer throws anchor errors when switching tabs.
+- Added demo mode (`/gl demo` or Messages → Demo mode): sample chat to preview styles and animations. Real chat is restored when it ends.
+- Korean, Chinese, and Russian text keep the client's native fonts when a custom font lacks those characters.
+- Hidden (secret) chat text during Retail encounters no longer breaks message layout or scrolling.
+- Default label and separator colors are now #FFD100: tab text at 70% opacity, active/hover text at 100%.
+- Updated the addon icon.
+
+## 1.9.4 (2026-09-21)
+
+### What's new
+
+- Glassy settings are now available under Options → AddOns → Glassy, with the same controls as `/gl`.
+- Escape now closes the What's new window.
+- Added Shadow, Shadow Outline, and Shadow Thick choices to each section's font-outline dropdown.
+- Font outlines default to None in every section, without legacy outline inheritance or automatic message shadows.
+- Removed hover brightness controls. Tabs, Combat Log filters, unread messages, and overflow controls use the shared hover label color directly.
+- Moved font selection and outlines from General to separate Tabs, Messages, and Edit box controls. Combat Log filters share the Tabs settings; existing choices are preserved.
+- Added a shared tab and Combat Log filter font-size control. Messages, the edit box, and tabs now default to size 13.
+- Added separate edit-box fade-in and fade-out durations, independent of message fades.
+- Message-area resizing when opening or closing the edit box now follows the edit-box durations instead of message fade timing.
+- Default tab text is #AB9A1B and active/hover text is #CAB620, both at 100% opacity. All separators default to #AB9A1B at 0% opacity.
+- Added shared color and opacity controls under General → Appearance: Label color and Hover label color. They apply to tabs, Combat Log filters, unread messages, and the jump-to-latest control.
+- Removed the active-tab brightness slider; selected tabs and Combat Log filters now use the hover label color directly.
+- While scrolled back, the bottom control now shows Jump to latest and changes to Unread messages when new chat arrives. The tooltip has been removed.
+- Replaced the return-to-latest icon with a white texture that follows the interface colors, including hover, and aligned it with the label.
+- Moved Commands into its own section below the About buttons instead of listing them under Shortcuts.
+
+## 1.9.3 (2026-09-20)
+
+### What's new
+
+- Left and right background fade distances now scale with chat width. Existing pixel settings are converted automatically.
+- The chat background fills the empty space beneath visible tabs and fades with them.
+- Hover and typing transitions preserve message background opacity. The edit box and channel label follow the configured fade timing without overlapping the chat background.
+- New profiles now select the active UI font by its actual name after login, including font replacements from other addons, while preserving saved custom font choices.
+- Added live snapping to screen edges and corners while dragging the unlocked chat frame.
+- Made the message area always reuse the closed input box's space, removing the old static-area mode.
+- Expanded **Always visible** to keep messages, tabs, headers, and the active input box visible together.
+- Added one shared hover-highlight control for tabs, Combat Log filters, overflow controls, and the unread-message row.
+- Reorganized settings into **General**, **Tabs**, **Messages**, and **Edit Box**. Combat Log controls now live under Tabs, timestamps under Messages, and Shortcuts and Compatibility under About.
+- Refined the default layout to a 600 × 250 frame with zero frame offsets, a 2 px tab offset, and a -2 px input-box offset.
+- Added a release-preparation command that generates README, changelog, and in-game notes from one source, with CI checks to catch stale release metadata and notes.
+
+### Improvements and fixes
+
+- Kept the unread-message row visible while typing and removed its forced shadow.
+- Made **Show while typing** reveal docked and detached chat tabs together with faded messages.
+- Removed gaps, overlaps, and dark seams between tabs, Combat Log filters, messages, the unread-message row, and the input box.
+- Made tab vertical offsets reduce the message area instead of pushing messages off-screen.
+- Smoothed input-box transitions and return-to-latest scrolling while preserving the latest-message position.
+- Prevented profile resets and switches from exhausting the script budget during large layout refreshes.
+- Improved normal, temporary, and detached chat-window setup, cleanup, redocking, resizing, and reopening across supported clients.
+- Split large UI responsibilities into focused components and expanded regression coverage for chat-window and configuration behavior.
+- Centralized shared settings limits, separated edit-box appearance from native input hooks, and separated release-note data from the news window.
+- Centered the unread-message arrow, hid its separator by default, and extended its background through negative input-box offsets.
+
+## 1.9.2 (2026-09-19)
+
+* Add built-in localization for English, German, Spanish, French, Italian, Korean, Brazilian Portuguese, Russian, Simplified Chinese, and Traditional Chinese across settings, tooltips, dialogs, status text, and copy-window messages.
+* Enlarge the version-history window and use the game UI font with a 95%-opaque settings-theme background. Add an About page for the version and action buttons, move command help to Shortcuts, and add `/gl news`.
+* Read the runtime version from the addon's TOC metadata, keeping `Glassy.toc` as the single version source.
+* Add a **Show while typing** option that reveals faded chat messages while the chat input is open and resumes normal fading when it closes.
+* Add a **Tab hover highlight** strength setting, default it to 65%, and reserve a dedicated row for the unread-message control so it no longer overlaps chat text.
+* Default chat-tab interaction tooltips to off.
+* Add independently colored, pixel-snapped gradient separators between tabs and messages, the edit box and messages, and the unread-message control and messages. Setting a separator's opacity to 0 hides it. The edit-box separator follows its fade animation. Add a vertical message offset and an independent unread-message background color.
+* Add configurable vertical padding above and below edit-box text, defaulting to half a line height per side.
+* Make screen-anchor offsets use the visible chat and attached edit-box bounds instead of a fixed 35-pixel edit-box estimate.
+* Preserve the edit box's bottom text padding when its space is reused for chat messages, keeping both states equally inset from the screen edge.
+* Change the default left text padding from 15 pixels to 4 pixels.
+* Keep the chat tabs hidden after login or UI reload while still showing chat messages.
+* Add Classic Forever interface `16001` support.
+* Avoid protected keyboard-propagation calls during combat when handling Alt shortcuts in the chat input.
+* Add an optional message blacklist with case-insensitive plain-text matching, whitespace normalization, and filtering for live, copied, and restored Prat messages.
+* Spread chat-history restoration across game frames to avoid script timeouts during login and UI reload.
+* Add validated, locale-independent profile export and import, with options to create a new profile or replace the current profile after confirmation.
+* Apply Glassy styling and behavior to detached chat windows while preserving each window's Blizzard-managed position and dimensions.
+
+## 1.9.1 (2026-09-14)
+
+* Replace legacy Travis CI with GitHub Actions package checks and tag-only publishing to CurseForge and GitHub Releases. Keep `Tests/` out of release ZIPs and include the missing CallbackHandler library.
+* Rename this fork to Glassy, with `/gl` as the primary command and `/glassy` and `/glass` aliases. Update addon paths, packaging, branding, and repository links.
+* Publish tagged releases to Wago Addons alongside CurseForge and GitHub Releases.
+* Remove remaining Retail replacements of native chat visibility, tab styling, and Combat Log filter-bar methods. Use guarded secure post-hooks for presentation, and leave native chat frames transparent instead of intercepting their visibility.
+* Preserve Blizzard's secure tab clicks and Retail Combat Log visibility callbacks to avoid protected filter errors. Retail keeps Blizzard's initial tab selection and reorders tabs without programmatically selecting them.
+* Use the frame's `IsMouseOver()` API on Retail, fixing repeated hover errors and chat tabs failing to reveal.
+* Add Retail `120100` metadata and runtime detection, support Retail's field-based tab artwork and focus borders, and tolerate optional chat buttons that have not loaded.
+* Preserve protected Retail message text without parsing it, redact it in copied chat, and reset pooled FontStrings using Blizzard's approach.
+* Add Mists of Pandaria Classic interface `50504` support and the shared edit-box fixes, with in-game testing completed.
+* Reparent the chat input to Glassy so its text and background remain visible when the native chat frame is hidden.
+* Keep Glassy's edit-box hooks on a separate owner so Prat TellTarget can safely use the native `HookScript` method, regardless of addon load order.
+* Declare Burning Crusade Anniversary interface `20506` alongside Era `11509`, so Anniversary can load Glassy without enabling out-of-date addons.
+* Validate Anniversary chat and confirm Retail Combat Log tab switching and filter buttons work in game.
+
+## 1.9.0 (2026-08-26)
+
+* Add terminal-style chat editing with Ctrl+E, Ctrl+U, Ctrl+K, and Ctrl+Y
+* Allow Alt keybindings while typing and document available shortcuts in settings
+* Add optional emoji shortcode rendering using ElvUI textures
+* Add Channels to the chat-tab context menu
+* Report detected Prat and ElvUI versions in Compatibility
+* Guard custom editing during Blizzard's chat messaging lockdown
+* Document commands, shortcuts, and feature requirements for Prat and ElvUI in the fork README
+* Add a copy window for a chat tab, available by Shift-clicking its tab
+* Add a copyable layout report available with `/gl debug`
+* Add configurable per-tab copyable history (500 messages by default)
+* Bound history restoration before allocation and reduce startup memory, idle CPU use, and high-volume chat overhead
+* Fix pooled temporary-chat hooks and duplicate temporary-frame allocation
+* Add safe font fallback, profile layout refreshes, and frame-height validation
+* Cap copied text and reduce updater work after frame-rate hitches
+* Fix the scroll overlay mask path and live Combat Log scrollback updates
+* Add Glassy-owned timestamps with format, optional color override, and per-tab controls
+* Show only active chat windows in the per-tab timestamp controls
+* Add an optional Prat compatibility report with module-conflict guidance
+* Refresh the scroll overlay and text-icon offsets when settings change
+* Fix version ordering and MoverDialog FontString creation
+* Preserve the edit box OnShow handler without colliding with AceHook
+* Align the native Combat Log controls with Glassy message padding
+* Add configurable colors and opacity for chat, header, and edit-box backgrounds
+* Add an optional dynamic message area that reuses the closed edit box's space with separate movement and background-fade easing
+* Add separate easing-style controls for chat-message fades and slide-in movement
+* Add optional active-tab highlighting and clearer tab interaction feedback
+* Reorganize settings with a dedicated Timestamps page and animation preview
+* Synchronize header fading and improve tab overflow and unread-message interactions
+* Prevent other addons from injecting actions into Glassy profile settings
+
+## 1.8.0 (2020-10-14)
+
+* Updated for Shadowlands
+
+## 1.7.0 (2020-09-29)
+
+* Add line indention support
+
+## 1.6.0 (2020-09-23)
+
+* Refactor gradient backgrounds (#109)
+* Refactor scroll overlay (#109)
+* Refactor new message alert (#109)
+* Refactor OnUpdate handler (#109)
+* Fix GMOTD not displaying (#110)
+* Add support for Prat's history module (#100)
+
+## 1.5.0 (2020-09-14)
+
+* Add more customization options (#107)
+* Add in-game changelog (#108)
+
+## 1.4.2 (2020-09-09)
+
+* Fix icons not sliding up (#99)
+* Fix messages not being displayed sometimes (#99)
+* Fix issues with scrolling after frame resize (#99)
+
+## 1.4.1 (2020-09-08)
+
+* Fix AceDB issues
+
+## 1.4.0 (2020-09-07)
+
+* Add classic support (#95)
+
+## 1.3.0 (2020-09-06)
+
+* Add support for third-party chat links (#90)
+* Improve scrolling behavior (#92)
+* Force chatStyle to classic (#94)
+
+## 1.2.1 (2020-09-01)
+
+* Fix conflict with ElvUI Mover
+
+## 1.2.0 (2020-08-31)
+
+* Major rearchitecture (#79)
+* Add support for new tab whisper mode (#80)
+
+## 1.1.1 (2020-08-26)
+
+* Fix text processing pipeline (#70)
+* Fix jittery animations (#71)
+* Fix dependency issues (#72)
+
+## 1.1.0 (2020-08-24)
+
+* Add "Unlock Window" option to context menu - SammyJames
+* Add support for Prat timestamps
+
+## 1.0.1 (2020-08-22)
+
+* Fix Battle.net toast position
+* Fix some icon textures being squished
+
+## 1.0.0 (2020-08-22)
+
+* Initial release

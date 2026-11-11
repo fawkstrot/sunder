@@ -1,0 +1,9 @@
+## Interface: 11509, 16001, 20506, 50504, 120100
+## Title: Sunder legacy data loader
+## Notes: Loads existing ROTBOT Forever settings for Sunder migration. Contains no addon code. Keep enabled for the first Sunder login and logout.
+## Author: Sunder contributors
+## Version: 0.9.11
+## SavedVariables: ROTBOTForeverDB
+## IconTexture: Interface\AddOns\Sunder\Media\Brand\SunderIcon
+
+# No executable files. Sunder is the only running implementation.

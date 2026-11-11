@@ -1,0 +1,9 @@
+<Bindings>
+  <Binding name="SUNDER_PROTECT_ITEM" header="SUNDER">
+    SunderToggleHoveredItem();
+  </Binding>
+  <!-- Compatibility action for keys already saved by the previous addon. -->
+  <Binding name="ROTBOT_FOREVER_PROTECT_ITEM" header="SUNDER">
+    SunderToggleHoveredItem();
+  </Binding>
+</Bindings>

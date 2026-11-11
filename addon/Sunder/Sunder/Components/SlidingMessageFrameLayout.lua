@@ -1,0 +1,264 @@
+local Core, Constants = unpack(select(2, ...))
+local TP = Core:GetModule("TextProcessing")
+local UIManager = Core:GetModule("UIManager")
+
+local LibEasing = Core.Libs.LibEasing
+local SlidingMessageFrameMixin = Core.Components.SlidingMessageFrameMixin
+local Helpers = Core.Components.SlidingMessageFrameHelpers
+
+local getMessageTopInset = Helpers.getMessageTopInset
+local getEditBoxEasing = Helpers.getEditBoxEasing
+local getMessageFrameHeight = Helpers.getMessageFrameHeight
+local DEFAULT_UNREAD_ROW_HEIGHT = 24
+
+function SlidingMessageFrameMixin:UpdateGapBackground()
+  local editBox = self.layoutEditBox
+  if editBox and editBox.ClipBackgroundToMessages then
+    editBox:ClipBackgroundToMessages(self)
+  end
+  local background = self.gapBackground
+  if self.whisperFullSurface then
+    for _, message in ipairs(self.state.messages) do message:SetBackgroundCoverage(1) end
+    background:SetAlpha(0)
+    return
+  end
+  local color = Core.db.profile.chatBackgroundColor
+  local window = self.chatFrame and UIManager:GetChatWindow(self.chatFrame)
+  local dock = self.whisperDock or (self.detachedContainer and window and window.detachedLayout and window.detachedLayout.dock)
+    or (not self.detachedContainer and UIManager.dock)
+  local filled = dock and dock:IsVisible() and dock:GetAlpha() > 0 and color.a > 0 or false
+  local coverage = filled and dock:GetAlpha() or 0
+  -- One continuous surface prevents holes as individual messages fade out.
+  for _, message in ipairs(self.state.messages) do
+    message:SetBackgroundCoverage(coverage)
+  end
+  background:SetAlpha(filled and dock:GetAlpha() or 0)
+  if not filled then return end
+  local height = math.min(self.config.height, self:GetHeight())
+  if not background.sunderAnchored then
+    -- The viewport already includes the configured spacing below the tabs.
+    background:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+    background:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, 0)
+    background.sunderAnchored = true
+  end
+  if background.sunderHeight ~= height then
+    background:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, -math.max(1, height))
+    background.sunderHeight = height
+  end
+  if background.sunderColor ~= color or background.sunderWidth ~= self:GetWidth()
+    or background.sunderLeftFade ~= Core.db.profile.backgroundFadeLeftPercent
+    or background.sunderRightFade ~= Core.db.profile.backgroundFadeRightPercent then
+    background:SetGradientBackground(color, color.a)
+    background.sunderColor = color
+    background.sunderWidth = self:GetWidth()
+    background.sunderLeftFade = Core.db.profile.backgroundFadeLeftPercent
+    background.sunderRightFade = Core.db.profile.backgroundFadeRightPercent
+  end
+end
+
+function SlidingMessageFrameMixin:GetLayoutWidth()
+  return math.max(
+    1,
+    tonumber(self.layoutWidth) or tonumber(Core.db.profile.frameWidth) or Core.defaults.profile.frameWidth
+  )
+end
+
+function SlidingMessageFrameMixin:GetNativeLayoutParent()
+  if self.chatFrame and self.chatFrame.isDocked and UIManager.container then
+    return UIManager.container
+  end
+  return self:GetParent()
+end
+
+function SlidingMessageFrameMixin:GetNativeLayoutWidth()
+  if self.chatFrame and self.chatFrame.isDocked then
+    return tonumber(Core.db.profile.frameWidth) or Core.defaults.profile.frameWidth
+  end
+  return self:GetLayoutWidth()
+end
+
+function SlidingMessageFrameMixin:KeepDetachedNativeLayout(method, ...)
+  local chatFrame = self.chatFrame
+  if chatFrame == nil or chatFrame.isDocked then
+    return false
+  end
+  if Constants.ENV ~= "retail" then
+    self.hooks[chatFrame][method](chatFrame, ...)
+  end
+  return true
+end
+
+function SlidingMessageFrameMixin:GetLayoutHeight()
+  return math.max(
+    1,
+    tonumber(self.layoutHeight) or tonumber(Core.db.profile.frameHeight) or Core.defaults.profile.frameHeight
+  )
+end
+
+function SlidingMessageFrameMixin:GetMessageFrameHeight()
+  local dockInset = self.whisperDock and math.max(0, self.whisperDock:GetHeight() - Constants.DOCK_HEIGHT) or 0
+  return math.max(1, getMessageFrameHeight(self.state.isCombatLog, self:GetLayoutHeight(), self.layoutEditBox) - dockInset)
+end
+
+function SlidingMessageFrameMixin:SetSunderShown(shown)
+  self:SetShown(shown)
+  if self.detachedContainer then
+    self.detachedContainer:SetShown(shown)
+  end
+end
+
+-- The pinned message sits on the slider's bottom edge. While scrolled back that edge stays above the
+-- return-to-latest row; at the bottom the pane extends below it so incoming lines can slide in.
+function SlidingMessageFrameMixin:UpdateViewportHeight(unreadRowHeight)
+  local viewHeight = self.config.height
+  if not self.state.scrollAtBottom then
+    local reservedHeight = unreadRowHeight
+    if reservedHeight == nil and self.overlay and self.overlay.GetUnreadRowHeight then
+      reservedHeight = self.overlay:GetUnreadRowHeight()
+    end
+    reservedHeight = math.max(0, tonumber(reservedHeight) or DEFAULT_UNREAD_ROW_HEIGHT)
+    viewHeight = math.max(1, viewHeight - reservedHeight)
+  end
+
+  local overflow = self.state.scrollAtBottom and not self.state.jumpingToBottom and self.config.overflowHeight or 0
+  self:SetHeight(viewHeight + overflow)
+  if self.slider then
+    local padding=math.max(0,math.min(32,tonumber(Core.db.profile.bodyPadding) or 12))
+    self.viewport:ClearAllPoints()
+    self.viewport:SetPoint("TOPLEFT",self,"TOPLEFT",0,-padding)
+    self.viewport:SetPoint("BOTTOMRIGHT",self,"BOTTOMRIGHT")
+    self.slider:SetHeight(math.max(1,viewHeight-padding*2))
+  end
+end
+
+function SlidingMessageFrameMixin:ApplyDynamicEditBoxHeight(nextHeight)
+  if self.config.height ~= nextHeight then
+    self.config.height = nextHeight
+    self:UpdateViewportHeight()
+  end
+  self.overlay:UpdateFrame()
+end
+
+function SlidingMessageFrameMixin:ApplyPendingDynamicEditBoxLayout()
+  local nextHeight = self.state.pendingEditBoxHeight
+  if nextHeight == nil then
+    return
+  end
+
+  self.state.pendingEditBoxHeight = nil
+  self:ApplyDynamicEditBoxHeight(nextHeight)
+end
+
+function SlidingMessageFrameMixin:CancelDynamicEditBoxLayout(applyTarget)
+  if self.state.editBoxEasingHandle then
+    LibEasing:StopEasing(self.state.editBoxEasingHandle)
+    self.state.editBoxEasingHandle = nil
+  end
+
+  local targetHeight = self.state.editBoxTargetHeight
+  self.state.editBoxTargetHeight = nil
+  if applyTarget and targetHeight then
+    self:ApplyDynamicEditBoxHeight(targetHeight)
+  end
+end
+
+function SlidingMessageFrameMixin:UpdateDynamicEditBoxLayout()
+  local nextHeight = self:GetMessageFrameHeight()
+  self:CancelDynamicEditBoxLayout(false)
+
+  -- Only the selected chat frame needs to resize immediately. Updating every
+  -- hidden tab here makes SendText synchronously recalculate all of their
+  -- scroll children and anchors, which can exceed Classic's script time limit.
+  if not self:IsShown() then
+    self.state.pendingEditBoxHeight = self.config.height ~= nextHeight and nextHeight or nil
+    return
+  end
+
+  self.state.pendingEditBoxHeight = nil
+  if self.config.height == nextHeight then
+    self.overlay:UpdateFrame()
+    return
+  end
+
+  self:StopScrollAnimation()
+  self:SetSlideOffset(0)
+
+  self.state.editBoxTargetHeight = nextHeight
+  self.state.editBoxEasingHandle = LibEasing:Ease(
+    function (height)
+      self:ApplyDynamicEditBoxHeight(height)
+    end,
+    self.config.height,
+    nextHeight,
+    math.max(0, math.min(5, tonumber(Core.db.profile[nextHeight < self.config.height and "editBoxFadeInDuration" or "editBoxFadeOutDuration"])
+      or Constants.EDIT_BOX_TRANSITION_DURATION)),
+    getEditBoxEasing(),
+    function ()
+      self.state.editBoxEasingHandle = nil
+      self.state.editBoxTargetHeight = nil
+    end
+  )
+end
+
+
+function SlidingMessageFrameMixin:RefreshLayout(reprocessText)
+  if self.state == nil or self.slider == nil then
+    return
+  end
+
+  self:CancelDynamicEditBoxLayout(false)
+  self.config.height = self:GetMessageFrameHeight()
+  self.config.width = self:GetLayoutWidth()
+
+  self:ClearAllPoints()
+  local dockInset = self.whisperDock and math.max(0, self.whisperDock:GetHeight() - Constants.DOCK_HEIGHT) or 0
+  self:SetPoint("TOPLEFT", 0, -getMessageTopInset(self.state.isCombatLog) - dockInset)
+  self:SetHeight(self.config.height + self.config.overflowHeight)
+  self:SetWidth(self.config.width)
+
+  for _, message in ipairs(self.state.messages) do
+    if reprocessText and message.sourceText then
+      local processedText = TP:ProcessText(message.sourceText, message.sourceFrame, message.receivedAt, message.sourceTypeID)
+      local r,g,b=TP:WhisperReplyStyle(message.sourceFrame,message.sourceTypeID)
+      if not r and message.sourceColor then r,g,b=unpack(message.sourceColor) end
+      if r then message.text:SetTextColor(r,g,b,1) end
+      message:SetDisplayText(processedText)
+    end
+    message:UpdateFrame()
+  end
+
+  self.slider:SetWidth(self.config.width)
+  self.overlay:UpdateFrame()
+  self:SetScrollPosition(1, 0)
+end
+
+function SlidingMessageFrameMixin:SetLayout(parent, width, height, editBox, detachedContainer)
+  local previousDetachedContainer = self.detachedContainer
+  self.layoutWidth = width
+  self.layoutHeight = height
+  self.layoutEditBox = editBox
+  self.detachedContainer = detachedContainer
+
+  self:SetParent(parent)
+  if self.gapBackground then
+    self.gapBackground:SetParent(parent)
+    self.gapBackground:SetFrameStrata(self:GetFrameStrata())
+    self.gapBackground:SetFrameLevel(math.max(0, self:GetFrameLevel() - 1))
+  end
+  self:RefreshLayout(false)
+
+  if Constants.ENV ~= "retail" and not self.state.isCombatLog then
+    if detachedContainer and self:IsShown() then
+      self.hooks[self.chatFrame].Show(self.chatFrame)
+    else
+      self.hooks[self.chatFrame].Hide(self.chatFrame)
+    end
+  end
+
+  if previousDetachedContainer and previousDetachedContainer ~= detachedContainer then
+    previousDetachedContainer:Hide()
+  end
+  if detachedContainer then
+    detachedContainer:SetShown(self:IsShown())
+  end
+end

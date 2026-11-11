@@ -1,0 +1,13 @@
+# Private machine state, deployment backups, generated releases
+.local/
+.venv/
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+# Never commit WoW account data or credentials
+WTF/
+SavedVariables/
+.env
+.env.*

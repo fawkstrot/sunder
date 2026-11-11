@@ -1,0 +1,118 @@
+## Title: Sunder
+## Plain Title: Sunder
+## Author: Sunder contributors; based on Glassy by Solessfir and Glass by mixxorz
+## Version: 0.9.11
+## Notes: Modular messaging and quality-of-life tools. Sunder Chat, Whispers, item protection, and optional Ellesmere integration.
+## IconTexture: Interface\AddOns\Sunder\Media\Brand\SunderIcon
+## Interface: 11509, 16001, 20506, 50504, 120100
+
+## Category-enUS: Chat
+## Category-deDE: Chat
+## Category-esES: Chat
+## Category-esMX: Chat
+## Category-frFR: Discussion
+## Category-itIT: Chat
+## Category-koKR: 대화
+## Category-ptBR: Bate-papo
+## Category-ruRU: Чат
+## Category-zhCN: 聊天
+## Category-zhTW: 對話
+
+## SavedVariables: SunderDB
+## OptionalDeps: EllesmereUI, ROTBOTForever, Runestone, Glassy
+
+# Libs
+libs\LibStub\LibStub.lua
+libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+libs\LibSharedMedia-3.0\lib.xml
+libs\AceGUI-3.0\AceGUI-3.0.xml
+
+libs\AceAddon-3.0\AceAddon-3.0.xml
+libs\AceConfig-3.0\AceConfig-3.0.xml
+libs\AceConsole-3.0\AceConsole-3.0.xml
+libs\AceDB-3.0\AceDB-3.0.xml
+libs\AceDBOptions-3.0\AceDBOptions-3.0.xml
+libs\AceGUI-3.0-SharedMediaWidgets\widget.xml
+libs\AceHook-3.0\AceHook-3.0.xml
+libs\lodash.wow\lodash.wow.xml
+libs\LibEasing\LibEasing.lua
+
+# Sunder
+Sunder\init.lua
+Sunder\Migration.lua
+Sunder\Localization.lua
+Sunder\Locales\deDE.lua
+Sunder\Locales\esES.lua
+Sunder\Locales\frFR.lua
+Sunder\Locales\itIT.lua
+Sunder\Locales\koKR.lua
+Sunder\Locales\ptBR.lua
+Sunder\Locales\ruRU.lua
+Sunder\Locales\zhCN.lua
+Sunder\Locales\zhTW.lua
+Sunder\constants.lua
+Sunder\utils.lua
+
+# Components
+Sunder\Components\ResizeHandle.lua
+Sunder\Components\GradientBackground.lua
+Sunder\Components\ChatDock.lua
+Sunder\Components\ChatDockTabs.lua
+Sunder\Components\DetachedChatDock.lua
+Sunder\Components\ChatTab.lua
+Sunder\Components\CombatLogBar.lua
+Sunder\Components\EditBox.lua
+Sunder\Components\EditBoxNative.lua
+Sunder\Components\FadingFrame.lua
+Sunder\Components\MainContainerFrame.lua
+Sunder\Components\MessageLine.lua
+Sunder\Components\MoverFrame.lua
+Sunder\Components\NewMessageAlertFrame.lua
+Sunder\Components\ScrollOverlayFrame.lua
+Sunder\Components\SlidingMessageFrame.lua
+Sunder\Components\SlidingMessageFrameLayout.lua
+Sunder\Components\SlidingMessageFrameNative.lua
+
+# Modules
+Sunder\Modules\Ellesmere.lua
+Sunder\Modules\EllesmereOptions.lua
+Sunder\Modules\ChatCopy.lua
+Sunder\Modules\Demo.lua
+Sunder\Modules\ProfileTransfer.lua
+Sunder\Modules\Config.lua
+Sunder\Modules\ConfigProfiles.lua
+Sunder\Modules\ConfigChatPages.lua
+Sunder\Modules\ConfigMessagePages.lua
+Sunder\Modules\ConfigSupportPages.lua
+Sunder\Modules\Fonts.lua
+Sunder\Modules\Hyperlinks.lua
+Sunder\Modules\NewsData.lua
+Sunder\Modules\News.lua
+Sunder\Modules\TextProcessing.lua
+Sunder\Modules\UIManager.lua
+Sunder\Modules\WhisperTabs.lua
+
+# Sunder platform and feature registration
+Sunder\Features.lua
+Sunder\Modules\Minimap.lua
+
+# Whisper feature
+Sunder\Modules\Whispers.lua
+Sunder\Modules\WhisperWorkspace.lua
+Sunder\Modules\WhisperHub.lua
+Sunder\Modules\WhispersOptions.lua
+Sunder\Modules\Appearance.lua
+Sunder\Modules\WhisperPreview.lua
+
+Sunder\Modules\WhisperPeople.lua
+
+Sunder\Modules\WhisperFeedback.lua
+
+Sunder\Modules\WhisperReply.lua
+
+Sunder\Modules\WhisperUnified.lua
+
+Sunder\Modules\ItemProtection.lua
+Bindings.xml
+
+Sunder\Modules\EllesmereEditMode.lua
