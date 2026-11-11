@@ -1,13 +1,13 @@
 # Releasing Sunder
 
-CurseForge project: **1798860** (private). Current addon version: **0.9.11**. GitHub remote and publishing credentials are not yet configured. Nothing publishes on a normal commit or push.
+CurseForge project: **1798860** (private). Current addon version: **0.9.11**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
 
 ## One-time setup
 
 1. Create an empty GitHub repository, without an initial README/license/gitignore, to preserve this repository's history. Add its real URL as `origin`, push the existing branch, and make that branch the GitHub default. Set `githubRepository` in `release.json` to the actual `owner/repository`.
 2. Enable GitHub Issues. Point CurseForge's Source and Issues links to the repository and its `/issues` page. Local issue forms and the pull-request template become available after pushing the default branch.
 3. Create a GitHub Actions environment named `release`. Add a secret there named `CURSEFORGE_API_TOKEN`, using your CurseForge upload token. Never paste it into chat, commit it, or put it in command arguments. Optionally require a reviewer for this environment if your GitHub plan supports it.
-4. Confirm actual supported clients in-game. Select their official CurseForge game-version IDs in `release.json` or supply them when running the release workflow. The array is intentionally empty until verified; inherited TOC numbers and WoW Forever testing do not establish Retail/Classic compatibility. Official IDs come from the CurseForge Upload API game-version endpoint, not the Interface number.
+4. Confirm actual supported clients in-game. The tested target is WoW Forever 1.60.1. `gameVersionNames` in `release.json` records that selection. During upload, the workflow queries CurseForge’s live game-version list to resolve the selected names to IDs. It fails on missing or ambiguous names; it never silently selects a newer, untested patch. Numeric IDs remain an optional override. Inherited TOC numbers do not establish Retail/Classic compatibility.
 5. Keep CurseForge's separate repository/webhook auto-packaging disabled when using this workflow, so two systems cannot publish the same release.
 
 ## Track work
@@ -24,7 +24,7 @@ CurseForge project: **1798860** (private). Current addon version: **0.9.11**. Gi
 3. Inspect `dist/Sunder-<version>.zip` (only `Sunder/`) and `dist/Sunder-<version>-upgrade.zip` (Sunder plus metadata-only ROTBOTForever). Smoke-test the intended client: saved-data reload, slash commands, minimap, standalone settings, optional Ellesmere Edit UI, whisper/reply/history, item protection and bank sorting.
 4. Commit reviewed changes, create an annotated `v<version>` tag on that commit, and push the branch and tag. Do not move published version tags; fix mistakes with a new version.
 5. In GitHub Actions, run **Release Sunder**, entering the existing tag. Leave **publish_curseforge** off for the first rehearsal. It reruns checks, builds both ZIPs and creates a **draft** GitHub release with the curated notes and checksums. Review that draft before publishing it on GitHub.
-6. For the intended upload run, enable **publish_curseforge** and provide verified game-version IDs, or configure them beforehand. Use a fresh release run only after removing an unused rehearsal draft: an existing GitHub release deliberately stops the workflow before the upload step. Never blindly rerun after a possible upload; inspect CurseForge files first to avoid duplicates.
+6. For the intended upload run, enable **publish_curseforge** and leave numeric IDs empty and use `1.60.1` in the version-names field. The workflow refreshes an existing draft and refuses to modify a published GitHub release. Current release tooling packages the exact existing tag from a separate checkout, so tooling fixes do not require moving version tags. Never blindly rerun after a possible upload; inspect CurseForge files first to avoid duplicates.
 7. CurseForge receives only the clean ZIP, the same curated notes, and alpha/beta/release type inferred from the version. CurseForge approval/visibility still applies. GitHub's draft publication is a separate deliberate step.
 
 The release command uploads only from a clean working tree at the matching committed tag. Version tags such as `0.10.0-alpha.1` or `0.10.0-beta.1` are classified appropriately; ordinary versions are releases.

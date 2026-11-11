@@ -11,8 +11,12 @@ on:
         type: boolean
         default: false
       game_version_ids:
-        description: Verified CurseForge game-version IDs, comma-separated (required for upload)
+        description: Optional numeric ID override; normally leave empty
         type: string
+      game_version_names:
+        description: Supported CurseForge versions; resolved against its live version list
+        type: string
+        default: 1.60.1
 permissions:
   contents: write
 concurrency:
@@ -23,34 +27,46 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     steps:
+      # Keep release tooling current while packaging the exact existing tag.
+      - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
+          path: release-source
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
-      - run: python tools/sunder.py test
+      - run: python release-source/tools/sunder.py test
       - name: Prepare checked artifacts and curated changelog
         env:
           TAG: ${{ inputs.tag }}
-        run: python tools/release.py prepare --tag "$TAG"
+        run: python tools/release.py prepare --root release-source --tag "$TAG"
       - uses: actions/upload-artifact@v4
         with:
           name: Sunder-${{ inputs.tag }}
-          path: dist/
-      - name: Create draft GitHub release
+          path: release-source/dist/
+      - name: Create or refresh draft GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
-        run: gh release create "$TAG" dist/*.zip dist/release-manifest.json --verify-tag --draft --title "Sunder $TAG" --notes-file dist/release-notes.md
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$TAG" --json isDraft > /tmp/sunder-release.json; then
+            python -c 'import json; assert json.load(open("/tmp/sunder-release.json"))["isDraft"], "Refusing to modify a published release"'
+            gh release upload "$TAG" release-source/dist/*.zip release-source/dist/release-manifest.json --clobber
+            gh release edit "$TAG" --notes-file release-source/dist/release-notes.md
+          else
+            gh release create "$TAG" release-source/dist/*.zip release-source/dist/release-manifest.json --verify-tag --draft --title "Sunder $TAG" --notes-file release-source/dist/release-notes.md
+          fi
       - name: Upload clean package to CurseForge
         if: ${{ inputs.publish_curseforge }}
         env:
           CURSEFORGE_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
           TAG: ${{ inputs.tag }}
           GAME_VERSION_IDS: ${{ inputs.game_version_ids }}
-        run: python tools/release.py publish --tag "$TAG" --game-versions "$GAME_VERSION_IDS"
+          GAME_VERSION_NAMES: ${{ inputs.game_version_names }}
+        run: python tools/release.py publish --root release-source --tag "$TAG" --game-versions "$GAME_VERSION_IDS" --game-version-names "$GAME_VERSION_NAMES"

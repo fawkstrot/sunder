@@ -1,5 +1,8 @@
 {
   "curseforgeProjectId": 1798860,
   "githubRepository": "fawkstrot/sunder",
-  "gameVersionIds": []
+  "gameVersionIds": [],
+  "gameVersionNames": [
+    "1.60.1"
+  ]
 }

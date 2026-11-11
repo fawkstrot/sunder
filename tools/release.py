@@ -27,7 +27,25 @@ def prepare(tag):
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None
 
-def publish(tag,versions):
+def resolve_versions(names, token):
+    if not names:
+        raise ValueError('Choose supported game-version names before uploading.')
+    request=urllib.request.Request('https://wow.curseforge.com/api/game/versions',headers={'X-Api-Token':token})
+    try:
+        with urllib.request.build_opener(NoRedirect).open(request,timeout=30) as response:
+            available=json.load(response)
+    except Exception:
+        raise RuntimeError('Could not retrieve CurseForge game versions. Nothing uploaded; check API access.') from None
+    ids=[]
+    for name in names:
+        matches=[v for v in available if v.get('name')==name]
+        if len(matches)!=1 or type(matches[0].get('id'))!=int or matches[0]['id']<=0:
+            raise ValueError('CurseForge version is unavailable or ambiguous: '+name)
+        ids.append(matches[0]['id'])
+    print('Resolved CurseForge versions: '+', '.join(names))
+    return ids
+
+def publish(tag,versions,names=None):
     # Publishing always uses a committed tag. Ordinary branches/dirty working trees cannot upload.
     if subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip():raise ValueError('Commit the working tree before publishing.')
     head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
@@ -36,9 +54,10 @@ def publish(tag,versions):
     token=os.environ.get('CURSEFORGE_API_TOKEN')
     if not token:raise ValueError('Set the CURSEFORGE_API_TOKEN environment secret; never put tokens in source or command arguments.')
     metadata,archive,config=prepare(tag)
-    ids=versions or config['gameVersionIds']
+    ids=versions or config['gameVersionIds'] or resolve_versions(names or config.get('gameVersionNames',[]),token)
     if not ids or any(type(v)!=int or v<=0 for v in ids):raise ValueError('Provide verified CurseForge game-version IDs before uploading.')
     metadata['gameVersions']=ids
+    (ROOT/'dist/curseforge-metadata.json').write_text(json.dumps(metadata,indent=2)+'\n',encoding='utf-8')
     boundary='sunder-'+uuid.uuid4().hex
     body=(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\n\r\n'.encode()+json.dumps(metadata).encode()+f'\r\n--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{archive.name}"\r\nContent-Type: application/zip\r\n\r\n'.encode()+archive.read_bytes()+f'\r\n--{boundary}--\r\n'.encode())
     url=f"https://wow.curseforge.com/api/projects/{config['curseforgeProjectId']}/upload-file"
@@ -48,7 +67,9 @@ def publish(tag,versions):
     except Exception as exc:raise RuntimeError('CurseForge upload failed; no token or server response has been logged. Check the project, token and current upload API endpoint.')from None
     print('CurseForge upload accepted; file ID: '+str(result.get('id','unknown')))
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['prepare','publish']);parser.add_argument('--tag',required=True);parser.add_argument('--game-versions',default='')
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['prepare','publish']);parser.add_argument('--tag',required=True);parser.add_argument('--game-versions',default='');parser.add_argument('--game-version-names',default='');parser.add_argument('--root',type=Path)
     args=parser.parse_args()
+    if args.root:
+        ROOT=args.root.resolve();tools.ROOT=ROOT;tools.ADDON=ROOT/'addon/Sunder';tools.COMPAT=ROOT/'compat/ROTBOTForever'
     if args.command=='prepare':prepare(args.tag)
-    else:publish(args.tag,[int(v.strip())for v in args.game_versions.split(',')if v.strip()])
+    else:publish(args.tag,[int(v.strip())for v in args.game_versions.split(',')if v.strip()],[v.strip()for v in args.game_version_names.split(',')if v.strip()])
