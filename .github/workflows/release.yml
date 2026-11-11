@@ -31,6 +31,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+          cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
       - run: python tools/sunder.py test
       - name: Prepare checked artifacts and curated changelog
