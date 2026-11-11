@@ -1,8 +1,8 @@
 # CurseForge project setup
 
-The source layout and release artifacts are ready; no project has been created or published automatically.
+Project **1798860** has been created and is private. Its ID is configured in `release.json` and the addon TOC. Nothing has been uploaded or published automatically. Follow [Releasing Sunder](RELEASING.md) for GitHub setup, issue tracking, changelogs, credentials and manual publishing.
 
-## Create the project
+## Project checklist
 
 1. Open [Create a Project](https://authors.curseforge.com/#/projects/create/choose-game), sign in yourself, and select World of Warcraft / Addons.
 2. Use **Sunder** as the project name. Suggested short summary: **Smooth chat, unified Whispers, item protection, and modular quality-of-life tools.**
@@ -11,7 +11,7 @@ The source layout and release artifacts are ready; no project has been created o
 5. Use `docs/CURSEFORGE_DESCRIPTION.md` as the initial long description, then add real in-game screenshots after the rebrand is validated.
 6. Provide the real source/issue links once the Git repository is hosted. Do not send Sunder bugs to the upstream Glassy tracker.
 7. Upload the tested clean `dist/Sunder-0.9.11.zip` with the matching client/game version tags. Before public submission, confirm which official WoW versions have actually been tested: this project was developed on WoW Forever, and its inherited Interface metadata is not proof of Retail/Classic compatibility. Do not invent a Forever game-version tag or claim client support merely to satisfy the upload form.
-8. Save the assigned project ID for later release automation. The repository currently uses its own packaging tool; `.pkgmeta` auto-packaging is intentionally not enabled for this source-root layout. Do not upload the entire Git repository as an addon ZIP.
+8. Project ID **1798860** is configured for release automation. The repository currently uses its own packaging tool; `.pkgmeta` auto-packaging is intentionally not enabled for this source-root layout. Do not upload the entire Git repository as an addon ZIP.
 
 For existing ROTBOT installations, provide the separate manual upgrade bundle and migration instructions through the first transition. The ordinary clean ZIP contains only Sunder; it cannot load an old SavedVariables file by itself. Subsequent addon-manager updates work from Sunder's own database.
 
@@ -23,6 +23,9 @@ For existing ROTBOT installations, provide the separate manual upgrade bundle an
 - Clean release ZIP: `dist/Sunder-0.9.11.zip`.
 - First-upgrade bundle: `dist/Sunder-0.9.11-upgrade.zip`.
 - Checks/build artifacts: `.github/workflows/ci.yml`.
+- Manual tagged releases: `.github/workflows/release.yml`.
+- Canonical release notes: `addon/Sunder/CHANGELOG.md`.
+- Project and supported-version configuration: `release.json`.
 
 ## Reference
 

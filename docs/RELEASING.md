@@ -1,17 +1,42 @@
 # Releasing Sunder
 
-Current version: **0.9.11**. No GitHub remote or CurseForge project ID is configured yet.
+CurseForge project: **1798860** (private). Current addon version: **0.9.11**. GitHub remote and publishing credentials are not yet configured. Nothing publishes on a normal commit or push.
 
-1. Review changes and run `python tools/sunder.py test`.
-2. Update `addon/Sunder/Sunder.toc`, the metadata-only loader version, changelog and in-game news when appropriate. Never reset user database versions merely for branding.
-3. Run `python tools/sunder.py package`.
-4. Inspect `dist/Sunder-<version>.zip`: its only root is `Sunder/`, containing `Sunder.toc`, `Sunder/`, `Media/`, libraries and notices. This is the normal distribution artifact.
-5. Inspect `dist/Sunder-<version>-upgrade.zip`: roots are `Sunder/` and the data-only `ROTBOTForever/`. This is the manual first-upgrade bundle for previous installations; local deployment uses the same two folders.
-6. Smoke-test the intended client, including real saved-data reload, slash commands, minimap icon, standalone settings, optional Ellesmere Edit UI, a real whisper/reply/history reload, item locking and bank sorting.
-7. Commit the reviewed change, tag `v<version>` if desired, and publish deliberately. CI attaches tested ZIP artifacts to its run; it does not publish to CurseForge or create projects.
+## One-time setup
 
-Artifacts are deterministic (sorted files/fixed ZIP timestamps) and accompanied by a SHA-256 file manifest. Development tests, artwork masters, deployment scripts, private backups and account data do not go in release ZIPs.
+1. Create an empty GitHub repository, without an initial README/license/gitignore, to preserve this repository's history. Add its real URL as `origin`, push the existing branch, and make that branch the GitHub default. Set `githubRepository` in `release.json` to the actual `owner/repository`.
+2. Enable GitHub Issues. Point CurseForge's Source and Issues links to the repository and its `/issues` page. Local issue forms and the pull-request template become available after pushing the default branch.
+3. Create a GitHub Actions environment named `release`. Add a secret there named `CURSEFORGE_API_TOKEN`, using your CurseForge upload token. Never paste it into chat, commit it, or put it in command arguments. Optionally require a reviewer for this environment if your GitHub plan supports it.
+4. Confirm actual supported clients in-game. Select their official CurseForge game-version IDs in `release.json` or supply them when running the release workflow. The array is intentionally empty until verified; inherited TOC numbers and WoW Forever testing do not establish Retail/Classic compatibility. Official IDs come from the CurseForge Upload API game-version endpoint, not the Interface number.
+5. Keep CurseForge's separate repository/webhook auto-packaging disabled when using this workflow, so two systems cannot publish the same release.
 
-The GitHub workflow is prepared for a future remote. Add it with `git remote add origin <your-repository-url>` only after that repository exists. No CurseForge upload token or secret belongs in this repository. Add the actual project ID and automation integration only after project creation and first-file approval.
+## Track work
 
-A normal distribution ZIP is deliberately a single addon root. Existing pre-Sunder users should run the upgrade bundle once and verify a successful Sunder login/logout before using ordinary addon-manager updates. Do not advertise the clean ZIP as importing old SavedVariables without a loader.
+- Open an issue describing a bug or feature; use a small branch and a pull request for its implementation.
+- Reference the issue in the PR; `Fixes #123` closes the issue when merged into the default branch. Label issues by feature and use a milestone for a planned release if helpful.
+- Add meaningful player-facing changes under `# Unreleased` in `addon/Sunder/CHANGELOG.md`. Link relevant issue/PR numbers. Git commit messages provide implementation history; release notes are curated for players.
+- Run `python tools/sunder.py test` and record real in-game checks separately. Automated CI also validates pull requests and builds installable artifacts.
+
+## Cut a release
+
+1. Move Unreleased entries into `# <version> (YYYY-MM-DD)` in the canonical changelog. Update `addon/Sunder/Sunder.toc` and `compat/ROTBOTForever/ROTBOTForever.toc` together; update in-game news where appropriate. Do not reset database schema versions for a normal release.
+2. Run `python tools/sunder.py test`, then `python tools/release.py prepare --tag v<version>`. Preparation does not upload anything. It rejects inconsistent versions or project IDs and extracts only that version's changelog section.
+3. Inspect `dist/Sunder-<version>.zip` (only `Sunder/`) and `dist/Sunder-<version>-upgrade.zip` (Sunder plus metadata-only ROTBOTForever). Smoke-test the intended client: saved-data reload, slash commands, minimap, standalone settings, optional Ellesmere Edit UI, whisper/reply/history, item protection and bank sorting.
+4. Commit reviewed changes, create an annotated `v<version>` tag on that commit, and push the branch and tag. Do not move published version tags; fix mistakes with a new version.
+5. In GitHub Actions, run **Release Sunder**, entering the existing tag. Leave **publish_curseforge** off for the first rehearsal. It reruns checks, builds both ZIPs and creates a **draft** GitHub release with the curated notes and checksums. Review that draft before publishing it on GitHub.
+6. For the intended upload run, enable **publish_curseforge** and provide verified game-version IDs, or configure them beforehand. Use a fresh release run only after removing an unused rehearsal draft: an existing GitHub release deliberately stops the workflow before the upload step. Never blindly rerun after a possible upload; inspect CurseForge files first to avoid duplicates.
+7. CurseForge receives only the clean ZIP, the same curated notes, and alpha/beta/release type inferred from the version. CurseForge approval/visibility still applies. GitHub's draft publication is a separate deliberate step.
+
+The release command uploads only from a clean working tree at the matching committed tag. Version tags such as `0.10.0-alpha.1` or `0.10.0-beta.1` are classified appropriately; ordinary versions are releases.
+
+## Artifacts and migration
+
+`dist/release-notes.md`, `curseforge-metadata.json` and `release-manifest.json` describe the release. ZIPs are deterministic and accompanied by file hashes. Tests, artwork masters, tooling, private backups and account data are excluded.
+
+The first-upgrade bundle is attached to GitHub for manual migration, not sent as the ordinary CurseForge artifact. Existing ROTBOT users must install the upgrade loader once and verify a successful Sunder login/logout before normal addon-manager updates. The clean ZIP cannot import legacy SavedVariables by itself. See [migration](MIGRATION.md).
+
+## Current verification limits
+
+Local automated packaging and safety checks are available. GitHub Actions execution, authentication, actual CurseForge upload/approval and official-client support remain unverified until the remote, secret and supported versions are supplied.
+
+API reference: [CurseForge Upload API](https://support.curseforge.com/support/solutions/articles/9000197321-curseforge-upload-api).

@@ -1,0 +1,55 @@
+name: Release Sunder
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag matching the addon version (for example v0.9.11)
+        required: true
+        type: string
+      publish_curseforge:
+        description: Upload the tested clean ZIP to CurseForge
+        type: boolean
+        default: false
+      game_version_ids:
+        description: Verified CurseForge game-version IDs, comma-separated (required for upload)
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: sunder-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python tools/sunder.py test
+      - name: Prepare checked artifacts and curated changelog
+        env:
+          TAG: ${{ inputs.tag }}
+        run: python tools/release.py prepare --tag "$TAG"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sunder-${{ inputs.tag }}
+          path: dist/
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release create "$TAG" dist/*.zip dist/release-manifest.json --verify-tag --draft --title "Sunder $TAG" --notes-file dist/release-notes.md
+      - name: Upload clean package to CurseForge
+        if: ${{ inputs.publish_curseforge }}
+        env:
+          CURSEFORGE_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          GAME_VERSION_IDS: ${{ inputs.game_version_ids }}
+        run: python tools/release.py publish --tag "$TAG" --game-versions "$GAME_VERSION_IDS"

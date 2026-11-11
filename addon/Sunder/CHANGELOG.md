@@ -1,3 +1,15 @@
+# Unreleased
+
+Record player-facing changes here while developing; move them into a versioned section before releasing. Include related issue/PR numbers once GitHub is connected.
+
+# 0.9.11 (2026-11-11)
+
+- Rebrand the modular addon as Sunder, with a fractured-stone emblem for the minimap, addon list and settings.
+- Preserve profiles, messages, favorites, item protection and window state through the data-only upgrade loader.
+- Add /sunder, a conflict-aware /sun alias, and compatibility for previous commands, keybindings and profile imports.
+- Establish checked local deployment, reproducible packaging and regression checks in the dedicated Git repository.
+- Preserve unified Whispers, shared content padding, item protection, bank-sort compatibility and optional Ellesmere Edit UI integration.
+
 # 0.9.10
 
 - Filter Ellesmere detached-chat mover registration using actual configured/open slot metadata, rather than UIManager's initialized flag.

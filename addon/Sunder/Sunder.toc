@@ -2,6 +2,7 @@
 ## Plain Title: Sunder
 ## Author: Sunder contributors; based on Glassy by Solessfir and Glass by mixxorz
 ## Version: 0.9.11
+## X-Curse-Project-ID: 1798860
 ## Notes: Modular messaging and quality-of-life tools. Sunder Chat, Whispers, item protection, and optional Ellesmere integration.
 ## IconTexture: Interface\AddOns\Sunder\Media\Brand\SunderIcon
 ## Interface: 11509, 16001, 20506, 50504, 120100

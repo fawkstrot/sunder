@@ -31,8 +31,9 @@ def check():
     assert not any(line.strip() and not line.startswith('#') for line in (COMPAT/'ROTBOTForever.toc').read_text().splitlines()),'Legacy loader must contain metadata only'
     from PIL import Image
     for name,size in [('SunderIcon',256),('SunderMinimap',64),('SunderSettings',512)]:
-        p=ADDON/'Media/Brand'/f'{name}.tga';im=Image.open(p)
-        assert im.size==(size,size) and im.mode=='RGBA'
+        p=ADDON/'Media/Brand'/f'{name}.tga'
+        with Image.open(p) as im:
+            assert im.size==(size,size) and im.mode=='RGBA'
         assert p.read_bytes()[2]==2,'WoW textures must be uncompressed true-color TGA'
     allowed={'Migration.lua','Config.lua','ItemProtection.lua','ProfileTransfer.lua','Bindings.xml','Sunder.toc'}
     for p in (ADDON/'Sunder').rglob('*.lua'):
@@ -47,7 +48,7 @@ def tests():
         if result.returncode:
             print(result.stdout);raise RuntimeError(f'Regression failed: {case}')
         print(f'PASS {case}')
-    for case in ('test_migration.py','test_workflow.py'):
+    for case in ('test_migration.py','test_workflow.py','test_release.py'):
         subprocess.run([sys.executable,str(ROOT/'tests'/case)],cwd=ROOT,env=env,check=True)
 def package():
     check();out=ROOT/'dist';out.mkdir(exist_ok=True)

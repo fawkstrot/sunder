@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible problem in Sunder.
+title: "[Bug]: "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Sunder version
+      placeholder: 0.9.11
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: WoW client and build
+      description: Include the client variant and exact build number.
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Affected area
+      options: [Chat, Whispers, Item Protection, Ellesmere integration, Settings or migration, Other]
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps and observed behavior
+      description: Explain what you expected and what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: addons
+    attributes:
+      label: Relevant addons
+      description: Include Ellesmere/bag addon versions and whether the problem occurs without them.
+  - type: textarea
+    id: errors
+    attributes:
+      label: Error text or screenshots
+      description: Remove private conversations, account details and credentials before attaching anything.
