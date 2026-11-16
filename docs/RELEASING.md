@@ -47,3 +47,5 @@ API reference: [CurseForge Upload API](https://support.curseforge.com/support/so
 
 
 2026-11-16: **0.10.0-alpha.1** uploaded successfully as **Alpha**, CurseForge file **9652042**, Forever **1.60.1**, through [Release Sunder run 43922901392](https://github.com/fawkstrot/sunder/actions/runs/43922901392). GitHub release is a draft prerelease with checked ZIPs/manifest; it remains unpublished. CurseForge review/public visibility is not yet confirmed. Do not upload this version again. See CONTEXT.md for commit/checksum and native-validation limits.
+
+2026-11-16: CurseForge accepted **0.10.0-alpha.2** as **Alpha** for WoW Forever **1.60.1**, file **9656593**. The [upload run](https://github.com/fawkstrot/sunder/actions/runs/43972843929) used the tagged commit b0c0f4b. Keep the GitHub prerelease in draft. Public visibility on CurseForge has not been independently confirmed.
