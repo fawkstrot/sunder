@@ -36,3 +36,6 @@ Review live project forms at submission time; no credentials, project IDs or rem
 ## Alpha channel
 
 The next upload is **0.10.0-alpha.1**, explicitly checked as `releaseType: alpha`. The bare 0.9.11 version was classified Release by the uploader. Select Alpha plus the matching suffixed version in Release Sunder; GitHub remains a draft prerelease. Upload acceptance and CurseForge review/public availability are separate statuses. See CONTEXT.md for actual run results.
+
+
+2026-11-16: **0.10.0-alpha.1** uploaded successfully as **Alpha**, CurseForge file **9652042**, Forever **1.60.1**, through [Release Sunder run 43922901392](https://github.com/fawkstrot/sunder/actions/runs/43922901392). GitHub release is a draft prerelease with checked ZIPs/manifest; it remains unpublished. CurseForge review/public visibility is not yet confirmed. Do not upload this version again. See CONTEXT.md for commit/checksum and native-validation limits.

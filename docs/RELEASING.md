@@ -44,3 +44,6 @@ The first-upgrade bundle is attached to GitHub for manual migration, not sent as
 Local tests passed; the user confirmed green GitHub checks and a successful CurseForge upload. CurseForge approval/public availability and publication of the GitHub draft remain unconfirmed. Only WoW Forever is tested; Retail and other Classic flavors remain unverified. Native behavior still needs the in-game smoke checks above.
 
 API reference: [CurseForge Upload API](https://support.curseforge.com/support/solutions/articles/9000197321-curseforge-upload-api).
+
+
+2026-11-16: **0.10.0-alpha.1** uploaded successfully as **Alpha**, CurseForge file **9652042**, Forever **1.60.1**, through [Release Sunder run 43922901392](https://github.com/fawkstrot/sunder/actions/runs/43922901392). GitHub release is a draft prerelease with checked ZIPs/manifest; it remains unpublished. CurseForge review/public visibility is not yet confirmed. Do not upload this version again. See CONTEXT.md for commit/checksum and native-validation limits.
