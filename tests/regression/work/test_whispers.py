@@ -24,8 +24,13 @@ function object(kind,name,parent)
 end
 function CreateFrame(kind,name,parent) local f=object(kind,name,parent); if name then _G[name]=f end; return f end
 function methods:GetName() return self.name end
+function methods:RegisterEvent(event)self.events=self.events or {};self.events[event]=true end
 function methods:SetToplevel() end
 function methods:SetWordWrap() end
+function methods:SetJustifyV(value)self.justifyV=value end
+function methods:GetFont()return unpack(self.font or {"Fonts/FRIZQT__.TTF",12,""})end
+function methods:SetFont(path,size,flags)self.font={path,size,flags};return true end
+function methods:SetTextColor(...)self.textColor={...}end
 function methods:SetEnabled(value) self.disabled=not value;local f=self.scripts[value and "OnEnable" or "OnDisable"];if f then f(self) end end
 function methods:Enable() self:SetEnabled(true) end
 function methods:Disable() self:SetEnabled(false) end
@@ -130,7 +135,7 @@ end
 ui.container=CreateFrame("Frame",nil,UIParent);ui.container:SetSize(600,250)
 ''')
 lua.execute('Core:GetModule("Config").Pages={messages=function() return {args={section1={args={}}}} end}')
-for name in ['Components/ResizeHandle.lua','Modules/Whispers.lua','Modules/WhisperWorkspace.lua','Modules/WhisperHub.lua','Modules/WhispersOptions.lua','Modules/UIManager.lua']:
+for name in ['Components/WindowManager.lua','Components/ResizeHandle.lua','Modules/Whispers.lua','Modules/WhisperWorkspace.lua','Modules/WhisperHub.lua','Modules/WhispersOptions.lua','Modules/UIManager.lua']:
     lua.execute(root.joinpath(name).read_text(encoding='utf-8'), 'Sunder', lua.globals().vars)
 lua.execute('''
 Core.db.profile.whispers=clone(Core.defaults.profile.whispers)

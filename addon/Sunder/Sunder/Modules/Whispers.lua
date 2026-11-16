@@ -4,7 +4,7 @@ local W = Core:GetModule("Whispers")
 Core.defaults.profile.whispers = {
   idleWhisperAction = "minimize",
   minimizedPreviewUntilRead = true, minimizedPreviews = true, minimizedPreviewRows = 5, minimizedPreviewTime = 20,
-  conversationLayout = "list", conversationListRatio = 30, singleRowHeader = false, hubMatchChat = true, hubUseChatFade = true,
+  conversationLayout = "list", singleRowHeader = false, hubMatchChat = true, hubUseChatFade = true,
   headerFont = "INHERIT", headerFontFlags = "", headerFontSize = 14, tabFontSize = 12,
   toolbarIconSize = 19, headerPadding = 7, toolbarSpacing = 3,
   conversationTabWidth = 170, conversationTabHeight = 28, tabPadding = 6,
@@ -68,6 +68,17 @@ function W:ConversationName(frame)
   return native and native.Text and native.Text:GetText() or "Whisper"
 end
 
+function W:HasConversationHistory(frame)
+  local record=self.records and self.records[frame]
+  if record and record.hasMessages then return true end
+  local count=frame.GetNumMessages and frame:GetNumMessages()
+  if count==nil then return true end -- Unknown native capability: do not hide real data.
+  if count>0 then return true end
+  local history=Core:GetModule("WhisperTabs",true)
+  local key=history and history.ArchiveKey and history:ArchiveKey(frame)
+  local entry=key and history:ImportArchive()[key]
+  return entry and #(entry.lines or {})>0 or false
+end
 function W:Record(frame)
   if not self:IsWhisper(frame) then return nil end
   self.records = self.records or {}
@@ -76,7 +87,7 @@ function W:Record(frame)
     local key = self:Key(frame)
     local saved = key and Core.db.char.whisperLayouts and Core.db.char.whisperLayouts[key]
     r = {frame = frame, key = key, unread = 0, lastActivity = GetTime(),
-      pinned = saved and saved.pinned or false, saved = saved}
+      pinned = saved and saved.pinned or key and Core.db.char.whisperPeoplePins and Core.db.char.whisperPeoplePins[key] or false, saved = saved}
     self.records[frame] = r
   end
   return r
@@ -164,9 +175,9 @@ function W:OnNativeMessage(frame, typeID, messageArgs)
   if not self.ready or not self:Settings().enabled or not self:IsWhisper(frame) then return end
   local displayed=self:IsConversationDisplayed(frame)
   local history=Core:GetModule("WhisperTabs",true)
-  if history and history.ScheduleSave then history:ScheduleSave() end
+  if history and history.ScheduleSave then history:ScheduleSave(frame) end
   local r = self:Record(frame)
-  r.lastActivity = GetTime()
+  r.lastActivity = GetTime();r.hasMessages=true
   if self.previewActive then self:StopPreview() end
   local incoming = accessible(typeID) and typeID ~= nil and ChatTypeInfo
     and (typeID == ChatTypeInfo.WHISPER.id or typeID == ChatTypeInfo.BN_WHISPER.id)
@@ -194,6 +205,12 @@ function W:OnWindowOpened(frame)
     if self:Settings().mode == "inline" then destination = "main" end
     r.workspace = r.saved and r.saved.workspace or "messages"
     self:Place(frame, destination, false)
+    local history=Core:GetModule("WhisperTabs",true)
+    if history and history.OnConversationOpened then
+      local key=history:ArchiveKey(frame)
+      if key and history.deletedHistory and not history.restoreInProgress then history.deletedHistory[key]=nil end
+      history:OnConversationOpened(frame)
+    end
     local window = Core:GetModule("UIManager"):GetChatWindow(frame)
     local editBox = window and window.editBox
     if editBox and not editBox.sunderWhisperFocusHook then
@@ -278,8 +295,9 @@ function W:SelectConversation(frame, reply)
   if not window then return end
   if r.placement == "hub" then
     local host = self:HubFor(frame)
-    if host.minimized then host:SetMinimized(false) end
     host.selected = frame
+    if host.UsesUnifiedPeople and host:UsesUnifiedPeople() and self:IsFavorite(frame) and not self:HasConversationHistory(frame)then host:SetPeopleFilter("favorites")end
+    if host.minimized then host:SetMinimized(false) end
     host:RefreshHubSelection()
   elseif frame.isDocked then FCF_SelectDockFrame(frame) end
   self:Reveal(frame)
@@ -291,8 +309,21 @@ function W:SelectConversation(frame, reply)
     if open then open("", frame) end
   else
     local setLast = util and util.SetLastActiveWindow or _G.ChatEdit_SetLastActiveWindow
-    if setLast and not (GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()) then setLast(window.editBox) end
+    local ui=Core:GetModule("UIManager")
+    local focus=GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+    local chatFocus=false
+    for _,candidate in pairs(ui.state.windows) do
+      if candidate.editBox==focus and focus then chatFocus=true;break end
+    end
+    -- A conversation click chooses its native input even if General owned it.
+    -- Search fields and other non-chat inputs keep their focus and drafts.
+    if setLast and (not focus or chatFocus) then
+      local input=ui:GetLayoutEditBox(window)
+      if input then setLast(input) end
+    end
   end
+  -- Selection acknowledges queued previews immediately, not only toaster clicks.
+  if self.UpdateMinimizedWhispers then self:UpdateMinimizedWhispers() end
   self:UpdateBadges()
 end
 
@@ -460,6 +491,7 @@ end
 function W:OnEnable()
   self:BeginMessageWindowRestore()
   self.records, self.ready = {}, true
+  if self.EnablePersonMetadata then self:EnablePersonMetadata()end
   local get = C_CVar and C_CVar.GetCVar or GetCVar
   Core.db.global.whisperModeBeforeSunder = Core.db.global.whisperModeBeforeSunder or get("whisperMode")
   self.originalMode = Core.db.global.whisperModeBeforeSunder
@@ -502,6 +534,9 @@ function W:OnEnable()
   Core:Subscribe(Constants.EVENTS.UNLOCK_MOVER, function () self:SetHubEditMode(true) end)
   Core:Subscribe(Constants.EVENTS.LOCK_MOVER, function () self:SetHubEditMode(false) end)
   Core:Subscribe(Constants.EVENTS.UPDATE_CONFIG, function (key)
+    if key=="timestampDisplay"then
+      for _,host in pairs(self.workspaces or {})do if host.previewActive then host:RenderPreview()end end
+    end
     if key == "font" or key == "editBoxAnchor" or key == "editBoxVerticalPadding" or key == "editBoxFontSize" then
       for _, host in pairs(self.workspaces or {}) do if host.hub then host:LayoutHub() end end
     end

@@ -12,4 +12,4 @@ The master emblem is a dark, bevelled stone tablet split by a jagged amber rune 
 
 Run `python tools/build_icons.py` after an approved master change. Derivatives use antialiased resampling and uncompressed true-color TGA; no runtime image libraries are needed. The master was generated for this project from the owner's visual brief. Existing small action icons retain their consistent monochrome theme and original attribution.
 
-Runtime body surfaces remain sleek and borderless with horizontal edge fades. Default amber accents can inherit Ellesmere styling; user color/font overrides take precedence. The brand emblem belongs in the launcher, addon list and settings overview, not as repeated window-title branding.
+Runtime body surfaces use restrained one-pixel outlines and column dividers over continuous backing with horizontal edge fades. Default amber accents can inherit Ellesmere styling; user color/font overrides take precedence. The brand emblem belongs in the launcher, addon list and settings overview, not as repeated window-title branding.

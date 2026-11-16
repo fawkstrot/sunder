@@ -55,11 +55,6 @@ function Core:BuildAppearanceOptions(chat, whispers)
     desc = "A left people list and right conversation pane, or the previous horizontal tabs. Selection, pins and order are preserved when switching.",
     get = function () return Core.db.profile.whispers.conversationLayout or "list" end,
     set = function (_, value) Core.db.profile.whispers.conversationLayout = value; Core:GetModule("Whispers"):ApplySettings(false, "conversationLayout") end}
-  windows.args.listWidth = {type = "range", name = "People column width", order = 0.16, min = 25, max = 45, step = 1,
-    desc = "Percentage of the window for people. Defaults to a 30 / 70 split, with minimum widths to keep names and the conversation readable.",
-    disabled = function () return not Core:GetModule("Whispers"):IsConversationList() end,
-    get = function () return Core.db.profile.whispers.conversationListRatio or 30 end,
-    set = function (_, value) Core.db.profile.whispers.conversationListRatio = value; Core:GetModule("Whispers"):ApplySettings(false, "conversationListRatio") end}
   local text = group("Chat & conversation text", 1, take(message,
     {"messageFont", "messageFontFlags", "messageFontSize", "messageLeading", "messageLinePadding"}))
   text.inline = true

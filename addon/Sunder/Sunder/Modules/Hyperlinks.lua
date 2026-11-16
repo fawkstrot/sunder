@@ -76,6 +76,15 @@ function Hyperlinks:ModifyLinkMenus()
         end)
       end)
     end
+    if copyable then
+      local hasInspect=false
+      if rootDescription.EnumerateElementDescriptions then
+        for _,entry in rootDescription:EnumerateElementDescriptions()do
+          if MenuUtil.GetElementText(entry)==(_G.INSPECT or "Inspect")then hasInspect=true;break end
+        end
+      end
+      if not hasInspect then Core.Components.WindowManager:AddInspectAction(rootDescription,name)end
+    end
     -- Blizzard moves the conversation out of the menu's chat frame, which Sunder's right-clicks leave empty.
     local chatFrame = self.clickedChatFrame
     if whisperWindowText and chatFrame and _G.FCF_OpenTemporaryWindow then

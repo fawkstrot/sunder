@@ -20,8 +20,8 @@ For existing ROTBOT installations, provide the separate manual upgrade bundle an
 - Runtime and TOC: `addon/Sunder/`.
 - Project icon: `assets/branding/Sunder-project-icon.png`.
 - Description: `docs/CURSEFORGE_DESCRIPTION.md`.
-- Clean release ZIP: `dist/Sunder-0.9.11.zip`.
-- First-upgrade bundle: `dist/Sunder-0.9.11-upgrade.zip`.
+- Clean release ZIP: `dist/Sunder-0.10.0-alpha.1.zip`.
+- First-upgrade bundle: `dist/Sunder-0.10.0-alpha.1-upgrade.zip`.
 - Checks/build artifacts: `.github/workflows/ci.yml`.
 - Manual tagged releases: `.github/workflows/release.yml`.
 - Canonical release notes: `addon/Sunder/CHANGELOG.md`.
@@ -32,3 +32,7 @@ For existing ROTBOT installations, provide the separate manual upgrade bundle an
 [Creating and submitting a project](https://support.curseforge.com/support/solutions/articles/9000197241), [submission guidance and icon dimensions](https://support.curseforge.com/support/solutions/articles/9000199552), [file types and approval](https://support.curseforge.com/support/solutions/articles/9000197242-file-types-and-additional-fields), and [ZIP structure troubleshooting](https://support.curseforge.com/support/solutions/articles/9000196615).
 
 Review live project forms at submission time; no credentials, project IDs or remote URLs have been fabricated.
+
+## Alpha channel
+
+The next upload is **0.10.0-alpha.1**, explicitly checked as `releaseType: alpha`. The bare 0.9.11 version was classified Release by the uploader. Select Alpha plus the matching suffixed version in Release Sunder; GitHub remains a draft prerelease. Upload acceptance and CurseForge review/public availability are separate statuses. See CONTEXT.md for actual run results.

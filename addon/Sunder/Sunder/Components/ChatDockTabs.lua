@@ -162,7 +162,7 @@ function ChatDockMixin:LayoutDockedTabs(orderedFrames, keepSelectedVisible, gap)
   local hasPreviousSlot = false
 
   self.scrollFrame:SetScript("OnUpdate", nil)
-  self.scrollFrame:SetPoint("LEFT", self, "LEFT", 0, 0)
+  self.scrollFrame:SetPoint("LEFT", self, "LEFT", self.windowTitleInset or 0, 0)
 
   for index, chatFrame in ipairs(orderedFrames) do
     local tab = _G[chatFrame:GetName().."Tab"]
@@ -180,7 +180,8 @@ function ChatDockMixin:LayoutDockedTabs(orderedFrames, keepSelectedVisible, gap)
       end
 
       tab:SetParent(child)
-      tab:SetFrameStrata("LOW")
+      tab:SetFrameStrata(self:GetFrameStrata())
+      tab:SetFrameLevel(child:GetFrameLevel()+1)
       tab:ClearAllPoints()
       tab:SetPoint("LEFT", child, "LEFT", totalWidth, 0)
 
@@ -197,19 +198,20 @@ function ChatDockMixin:LayoutDockedTabs(orderedFrames, keepSelectedVisible, gap)
     totalWidth = totalWidth + gap.width
   end
 
-  local dockWidth = self:GetWidth()
+  local dockWidth = math.max(1,self:GetWidth()-(self.windowActionWidth or 0)-(self.windowTitleInset or 0))
   local overflowWidth = self.overflowButton.width or self.overflowButton:GetWidth() or 16
   local hasOverflow = totalWidth > dockWidth
   local availableWidth = dockWidth
 
   if hasOverflow then
+    self.overflowButton:ClearAllPoints();self.overflowButton:SetPoint("RIGHT",self,"RIGHT",-(self.windowActionWidth or 0),0)
     self.overflowButton:Show()
     availableWidth = math.max(1, dockWidth - overflowWidth - 5)
     self.scrollFrame:SetPoint("BOTTOMRIGHT", self.overflowButton, "BOTTOMLEFT", -5, -5)
   else
     self.overflowButton:Hide()
     self.overflowButton.list:Hide()
-    self.scrollFrame:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, -5)
+    self.scrollFrame:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -(self.windowActionWidth or 0), -5)
   end
 
   child:SetWidth(math.max(1, totalWidth, availableWidth))

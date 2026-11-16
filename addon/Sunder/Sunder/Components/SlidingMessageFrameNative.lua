@@ -96,6 +96,8 @@ end
 
 
 function SlidingMessageFrameMixin:ResetForChatFrame(chatFrame)
+  if self.roomGapUpdate and self.gapBackground then self.gapBackground:SetScript("OnUpdate",self.roomGapUpdate)end
+  self.roomGapUpdate=nil;self.sharedFullSurface=nil;self.keepRoomMessages=nil
   local isCombatLog = chatFrame == _G.ChatFrame2
   self.config = {
     height = getMessageFrameHeight(isCombatLog),
@@ -242,7 +244,10 @@ function SlidingMessageFrameMixin:InitializeScrollFrame()
     self.viewport = CreateFrame("Frame", nil, self)
     self.viewport:SetAllPoints()
     self.viewport:SetClipsChildren(true)
-    self.viewport:EnableMouse(false)
+    self.viewport:EnableMouse(true)
+    self.viewport:SetScript("OnMouseDown",function(_,button)
+      if button=="LeftButton" then Core:GetModule("UIManager"):SelectMessageInput(self.chatFrame,true) end
+    end)
   end
   if self.slider == nil then
     self.slider = CreateFrame("Frame", nil, self.viewport)
@@ -281,7 +286,7 @@ function SlidingMessageFrameMixin:InitializeScrollFrame()
 
   -- Pool for the message frames
   if self.messageFramePool == nil then
-    self.messageFramePool = CreateMessageLinePool(self.slider)
+    self.messageFramePool = CreateMessageLinePool(self.slider,self)
   end
 end
 
@@ -292,6 +297,8 @@ function SlidingMessageFrameMixin:HookNativeMessages(chatFrame, chatFrameWasShow
     local queued = self:AddMessageAt(getReceivedAt(newestEntry), ...)
     local tab = queued and not self.state.isCombatLog and _G[chatFrame:GetName().."Tab"]
     if tab and tab.AddUnreadMessage then tab:AddUnreadMessage() end
+    local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
+    if queued and room and room.OnNativeMessage then room:OnNativeMessage(chatFrame) end
     local whispers = Core:GetModule("Whispers", true)
     if queued and whispers and whispers.OnNativeMessage then
       local args=self.state.incomingMessages[#self.state.incomingMessages]
@@ -312,13 +319,17 @@ function SlidingMessageFrameMixin:HookNativeMessages(chatFrame, chatFrameWasShow
 
   if self.historyBuffer and not self.state.isCombatLog then
     hookMessage(self, self.historyBuffer, "PushBack", function (_, message)
+      local _,_,_,_,nativeType,nativeAccess,nativeLine=self.chatFrame:GetMessageInfo(1)
       self:BackFillMessageAt(
         getReceivedAt(message),
         self.chatFrame,
         message.message,
         message.r,
         message.g,
-        message.b
+        message.b,
+        nativeType or message.messageType or message.typeID,
+        nativeAccess or message.accessID,
+        nativeLine or message.lineID
       )
     end, true)
   end
@@ -408,8 +419,16 @@ function SlidingMessageFrameMixin:SubscribeToEvents()
           self:UpdateAlwaysVisible()
         end
 
+        if key == "whispers" then self:ScheduleLayoutRefresh(true)end
+
         if key == "messageBlacklist" then
           self:ReloadMessagesFromChatFrame()
+        end
+
+        -- Main dimensions arrive through settings broadcasts, unlike detached
+        -- SetLayout calls. Keep their visible viewport/rail equally immediate.
+        if (key == "frameWidth" or key == "frameHeight") and self:IsShown() then
+          self:RefreshLayoutGeometry()
         end
 
         if key == "editBoxEasing" and self.state.editBoxEasingHandle then

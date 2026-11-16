@@ -4,10 +4,14 @@ function core:Localize(text) return text end
 function core.Libs.LSM:HashTable() return {Default="Native.ttf"} end
 core.Libs.AceConfigRegistry.NotifyChange=function() end
 ''')
-for name in ['Config','ConfigChatPages','ConfigMessagePages','Whispers','WhispersOptions','Appearance']:
+for component in ['WindowManager','RosterRoom']:
+ lua.execute((root/f'Sunder/Components/{component}.lua').read_text(encoding='utf-8'),'Sunder',lua.globals().vars)
+for name in ['Config','ConfigChatPages','ConfigMessagePages','Whispers','WhispersOptions','Appearance','GuildChat','PartyChat']:
  lua.execute((root/f'Sunder/Modules/{name}.lua').read_text(encoding='utf-8'),'Sunder',lua.globals().vars)
 lua.execute('''
 core.db.profile.whispers=copy(core.defaults.profile.whispers)
+core.db.profile.guildChat=copy(core.defaults.profile.guildChat)
+core.db.profile.partyChat=copy(core.defaults.profile.partyChat)
 local c=modules.Config
 c.Pages.profile=function() return {type="group",args={}} end
 core.features.chat.buildOptions=function()
@@ -35,8 +39,8 @@ assert(counts.messageFontSize==1 and counts.editBoxFontSize==1 and counts.hubBac
 local modulesList=modules.Ellesmere:BuildOptionModules(options)
 local a
 for _,m in ipairs(modulesList) do if m.key=="chat" then a=m end end
-assert(a and #a.pages==4 and a.onReset==nil)
-assert(a.pages[1]=="Overview" and a.pages[2]=="Chat windows" and a.pages[3]=="Whispers" and a.pages[4]=="Appearance")
+assert(a and #a.pages==6 and a.onReset==nil)
+assert(a.pages[1]=="Overview" and a.pages[2]=="Chat windows" and a.pages[3]=="Whispers" and a.pages[4]=="Guild Chat" and a.pages[5]=="Party Chat" and a.pages[6]=="Appearance")
 local design=appearance.args.design.args
 core.db.profile.whispers.headerFontSize=19;core.db.profile.whispers.mode="hub"
 function modules.Whispers:ApplySettings() end
@@ -83,7 +87,7 @@ ChatFrame1=CreateFrame("Frame","ChatFrame1",UIParent);ChatFrame1.isDocked=true
 GENERAL_CHAT_DOCK.selected=ChatFrame1
 local tab=makeTab(ChatFrame1);tab:UpdateTextLayout()
 assert(tab.titleIcon:IsShown() and tab.titleIcon:GetWidth()==14 and tab:GetIconWidth()==20)
-assert(tab.selectionLine:IsShown() and tab.titleIcon.alpha==.9 and tab.titleIcon.vertex[1]==.2)
+assert(tab.selectionLine:IsShown() and tab.titleIcon.alpha==.5 and tab.titleIcon.vertex[1]==.74)
 GENERAL_CHAT_DOCK.selected=nil;tab:UpdateVisualState()
 assert(not tab.selectionLine:IsShown() and tab.titleIcon.alpha==.5)
 Core.db.profile.chatHoverWash=true;tab.sunderHovered=true;tab:UpdateVisualState()
@@ -97,7 +101,7 @@ tab:UpdateTextLayout();assert(not tab.titleIcon:IsShown() and tab:GetIconWidth()
 tab.conversationIcon:Hide();tab:UpdateTextLayout();assert(tab:GetIconWidth()==0)
 Core.db.profile.chatTitleIcons=true;Core.db.profile.chatTabIconOverrides.ChatFrame1=nil
 ChatFrame1.messageTypeList={"SAY","GUILD"};tab:UpdateTextLayout()
-assert(tab.titleIcon.texture:find("windows.tga",1,true))
+assert(tab.titleIcon.texture:find("inbox.tga",1,true))
 ChatFrame2=CreateFrame("Frame","ChatFrame2",UIParent)
 local combat=makeTab(ChatFrame2);combat:UpdateTextLayout();assert(combat.titleIcon.texture:find("read.tga",1,true))
 ''')

@@ -10,17 +10,17 @@ assert(not favorite.previewBody:IsShown() and not favorite.hubContent:IsShown())
 local sum=0;for _,c in ipairs(favorite.previewConversations) do sum=sum+c.unread end
 assert(favorite.previewNavigation.unreadTotal==sum)
 assert(favorite.previewNavigation.all:GetText()~=nil)
-assert(favorite.hubActionButtons.Settings:IsShown() and favorite.minimizeButton:IsShown())
+assert(favorite.hubActionButtons.Settings:IsShown() and favorite.hubActionButtons.CollapseTop:IsShown() and favorite.hubActionButtons.CollapseBottom:IsShown())
 favorite:SetMinimized(false,true)
--- Header stays interactive, body opacity and size interpolate, no idle animation handler.
+-- Header stays interactive; opaque body is clipped as size interpolates.
 W:SetMinimized(true)
 local update=W.hub:GetScript('OnUpdate');assert(update)
-update(W.hub,.04);assert(W.previewBody:GetAlpha()>0 and W.previewBody:GetAlpha()<1)
+update(W.hub,.04);assert(W.previewBody:GetAlpha()==1 and W.previewBody.clipsChildren)
 assert(W.previewNavigation:IsShown() and W.previewTabScroll:IsShown())
 update(W.hub,.25);assert(not W.previewBody:IsShown() and not W.hub:GetScript('OnUpdate'))
 W:SetMinimized(false)
 update=W.hub:GetScript('OnUpdate');update(W.hub,.16)
-assert(W.previewBody:GetAlpha()>0 and W.previewBody:GetAlpha()<1)
+assert(W.previewBody:GetAlpha()==1 and W.previewBody.clipsChildren)
 update(W.hub,.2);assert(W.previewBody:IsShown() and W.previewBody:GetAlpha()==1 and not W.hub:GetScript('OnUpdate'))
 W:ClearPreviewData();W:SetMinimized(false,true);W.hub:Show()
 local wasOpen=W.hub:IsShown();local wasMin=W.minimized

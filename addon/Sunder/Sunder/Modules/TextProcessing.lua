@@ -242,42 +242,32 @@ local function getTimestampColorHex(color)
 end
 
 local function timestampProcessor(text, frame, receivedAt)
-  if type(text) ~= "string" then
-    return text
+  if type(text)~="string"then return text end
+  local profile=Core.db.profile
+  if profile.timestampAllWindows==true and not profile.timestampsEnabled then return text end
+  local whisper=profile.whispers
+  local all=profile.timestampsEnabled and profile.timestampAllWindows==true
+  local isWhisper=whisper and whisper.enabled and frame and (frame.chatType=="WHISPER" or frame.chatType=="BN_WHISPER")
+  local whisperOnly=isWhisper and not all
+  if whisperOnly and not whisper.timestamps then return text end
+  if not whisperOnly then
+    local frameName=frame and frame.GetName and frame:GetName()
+    if not profile.timestampsEnabled or not all and (not frameName or not profile.timestampFrames or not profile.timestampFrames[frameName])then return text end
   end
-
-  local profile = Core.db.profile
-  local whisper = profile.whispers
-  local isWhisper = whisper and whisper.enabled and frame and
-    (frame.chatType == "WHISPER" or frame.chatType == "BN_WHISPER")
-  if isWhisper then
-    if not whisper.timestamps then return text end
-    -- Replace a recognized native prefix locally; leave other windows' clock setting alone.
-    local util = _G.ChatFrameUtil
-    local nativeFormat = util and util.GetTimestampFormat and util.GetTimestampFormat()
-    if nativeFormat then
-      local formatDate = _G.TimeUtil and _G.TimeUtil.BetterDate or date
-      local prefix = formatDate(nativeFormat, receivedAt or _G.time())
-      if text:sub(1, #prefix) == prefix then text = text:sub(#prefix + 1) end
-    end
-    local stamp = receivedAt and date(whisper.timestampFormat, receivedAt) or date(whisper.timestampFormat)
-    return "|cff999999"..stamp.."|r "..text
+  -- Strip only the recognized native prefix, never arbitrary message content.
+  local util=_G.ChatFrameUtil
+  local nativeFormat=util and util.GetTimestampFormat and util.GetTimestampFormat()
+  if nativeFormat then
+    local formatDate=_G.TimeUtil and _G.TimeUtil.BetterDate or date
+    local prefix=formatDate(nativeFormat,receivedAt or _G.time())
+    if text:sub(1,#prefix)==prefix then text=text:sub(#prefix+1)end
   end
-  local frameName = frame and frame.GetName and frame:GetName()
-  if (
-    not profile.timestampsEnabled or
-    not frameName or
-    not profile.timestampFrames or
-    not profile.timestampFrames[frameName]
-  ) then
-    return text
-  end
-
-  local timestamp = receivedAt and date(profile.timestampFormat, receivedAt) or date(profile.timestampFormat)
-  if not profile.timestampColorEnabled then
-    return timestamp.." "..text
-  end
-  return "|cff"..getTimestampColorHex(profile.timestampColor)..timestamp.."|r "..text
+  local format=whisperOnly and whisper.timestampFormat or profile.timestampFormat
+  local stamp=receivedAt and date(format,receivedAt) or date(format)
+  if whisperOnly then return "|cff999999"..stamp.."|r "..text end
+  -- The all-window option is deliberately subdued even without a color override.
+  if not profile.timestampColorEnabled then return (all and "|cff999999"..stamp.."|r" or stamp).." "..text end
+  return "|cff"..getTimestampColorHex(profile.timestampColor)..stamp.."|r "..text
 end
 
 local function processSafely(processor, text, ...)
@@ -317,28 +307,127 @@ function TP:IsMessageBlacklisted(text)
   return false
 end
 
--- Use native message metadata, never localized text or RGB guesses, to identify replies.
-function TP:WhisperReplyStyle(frame, typeID, outgoing)
-  local cfg=Core.db.profile.whispers
-  if not cfg or not cfg.enabled or cfg.distinguishReplies==false or not frame or
-    (frame.chatType~="WHISPER" and frame.chatType~="BN_WHISPER") then return end
-  if not outgoing then
-    if canaccessvalue and not canaccessvalue(typeID) then return end
-    local info=_G.ChatTypeInfo
-    if typeID==nil or not info then return end
-    outgoing=(info.WHISPER_INFORM and typeID==info.WHISPER_INFORM.id) or
-      (info.BN_WHISPER_INFORM and typeID==info.BN_WHISPER_INFORM.id)
+-- Sender line IDs come from native chat filters. History may retain a structured
+-- sender player-link instead; never infer authorship from message body substrings.
+function TP:RememberChatSender(lineID,guid)
+  if canaccessvalue and (not canaccessvalue(lineID) or not canaccessvalue(guid))then return end
+  if type(lineID)~="number" or lineID<=0 or not UnitGUID then return end
+  self.ownLineIDs=self.ownLineIDs or {};self.ownLineOrder=self.ownLineOrder or {}
+  if self.ownLineIDs[lineID]==nil then table.insert(self.ownLineOrder,lineID)end
+  self.ownLineIDs[lineID]=guid==UnitGUID("player")
+  if #self.ownLineOrder>256 then self.ownLineIDs[table.remove(self.ownLineOrder,1)]=nil end
+end
+function TP:IsOwnChatLine(text,typeID,lineID)
+  if canaccessvalue and (not canaccessvalue(text) or not canaccessvalue(typeID) or not canaccessvalue(lineID))then return false end
+  if self.ownLineIDs and lineID and self.ownLineIDs[lineID]~=nil then return self.ownLineIDs[lineID]end
+  local supported=false
+  for _,kind in ipairs({"SAY","YELL","EMOTE","TEXT_EMOTE","GUILD","OFFICER","PARTY","PARTY_LEADER","RAID","RAID_LEADER","RAID_WARNING","INSTANCE_CHAT","INSTANCE_CHAT_LEADER","CHANNEL"})do
+    local info=ChatTypeInfo and ChatTypeInfo[kind];if info and info.id==typeID then supported=true;break end
   end
+  if not supported or type(text)~="string"then return false end
+  local sender=text:match("|Hplayer:([^:|]+)")
+  local unitName=_G.UnitNameUnmodified or _G.UnitName
+  if not sender or not unitName then return false end
+  local name,realm=unitName("player")
+  if canaccessvalue and (not canaccessvalue(name) or not canaccessvalue(realm))then return false end
+  if type(name)~="string"then return false end
+  realm=realm or (GetRealmName and GetRealmName())
+  return sender:lower()==name:lower() or type(realm)=="string" and sender:lower()==(name.."-"..realm):lower()
+end
+function TP:WhisperReplyStyle(frame,typeID,outgoing,text,lineID)
+  local cfg=Core.db.profile.whispers
+  if not cfg or not cfg.enabled or cfg.distinguishReplies==false or not frame then return end
+  if canaccessvalue and not canaccessvalue(typeID)then return end
+  local info=_G.ChatTypeInfo
+  if not outgoing and info and (frame.chatType=="WHISPER" or frame.chatType=="BN_WHISPER") then
+    outgoing=(info.WHISPER_INFORM and typeID==info.WHISPER_INFORM.id) or (info.BN_WHISPER_INFORM and typeID==info.BN_WHISPER_INFORM.id)
+  end
+  outgoing=outgoing or self:IsOwnChatLine(text,typeID,lineID)
   if not outgoing then return end
   local color=cfg.replyColor or {0.70,0.73,0.78}
   return color[1],color[2],color[3]
 end
+function TP:OnEnable()
+  local util=_G.ChatFrameUtil
+  local add=util and util.AddMessageEventFilter or _G.ChatFrame_AddMessageEventFilter
+  if not add or self.senderFilter then return end
+  self.senderFilter=function(_,_,...)self:RememberChatSender(select(11,...),select(12,...))end
+  for _,kind in ipairs({"SAY","YELL","EMOTE","TEXT_EMOTE","GUILD","OFFICER","PARTY","PARTY_LEADER","RAID","RAID_LEADER","RAID_WARNING","INSTANCE_CHAT","INSTANCE_CHAT_LEADER","CHANNEL"})do
+    add("CHAT_MSG_"..kind,self.senderFilter)
+  end
+end
 
-function TP:ProcessText(text, frame, receivedAt, typeID)
+-- Presentation only: native/history text and player/item hyperlink payloads stay intact.
+function TP:CompactMessageLabels(text,frame,typeID,own)
+  if type(text)~="string" or not frame or canaccessvalue and (not canaccessvalue(text) or not canaccessvalue(typeID))then return text end
+  local function escape(value)return (value:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])","%%%1"))end
+  local function split(format)
+    if type(format)~="string"then return end
+    format=format:gsub("%%1%$s","%%s")
+    local first,last=format:find("%%s")
+    if not first then return end
+    local prefix,suffix=format:sub(1,first-1),format:sub(last+1)
+    if suffix=="" or suffix:find("%%s")then return end
+    local sender,body=text:match("^"..escape(prefix).."(.-)"..escape(suffix).."(.*)$")
+    return sender,body,suffix
+  end
+  local whisper=frame.chatType=="WHISPER" or frame.chatType=="BN_WHISPER"
+  if whisper then
+    local info=ChatTypeInfo or {}
+    local outgoing=own==true or info.WHISPER_INFORM and typeID==info.WHISPER_INFORM.id or info.BN_WHISPER_INFORM and typeID==info.BN_WHISPER_INFORM.id
+    local format=outgoing and (_G.CHAT_WHISPER_INFORM_GET or "To %s: ") or (_G.CHAT_WHISPER_GET or "%s whispers: ")
+    if frame.chatType=="BN_WHISPER"then format=outgoing and (_G.CHAT_BN_WHISPER_INFORM_GET or format) or (_G.CHAT_BN_WHISPER_GET or format)end
+    local sender,body=split(format)
+    if not sender then return text end
+    if outgoing then return body end
+    -- Remove display brackets only; clickable identity and class color survive.
+    sender=sender:gsub("|h%[","|h"):gsub("%]|h","|h"):gsub("^%[(.-)%]$","%1")
+    return sender..": "..body
+  end
+  local manager=Core.Components and Core.Components.WindowManager
+  local room=manager and manager:GetChatRoom(frame)
+  if not room then return text end
+  for _,kind in ipairs(room.roomId=="guild" and {"GUILD","OFFICER"} or room.roomId=="party" and {"PARTY","PARTY_LEADER","RAID","RAID_LEADER","RAID_WARNING","INSTANCE_CHAT","INSTANCE_CHAT_LEADER"} or {})do
+    local info=ChatTypeInfo and ChatTypeInfo[kind]
+    if info and info.id==typeID then
+      -- Native/client formatters can wrap or flatten the channel hyperlink,
+      -- so the localized format string is not necessarily a literal prefix.
+      -- Only edit the header before its first structured sender link.
+      local start=text:find("|Hplayer:",1,true) or text:find("|HBNplayer:",1,true)
+      if start then
+        local header=text:sub(1,start-1)
+        local changed=false
+        header=header:gsub("|Hchannel:[^|]-|h.-|h",function()changed=true;return ""end)
+        local labels={_G["CHAT_MSG_"..kind],_G[kind],({GUILD="Guild",OFFICER="Officer",PARTY="Party",PARTY_LEADER="Party Leader",RAID="Raid",RAID_LEADER="Raid Leader",RAID_WARNING="Raid Warning",INSTANCE_CHAT="Instance",INSTANCE_CHAT_LEADER="Instance Leader"})[kind]}
+        for _,label in pairs(labels)do
+          if type(label)=="string"then
+            local count;header,count=header:gsub("%["..escape(label).."%]","")
+            if count>0 then changed=true end
+          end
+        end
+        if changed then return header:gsub("^%s+",""):gsub("%s+$",""):gsub("(|r)%s+","%1")..text:sub(start)end
+      end
+      -- Retained native lines can be flattened to colored plain text, with
+      -- no sender hyperlink at all. Match only the channel at the start.
+      for _,label in pairs({_G["CHAT_MSG_"..kind],_G[kind],({GUILD="Guild",OFFICER="Officer",PARTY="Party",PARTY_LEADER="Party Leader",RAID="Raid",RAID_LEADER="Raid Leader",RAID_WARNING="Raid Warning",INSTANCE_CHAT="Instance",INSTANCE_CHAT_LEADER="Instance Leader"})[kind]})do
+        if type(label)=="string"then
+          local lead,rest=text:match("^(.-)%["..escape(label).."%]%s*(.*)$")
+          if lead and lead:gsub("|c%x%x%x%x%x%x%x%x",""):gsub("|r",""):match("^%s*$")then return lead..rest end
+        end
+      end
+      local sender,body,suffix=split(_G["CHAT_"..kind.."_GET"])
+      if sender then return sender..suffix..body end
+      return text
+    end
+  end
+  return text
+end
+
+function TP:ProcessText(text, frame, receivedAt, typeID, lineID, own)
   -- Retail can supply protected text. Pass it directly to the native FontString without parsing it.
   if canaccessvalue and not canaccessvalue(text) then return text, text end
-  local processedText = text
-  if self:WhisperReplyStyle(frame,typeID) and Core.db.profile.whispers.replyMarker then
+  local processedText = self:CompactMessageLabels(text,frame,typeID,own)
+  if frame and (frame.chatType=="WHISPER" or frame.chatType=="BN_WHISPER") and self:WhisperReplyStyle(frame,typeID,own,text,lineID) and Core.db.profile.whispers.replyMarker then
     processedText="› "..processedText
   end
   if Core.db.profile.timestampsEnabled or Core.db.profile.whispers and Core.db.profile.whispers.enabled then

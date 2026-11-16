@@ -2,6 +2,22 @@
 
 Record player-facing changes here while developing; move them into a versioned section before releasing. Include related issue/PR numbers once GitHub is connected.
 
+# 0.10.0-alpha.1 (2026-11-16)
+
+This is an early-access alpha for WoW Forever 1.60.1. Back up your account data before updating. Other WoW clients have not been validated.
+
+- Add dedicated Guild and Party/Raid Chat rooms with shared window controls, compact member lists, class/level details, online counts and unread indicators. Party Chat opens automatically on joining unless manual-only mode is enabled.
+- Add Guild information and a message-of-the-day header, plus a Previous groups browser with locally saved group logs and member previews when available.
+- Keep Whispers history separately from open conversations: closing archives a conversation; deleting history is a separate confirmed action. Preserve favorites across Guild, Party and Whispers without creating empty conversations in All.
+- Unify title-bar dragging, position/size locking, resize handles, collapse animations, backgrounds, edge fades, scroll indicators and window action icons. Undocked native chat tabs can return to the main dock.
+- Use shared compact people rows with right-side favorite/pin actions, filled selected icons, subtle separators, muted metadata and known-offline names. Lists share a 150 px target width.
+- Tighten content padding to 8 px; improve message wrapping, scrollbar clearance, editor selection, unread counts and visible-conversation notification suppression.
+- Add dim timestamps across chat with 12/24-hour formats and an off switch. Simplify redundant channel labels inside dedicated rooms and distinguish your own messages.
+- Include explicit Party/Raid leader subscriptions, retained-history safeguards, rename recovery and native binding corrections.
+- Keep the established strict per-copy item protection. Remove experimental protection controls; universal vendor/trade/destruction coverage remains unverified.
+
+Known alpha limits: legacy group logs may lack member details or original arrival times. New outgoing leader-message delivery still needs a grouped live check. Native protected actions and untested clients are not certified by automated checks.
+
 # 0.9.11 (2026-11-11)
 
 - Rebrand the modular addon as Sunder, with a fractured-stone emblem for the minimap, addon list and settings.

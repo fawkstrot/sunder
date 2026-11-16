@@ -380,10 +380,14 @@ end
 function P:OnEnable()
   self.shuttingDown=nil;self:InstallBankSortCompatibility();self.owned={};self.errors={};self.status={};self.pickupChecks={}
   local events=CreateFrame("Frame");self.events=events
-  for _,event in ipairs({"BAG_UPDATE_DELAYED","ITEM_LOCK_CHANGED","PLAYER_ENTERING_WORLD","PLAYER_REGEN_ENABLED","MERCHANT_SHOW","TRADE_SHOW","ADDON_LOADED","BANKFRAME_OPENED","BANKFRAME_CLOSED"}) do events:RegisterEvent(event) end
+  for _,event in ipairs({"BAG_UPDATE_DELAYED","ITEM_LOCK_CHANGED","PLAYER_ENTERING_WORLD","PLAYER_REGEN_ENABLED","MERCHANT_SHOW","MERCHANT_CLOSED","TRADE_SHOW","TRADE_CLOSED","ADDON_LOADED","BANKFRAME_OPENED","BANKFRAME_CLOSED"}) do events:RegisterEvent(event) end
   events:RegisterEvent("PLAYER_LOGOUT")
   events:SetScript("OnEvent",function(_,event)
-    if event=="BANKFRAME_OPENED" then self.bankOpen=true
+    if event=="MERCHANT_SHOW"then self.merchantOpen=true;self:Refresh()
+    elseif event=="MERCHANT_CLOSED"then self.merchantOpen=nil
+    elseif event=="TRADE_SHOW"then self.tradeOpen=true;self:Refresh()
+    elseif event=="TRADE_CLOSED"then self.tradeOpen=nil
+    elseif event=="BANKFRAME_OPENED" then self.bankOpen=true
     elseif event=="BANKFRAME_CLOSED" then self.bankOpen=nil
     elseif event=="PLAYER_LOGOUT" then
       self.shuttingDown=true
@@ -424,9 +428,9 @@ end
 Core:RegisterFeature("itemProtection",{name="Item Protection",order=30,resetOptions=function()
   Core.db.profile.itemProtection={enabled=true,tooltip=true};P:Refresh()
 end,buildOptions=function()
-  return {type="group",args={
+  local options={type="group",args={
     overview={type="description",order=1,name="Strict native item locking, independent of your bag addon. Protects the selected physical copy, not every item of that type. Unprotect before moving, sorting that item, equipping or using it. Ellesmere pins remain separate. Other addons that honor the native item-lock state can recognize these locks."},
-    verification={type="description",order=2,name="Compatibility status: native lock application is checked per item. Ordinary pickup can be tested below. Manual sale, automated sale, trade and destruction have NOT yet been verified on this Forever client; this release must not be treated as a proven guarantee against disposal."},
+    verification={type="description",order=2,name="Compatibility status: native lock application is checked per item. Manual sale, automated sale, trade and destruction have NOT yet been verified on this Forever client; this release must not be treated as a proven guarantee against disposal."},
     enabled={type="toggle",name="Enable native item locks",order=3,get=function()return cfg().enabled end,set=function(_,value)
       if InCombatLockdown() then P:Notify("Change item protection after combat.");return end
       cfg().enabled=value;P:Refresh()
@@ -444,9 +448,6 @@ end,buildOptions=function()
     tooltip={type="toggle",name="Show protection status in item tooltips",order=7,get=function()return cfg().tooltip end,set=function(_,value)cfg().tooltip=value end},
     bagControls={type="toggle",name="Show quick-lock controls when hovering bag items",order=7.5,get=function()return cfg().bagControls~=false end,set=function(_,value)cfg().bagControls=value end},
     alwaysShowControls={type="toggle",name="Always show bag lock controls",desc="Show a clickable open padlock on every bag item, even without hovering. Protected items always show their badge.",order=7.6,get=function()return not not cfg().alwaysShowControls end,set=function(_,value)cfg().alwaysShowControls=value end,disabled=function()return cfg().bagControls==false end},
-    testHeader={type="header",name="Non-destructive compatibility check",order=8},
-    testItem={type="select",name="Locked item to check",order=9,values=function()local values=P:SavedValues();values.__choose="Choose a locked item…";return values end,get=function()return P.selectedTest or "__choose" end,set=function(_,id)P.selectedTest=id~="__choose" and id or nil end},
-    test={type="execute",name="Check ordinary pickup blocking",order=10,confirm="This attempts an ordinary pickup of the selected locked item. If pickup succeeds, it immediately returns the item. It does not sell, trade or destroy anything. Continue?",func=function()P:TestPickup()end},
-    result={type="description",order=11,name=function()return P.pickupCheck or "No pickup check run this session. Use an expendable test item."end},
   }}
+  return options
 end})

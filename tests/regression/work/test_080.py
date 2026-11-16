@@ -8,15 +8,16 @@ local b=conversation("UnifiedOther","Other Friend");W:OnWindowOpened(b);drain();
 W.records[a].favorite=true;W.records[a].unread=2;W.records[b].unread=0
 Core.db.char.whisperFavorites={ ["favorite friend"]="Favorite Friend", ["offline friend"]="Offline Friend" }
 W:LayoutHub();W:SetPeopleFilter("all")
-assert(W.peopleFilters:IsShown() and W.peopleSections.favorites:IsShown())
+assert(W.peopleFilters:IsShown() and W.hubTabs[a]:IsShown())
 local ai,bi
 for i,f in ipairs(W.hubOrder) do if f==a then ai=i elseif f==b then bi=i end end
 assert(W.peopleOffsets[ai]<W.peopleOffsets[bi],"Favorites not displayed first")
-local visible=0;for _,row in ipairs(W.savedFavoriteRows) do if row:IsShown() then visible=visible+1;assert(row.contact.target=="Offline Friend") end end;assert(visible==1,"offline contacts missing or active duplicate")
+local visible=0;for _,row in ipairs(W.savedFavoriteRows) do if row:IsShown() then visible=visible+1;assert(row.contact.target=="Offline Friend") end end;assert(visible==0,"contact-only favorite created an empty All conversation")
 W:SetPeopleFilter("favorites");assert(W.hubTabs[a]:IsShown() and not W.hubTabs[b]:IsShown())
+local visible=0;for _,row in ipairs(W.savedFavoriteRows)do if row:IsShown()then visible=visible+1 end end;assert(visible==1,"saved favorite missing from Favorites")
 W:SetPeopleFilter("unread");assert(W.hubTabs[a]:IsShown() and not W.hubTabs[b]:IsShown())
-W.peopleCollapsed={favorites=true};W:SetPeopleFilter("all");assert(not W.hubTabs[a]:IsShown())
-W:SelectConversation(a,false);assert(W.hubTabs[a]:IsShown() and not W.peopleCollapsed.favorites,"selection did not expand favorite section")
+W.peopleCollapsed={favorites=true};W:SetPeopleFilter("all");assert(W.hubTabs[a]:IsShown(),"retired group flags hid a flat-list row")
+W:SelectConversation(a,false);assert(W.hubTabs[a]:IsShown() and W.hubTabs[a]:GetFontString():GetHeight()==W:InterfaceTextSize()+2,"selection changed shared row anchors")
 -- One queue, correct destination even when the person lives in another window.
 cfg.favoritesSeparate=true;W:MoveToWorkspace(a,"group2")
 local host=W:GetWorkspace("group2");host:SetMinimized(true,true);W.minimizedWhispers={};host.minimizedWhispers={}
@@ -38,7 +39,7 @@ W:SetMinimized(true,true);W:QueueMinimizedWhisper(W.previewConversations[2],true
 W:ClearPreviewData()
 for _,e in ipairs(W.minimizedWhispers or {}) do assert(not e.sample,"sample notification leaked") end
 ''')
-print('Unified Whispers checks passed: grouped favorites, deduplicated saved contacts, filters/collapse/reveal, one queue, correct separate-window routing, migration preserving native renderer and sample cleanup.')
+print('Unified Whispers checks passed: flat-priority favorites, deduplicated saved contacts, filters/reveal, one queue, correct separate-window routing, migration preserving native renderer and sample cleanup.')
 lua.execute('''
 W:ClearPreviewData();cfg.favoritesSeparate=false;cfg.singleToasterStack=true;cfg.enabled=true
 local f=UnifiedOther;W:MoveToWorkspace(f,"messages");W.records[f].unread=0

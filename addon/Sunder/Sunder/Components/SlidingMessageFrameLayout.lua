@@ -17,7 +17,7 @@ function SlidingMessageFrameMixin:UpdateGapBackground()
     editBox:ClipBackgroundToMessages(self)
   end
   local background = self.gapBackground
-  if self.whisperFullSurface then
+  if self.windowSurface or self.whisperFullSurface or self.sharedFullSurface then
     for _, message in ipairs(self.state.messages) do message:SetBackgroundCoverage(1) end
     background:SetAlpha(0)
     return
@@ -122,12 +122,31 @@ function SlidingMessageFrameMixin:UpdateViewportHeight(unreadRowHeight)
 
   local overflow = self.state.scrollAtBottom and not self.state.jumpingToBottom and self.config.overflowHeight or 0
   self:SetHeight(viewHeight + overflow)
+  if self.windowSurface and self:IsShown()then
+    local dockInset=self.whisperDock and math.max(0,self.whisperDock:GetHeight()-Constants.DOCK_HEIGHT)or 0
+    Core.Components.WindowManager:UpdateContentExtent(self:GetParent(),self.config.height,getMessageTopInset(self.state.isCombatLog)+dockInset)
+  end
   if self.slider then
-    local padding=math.max(0,math.min(32,tonumber(Core.db.profile.bodyPadding) or 12))
+    local padding=math.max(0,math.min(32,tonumber(Core.db.profile.bodyPadding) or 8))
     self.viewport:ClearAllPoints()
     self.viewport:SetPoint("TOPLEFT",self,"TOPLEFT",0,-padding)
     self.viewport:SetPoint("BOTTOMRIGHT",self,"BOTTOMRIGHT")
     self.slider:SetHeight(math.max(1,viewHeight-padding*2))
+  end
+  local room=self.windowSurface or self.whisperFullSurface or self.sharedFullSurface
+  if room and not self.roomScrollTrack then
+    self.roomScrollTrack=self:CreateTexture(nil,"OVERLAY")
+    self.roomScrollThumb=self:CreateTexture(nil,"OVERLAY")
+  end
+  if self.roomScrollTrack then
+    local track,thumb=self.roomScrollTrack,self.roomScrollThumb
+    local height=math.max(1,viewHeight-16)
+    local count=#self.state.messages
+    local thumbHeight=math.min(height,math.max(18,height/math.max(1,count/8)))
+    track:ClearAllPoints();track:SetPoint("TOPRIGHT",self,"TOPRIGHT",-3,-8);track:SetSize(2,height);track:SetColorTexture(.7,.75,.8,.08)
+    thumb:ClearAllPoints();thumb:SetPoint("TOPRIGHT",track,"TOPRIGHT",0,-(height-thumbHeight)*(1-(self.state.scrollIndex-1)/math.max(1,count-1)));thumb:SetSize(2,thumbHeight)
+    thumb:SetColorTexture(.7,.75,.8,self.state.scrollAtBottom and .18 or .5)
+    track:SetShown(not not room);thumb:SetShown(not not room and count>8)
   end
 end
 
@@ -201,11 +220,9 @@ function SlidingMessageFrameMixin:UpdateDynamicEditBoxLayout()
 end
 
 
-function SlidingMessageFrameMixin:RefreshLayout(reprocessText)
-  if self.state == nil or self.slider == nil then
-    return
-  end
-
+-- Resize chrome in the same cursor tick; history reflow can remain coalesced.
+function SlidingMessageFrameMixin:RefreshLayoutGeometry()
+  if not self.state or not self.slider then return end
   self:CancelDynamicEditBoxLayout(false)
   self.config.height = self:GetMessageFrameHeight()
   self.config.width = self:GetLayoutWidth()
@@ -213,13 +230,24 @@ function SlidingMessageFrameMixin:RefreshLayout(reprocessText)
   self:ClearAllPoints()
   local dockInset = self.whisperDock and math.max(0, self.whisperDock:GetHeight() - Constants.DOCK_HEIGHT) or 0
   self:SetPoint("TOPLEFT", 0, -getMessageTopInset(self.state.isCombatLog) - dockInset)
-  self:SetHeight(self.config.height + self.config.overflowHeight)
   self:SetWidth(self.config.width)
+
+  self.slider:SetWidth(self.config.width)
+  self:UpdateViewportHeight()
+  self.overlay:UpdateFrame()
+end
+
+function SlidingMessageFrameMixin:RefreshLayout(reprocessText)
+  if self.state == nil or self.slider == nil then
+    return
+  end
+
+  self:RefreshLayoutGeometry()
 
   for _, message in ipairs(self.state.messages) do
     if reprocessText and message.sourceText then
-      local processedText = TP:ProcessText(message.sourceText, message.sourceFrame, message.receivedAt, message.sourceTypeID)
-      local r,g,b=TP:WhisperReplyStyle(message.sourceFrame,message.sourceTypeID)
+      local processedText = TP:ProcessText(message.sourceText, message.sourceFrame, message.receivedAt, message.sourceTypeID,message.sourceLineID,message.sunderOwnMessage)
+      local r,g,b=TP:WhisperReplyStyle(message.sourceFrame,message.sourceTypeID,message.sunderOwnMessage,message.sourceText,message.sourceLineID)
       if not r and message.sourceColor then r,g,b=unpack(message.sourceColor) end
       if r then message.text:SetTextColor(r,g,b,1) end
       message:SetDisplayText(processedText)
@@ -233,6 +261,7 @@ function SlidingMessageFrameMixin:RefreshLayout(reprocessText)
 end
 
 function SlidingMessageFrameMixin:SetLayout(parent, width, height, editBox, detachedContainer)
+  self.windowSurface=parent and parent.windowSurfaceRegistered or nil
   local previousDetachedContainer = self.detachedContainer
   self.layoutWidth = width
   self.layoutHeight = height

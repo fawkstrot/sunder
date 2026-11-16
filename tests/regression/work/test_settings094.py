@@ -4,7 +4,8 @@ exec(source[:source.index("print('Global appearance schema")])
 lua.execute('''
 assert(not options.args.whispers and not options.args.appearance)
 assert(options.args.chat.childGroups=="tree")
-assert(options.args.chat.args.windows and options.args.chat.args.whispers and options.args.chat.args.appearance)
+assert(options.args.chat.args.windows and options.args.chat.args.whispers and options.args.chat.args.appearance and options.args.chat.args.guild)
+assert(not options.args.guildChat, "guild settings leaked outside Chat")
 local function hasLayout(group)
  if group.args and group.args.globalLayout then return true end
  for _,v in pairs(group.args or {}) do if v.type=="group" and hasLayout(v) then return true end end
@@ -20,10 +21,12 @@ function dialog:Open(app)assert(app=="Sunder")end
 function dialog:SelectGroup(app,...) selectedPath={...} end
 modules.Config:OpenSettings("whispers")
 assert(selectedPath[1]=="chat" and selectedPath[2]=="whispers","standalone deep link failed")
+modules.Config:OpenSettings("guild");assert(selectedPath[1]=="chat" and selectedPath[2]=="guild")
 modules.Ellesmere.optionsRegistered=true
 EllesmereUI={OpenPlugin=function(id,section,page) nativeSection,nativePage=section,page;return true end}
 modules.Config:OpenSettings("appearance")
 assert(nativeSection=="chat" and nativePage=="Appearance","EUI deep link failed")
+modules.Config:OpenSettings("guild");assert(nativeSection=="chat" and nativePage=="Guild Chat")
 EllesmereUI.OpenPlugin=function()error("optional integration failure")end
 modules.Config:OpenSettings("whispers")
 assert(selectedPath[2]=="whispers","failed EUI integration did not fall back")
@@ -68,3 +71,15 @@ modulesList[1].buildPage("Chat windows",parent,0)
 assert(#rendered==4,"search omitted a subsection")
 ''')
 print('Settings polish passed: Chat hierarchy, scoped layout controls, standalone/EUI deep links and failure fallback, narrow action wrapping, subsection memory, action routing and complete search indexing.')
+
+config_source=Path(os.environ['SUNDER_ADDON_ROOT']+'/Sunder/Modules/Config.lua').read_text(encoding='utf-8')
+start=config_source.index('  if not profile.timestampAllWindowsPolicyVersion then')
+stop=config_source.index('  profile.timestampsEnabled = not not',start)
+lua.execute('function applySharedClockDefault(profile)\n'+config_source[start:stop]+'end')
+lua.execute("""
+local profile={timestampsEnabled=false,timestampAllWindows=false}
+applySharedClockDefault(profile)
+assert(profile.timestampsEnabled and profile.timestampAllWindows and profile.timestampAllWindowsPolicyVersion==1)
+profile.timestampsEnabled=false;applySharedClockDefault(profile)
+assert(not profile.timestampsEnabled,"reload normalization re-enabled clocks after user turned them off")
+""")

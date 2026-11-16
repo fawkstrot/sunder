@@ -191,7 +191,7 @@ local function getMessageOptions()
           },
           timestampsEnabled = {
             name = "Show timestamps",
-            desc = "Adds Sunder-owned timestamps to new and retained chat messages. Enabling this turns off WoW's built-in timestamps to prevent duplicates.\nDefault: Disabled",
+            desc = "Adds Sunder-owned timestamps to new and retained chat messages. Enabling this turns off WoW's built-in timestamps to prevent duplicates.\nDefault: Enabled for all chat windows",
             type = "toggle",
             order = 1.7,
             get = function ()
@@ -202,6 +202,17 @@ local function getMessageOptions()
               if input then
                 disableBuiltinTimestamps()
               end
+              Core:Dispatch(UpdateConfig("timestampDisplay"))
+            end,
+          },
+          timestampAllWindows = {
+            name = "All chat windows (including Whispers)",
+            desc = "Use this timestamp format for every message window, including Guild, Party/Raid, Whispers and newly opened windows. Overrides Whispers' separate timestamp preference while enabled.",
+            type = "toggle", order = 1.75,
+            get = function () return Core.db.profile.timestampAllWindows end,
+            set = function (_, value)
+              Core.db.profile.timestampAllWindows=value
+              if value then Core.db.profile.timestampsEnabled=true;disableBuiltinTimestamps()end
               Core:Dispatch(UpdateConfig("timestampDisplay"))
             end,
           },
@@ -262,7 +273,7 @@ local function getMessageOptions()
             order = 2.1,
             values = getTimestampFrameOptions,
             disabled = function ()
-              return not Core.db.profile.timestampsEnabled
+              return not Core.db.profile.timestampsEnabled or Core.db.profile.timestampAllWindows
             end,
             get = function (_, frameName)
               return Core.db.profile.timestampFrames[frameName]

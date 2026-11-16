@@ -13,9 +13,9 @@ function target:ClearAllPoints() end
 function target:SetPoint(point, parent, relative, x, y)
   self.point, self.relative, self.x, self.y = point, relative, x, y
 end
-allowed, finishes = true, 0
+allowed, finishes = true, 0;resizeSettings={}
 handle = Core.Components.CreateResizeHandle(overlay, {
-  minWidth = 100, minHeight = 100,
+  minWidth = 100, minHeight = 100,settings=function()return resizeSettings end,
   allowed = function() return allowed end,
   begin = function() return target, target.width, target.height end,
   apply = function(w,h) target.width, target.height = w,h end,
@@ -45,11 +45,24 @@ handle.scripts.OnMouseDown(handle, "LeftButton")
 down = false
 handle:UpdateResize()
 assert(not handle.resizeState and finishes == 2, 'release failed to save')
+cursorX,cursorY,down=100,100,true
+target.width,target.height=600,250
+handle.scripts.OnMouseDown(handle,"LeftButton")
+cursorX,cursorY,down=140,80,false
+handle.scripts.OnMouseUp(handle,"LeftButton")
+assert(target.width==680 and target.height==290 and not handle.resizeState and finishes==3,'fast drag lost its final cursor delta')
+resizeSettings.movementLocked=true;down=true
+handle.scripts.OnMouseDown(handle,"LeftButton");assert(not handle.resizeState,"position lock did not block resizing")
+resizeSettings.movementLocked=false;handle.scripts.OnMouseDown(handle,"LeftButton")
+resizeSettings.movementLocked=true;cursorX=300;handle:UpdateResize()
+assert(not handle.resizeState and finishes==4 and target.width==680,"locking mid-resize did not cancel driver")
+resizeSettings.movementLocked=false
+
 ''')
 
 # Exercise the main window's actual callbacks, including settings broadcasts and position save.
 src = base.joinpath('Components/MoverFrame.lua').read_text()
-callbacks = src[src.index('  self.resizeHandle ='):src.index('  self:Hide()\n\n  self.boundsFrame:RegisterForDrag')]
+callbacks = src[src.index('  self.resizeOptions ='):src.index('  self:Hide()\n\n  self.boundsFrame:RegisterForDrag')]
 lua.execute('''
 Constants.ACTIONS = {
   UpdateConfig = function(key) return "update", key end,
@@ -82,3 +95,53 @@ self.resizeHandle:FinishResize()
 assert(saved.point == "TOPLEFT" and saved.yOfs == -1360, 'main anchor not saved')
 ''')
 print('Resize checks passed: scale, anchor persistence, limits, lock, release, main settings and layout updates.')
+
+# Exercise normal header movement with the edit overlay hidden.
+lua.execute('MoverFrameMixin = {}')
+lua.execute(src[src.index('function MoverFrameMixin:StartDragging()'):src.index('function MoverFrameMixin:ScheduleBoundsUpdate()')])
+lua.execute("""
+local moving={left=140,top=700}
+function moving:HookScript(key,fn)self.hooks=self.hooks or {};self.hooks[key]=fn end
+function moving:SetMovable(v)self.movable=v end
+function moving:SetClampedToScreen(v)self.clamped=v end
+function moving:StartMoving()self.moving=true end
+function moving:StopMovingOrSizing()self.moving=false end
+function moving:GetLeft()return self.left end
+function moving:GetTop()return self.top end
+function moving:ClearAllPoints()end
+function moving:SetPoint(...)self.anchor={...}end
+local mover=setmetatable({layoutContainer=moving},{__index=MoverFrameMixin})
+function mover:GetHeight()return 300 end
+function mover:SetDragPosition(x,y)self.left=x;self.bottom=y end
+function mover:GetPoint()return "TOPLEFT",UIParent,"TOPLEFT",self.left,self.bottom end
+Core.Components.WindowManager:Settings("main").movementLocked=false
+down=true;mover:StartDragging()
+assert(moving.moving and mover.windowMoveDriver.scripts.OnUpdate,"normal header has no running driver")
+assert(mover.windowMoveDriver.parent==UIParent,"driver is parented to a hidden overlay")
+moving.left=200;moving.top=640
+mover.windowMoveDriver.scripts.OnUpdate();assert(moving.moving,"movement stopped before release")
+down=false;mover.windowMoveDriver.scripts.OnUpdate()
+assert(not moving.moving and mover.left==200 and mover.bottom==340)
+assert(not mover.nativeDragTarget and not mover.windowMoveDriver.scripts.OnUpdate)
+assert(moving.anchor[1]=="TOPLEFT" and moving.anchor[2]==mover,"root did not rejoin saved anchor")
+Core.Components.WindowManager:Settings("main").movementLocked=true
+mover:StartDragging();assert(not moving.moving,"position lock allowed root movement")
+Core.Components.WindowManager:Settings("main").movementLocked=false
+down=true;mover:StartDragging();assert(moving.moving)
+moving.hooks.OnHide()
+assert(not moving.moving and not mover.windowMoveDriver.scripts.OnUpdate and not mover.windowMoveTarget,"hidden window leaked a movement driver")
+""")
+
+lua.execute(src[src.index('function MoverFrameMixin:CreateStandardResizer('):src.index('function MoverFrameMixin:Init()')])
+lua.execute("""
+local normal=MakeFrame("Frame",nil,UIParent)
+function normal:IsShown()return true end
+Core.sunderMoverUnlocked=false
+local handle=MoverFrameMixin.CreateStandardResizer(self,normal)
+down=true;cursorX=100;cursorY=100
+handle.scripts.OnMouseDown(handle,"LeftButton")
+assert(handle.resizeState,"main resize still requires edit mode")
+cursorX=120;cursorY=80;handle:UpdateResize()
+assert(Core.db.profile.frameWidth>700 and Core.db.profile.frameHeight>300,"standard resize did not update main dimensions")
+handle:FinishResize();Core.sunderMoverUnlocked=true
+""")

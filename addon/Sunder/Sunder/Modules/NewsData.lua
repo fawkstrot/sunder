@@ -33,3 +33,13 @@ table.insert(Core.NewsEntries,1,{name="Sunder 0.9.11 (2026-11-11)",items={[[
 - Existing profiles, messages, favorites, item protection and window layouts migrate once through the data-only legacy loader.
 - Development now lives in its own Git repository with checked deployment and release packaging.
 ]]}})
+
+
+table.insert(Core.NewsEntries,1,{name="Sunder 0.10.0-alpha.1 (2026-11-16)",items={[[
+- Alpha preview: dedicated Guild and Party/Raid rooms with shared controls and compact member lists.
+- Durable Whispers conversations and a Previous groups browser for saved group logs.
+- Shared favorites, pins, class/level details, dim timestamps and compact message labels.
+- Unified dragging, locking, resizing, collapse, surfaces and scroll indicators.
+- Strict item protection remains; experimental protection controls have been removed.
+- WoW Forever 1.60.1 only. Back up account data; some native behaviors still need live validation.
+]]}})

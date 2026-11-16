@@ -65,6 +65,8 @@ function Launcher:OnEnable()
     if self.suppressClick then self.suppressClick = nil; return end
     if mouseButton == "RightButton" then
       Core:GetModule("Config"):OnSlashCommand("lock")
+    elseif IsControlKeyDown and IsControlKeyDown() then
+      Core:GetModule("Config"):OnSlashCommand("guild")
     elseif IsShiftKeyDown and IsShiftKeyDown() then
       local whispers = Core:GetModule("Whispers", true)
       if whispers and whispers.OpenMessages then whispers:OpenMessages() end
@@ -97,6 +99,7 @@ function Launcher:OnEnable()
     GameTooltip:AddLine(Core.DisplayName, 1, 0.82, 0)
     GameTooltip:AddLine("Left-click: settings", 1, 1, 1)
     GameTooltip:AddLine("Shift-left-click: Whispers window", 1, 1, 1)
+    GameTooltip:AddLine("Control-left-click: Guild Chat room", 1, 1, 1)
     GameTooltip:AddLine("Right-click: lock/unlock chat windows", 1, 1, 1)
     GameTooltip:AddLine("Drag: move this button", 0.7, 0.7, 0.7)
     local whispers = Core:GetModule("Whispers", true)

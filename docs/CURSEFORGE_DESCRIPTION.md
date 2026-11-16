@@ -10,7 +10,11 @@ Compact tabs, smooth scrolling, horizontal background fades, shared content padd
 
 ## Whispers, together
 
-Keep conversations in one Whispers window with All, Unread and Favorites views. Use a people list or conversation tabs, pin important conversations, create optional named groups, or detach a conversation. Customize sounds and notifications, and return directly to the right person from a toaster. Retain local conversation history with timestamps and distinguish your replies at a glance.
+Keep conversations in one Whispers window with All, Unread and Favorites views. Use a people list or conversation tabs, pin important conversations, create optional named groups, or detach a conversation. Customize sounds and notifications, and return directly to the right person from a toaster. Closing a conversation archives its local history; deletion is a separate confirmed action. Use dim 12/24-hour timestamps across chat or turn them off, and distinguish your replies at a glance.
+
+## Guild and Party/Raid rooms
+
+Dedicated rooms share the same compact window controls, backgrounds and member rows as Whispers. See class/level details and online counts, mark favorites across views, and keep Guild information and the message of the day nearby. Party Chat follows your group into raids, opens automatically by default, and offers a local Previous groups log browser. History is bounded and saved per character; older logs may lack member details.
 
 ## Item protection
 

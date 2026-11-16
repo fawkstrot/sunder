@@ -291,7 +291,7 @@ function ChatDockMixin:Init(parent)
 
   -- Overlap the message background by one physical pixel to avoid a subpixel seam.
   local backgroundColor = Core.db.profile.headerBackgroundColor
-  self:SetGradientBackground(backgroundColor, backgroundColor.a)
+  if parent.windowSurfaceRegistered then Core.Components.WindowManager:ApplyNativeSurface(parent,self)else self:SetGradientBackground(backgroundColor,backgroundColor.a)end
   updateMessageSeparator(self)
 
   if Core.db.profile.chatAlwaysVisible then
@@ -325,7 +325,7 @@ function ChatDockMixin:Init(parent)
           self:SetWidth(Core.db.profile.frameWidth)
 
           backgroundColor = Core.db.profile.headerBackgroundColor
-          self:SetGradientBackground(backgroundColor, backgroundColor.a)
+          if parent.windowSurfaceRegistered then Core.Components.WindowManager:ApplyNativeSurface(parent,self)else self:SetGradientBackground(backgroundColor,backgroundColor.a)end
         end
 
         if key == "tabMessageSeparatorColor" or key == "frameWidth" or key == "backgroundFade" then

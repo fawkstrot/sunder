@@ -11,11 +11,21 @@ class ReleaseTests(unittest.TestCase):
             metadata,archive,config=release.prepare('v'+release.tools.version())
         self.assertEqual(config['curseforgeProjectId'],1798860)
         self.assertEqual(archive.name,'Sunder-'+release.tools.version()+'.zip')
-        self.assertIn('Rebrand',metadata['changelog'])
+        self.assertEqual(metadata['changelog'],release.notes(release.tools.version()))
+        self.assertEqual(metadata['releaseType'],release.release_type(release.tools.version()))
         self.assertNotIn('Record player-facing',metadata['changelog'])
         self.assertNotIn('# 0.9.10',metadata['changelog'])
         manifest=json.loads((ROOT/'dist/release-manifest.json').read_text())
         self.assertEqual(manifest['sha256'],hashlib.sha256(archive.read_bytes()).hexdigest())
+        self.assertEqual(manifest['releaseType'],metadata['releaseType'])
+    def test_release_types_and_explicit_guard(self):
+        for version,kind in [('0.10.0-alpha.1','alpha'),('0.10.0-beta.2','beta'),('0.10.0-rc.1','beta'),('0.10.0','release')]:
+            self.assertEqual(release.release_type(version),kind)
+        for version in ['0.10.0-preview','0.10.0-alpha','0.10.0-alpha.1-junk']:
+            with self.assertRaises(ValueError):release.release_type(version)
+        wrong='release' if release.release_type(release.tools.version())=='alpha' else 'alpha'
+        with patch.object(release.tools,'package',side_effect=AssertionError('Mismatch must stop before packaging')),self.assertRaises(ValueError):
+            release.prepare('v'+release.tools.version(),wrong)
     def test_version_guards(self):
         with self.assertRaises(ValueError):release.prepare('v0.0.0')
         with self.assertRaises(ValueError):release.notes('0.0.0')

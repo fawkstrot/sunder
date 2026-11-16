@@ -1,6 +1,6 @@
 # Releasing Sunder
 
-CurseForge project: **1798860** (approval/visibility last reported pending). Current addon version: **0.9.11**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
+CurseForge project: **1798860** (approval/visibility last reported pending). Current alpha candidate: **0.10.0-alpha.1**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
 
 The user confirmed green CI, a draft GitHub release and a successful CurseForge upload on 2026-11-11. Do not upload 0.9.11 again. See [session context](CONTEXT.md) for remaining launch checks.
 
@@ -22,14 +22,16 @@ The user confirmed green CI, a draft GitHub release and a successful CurseForge 
 ## Cut a release
 
 1. Move Unreleased entries into `# <version> (YYYY-MM-DD)` in the canonical changelog. Update `addon/Sunder/Sunder.toc` and `compat/ROTBOTForever/ROTBOTForever.toc` together; update in-game news where appropriate. Do not reset database schema versions for a normal release.
-2. Run `python tools/sunder.py test`, then `python tools/release.py prepare --tag v<version>`. Preparation does not upload anything. It rejects inconsistent versions or project IDs and extracts only that version's changelog section.
+2. Run `python tools/sunder.py test`, then `python tools/release.py prepare --tag v<version> --release-type alpha` (use the matching `beta` or `release` for those channels). Preparation does not upload anything. It rejects inconsistent versions or project IDs and extracts only that version's changelog section.
 3. Inspect `dist/Sunder-<version>.zip` (only `Sunder/`) and `dist/Sunder-<version>-upgrade.zip` (Sunder plus metadata-only ROTBOTForever). Smoke-test the intended client: saved-data reload, slash commands, minimap, standalone settings, optional Ellesmere Edit UI, whisper/reply/history, item protection and bank sorting.
 4. Commit reviewed changes, create an annotated `v<version>` tag on that commit, and push the branch and tag. Do not move published version tags; fix mistakes with a new version.
-5. In GitHub Actions, run **Release Sunder**, entering the existing tag. Leave **publish_curseforge** off for the first rehearsal. It reruns checks, builds both ZIPs and creates a **draft** GitHub release with the curated notes and checksums. Review that draft before publishing it on GitHub.
+5. In GitHub Actions, run **Release Sunder**, entering the existing tag and matching **release_type**. The type defaults to **alpha**; a mismatch with the version stops before packaging/upload. Leave **publish_curseforge** off for the first rehearsal. It reruns checks, builds both ZIPs and creates a **draft** GitHub release with the curated notes and checksums (also marked prerelease for Alpha/Beta). Review that draft before publishing it on GitHub.
 6. For the intended upload run, enable **publish_curseforge** and leave numeric IDs empty and use `1.60.1` in the version-names field. The workflow refreshes an existing draft and refuses to modify a published GitHub release. Current release tooling packages the exact existing tag from a separate checkout, so tooling fixes do not require moving version tags. Never blindly rerun after a possible upload; inspect CurseForge files first to avoid duplicates.
-7. CurseForge receives only the clean ZIP, the same curated notes, and alpha/beta/release type inferred from the version. CurseForge approval/visibility still applies. GitHub's draft publication is a separate deliberate step.
+7. CurseForge receives only the clean ZIP, the same curated notes, and explicitly checked alpha/beta/release type derived from the version. CurseForge approval/visibility still applies. GitHub's draft publication is a separate deliberate step.
 
-The release command uploads only from a clean working tree at the matching committed tag. Version tags such as `0.10.0-alpha.1` or `0.10.0-beta.1` are classified appropriately; ordinary versions are releases.
+The release command uploads only from a clean working tree at the matching committed tag. Version tags such as `0.10.0-alpha.1` or `0.10.0-beta.1` are classified appropriately; ordinary versions are releases. Unknown prerelease suffixes are rejected. `-alpha.N` maps to CurseForge Alpha, `-beta.N`/`-rc.N` to Beta; a bare version maps to Release. GitHub draft/prerelease flags do not control CurseForge classification.
+
+The prior 0.9.11 was a full release because it had no prerelease suffix. For this iteration use **v0.10.0-alpha.1**, **release_type=alpha**, **publish_curseforge=true**, and Forever **1.60.1**. Keep the GitHub draft unpublished as requested. Do not relabel or re-upload the previous file as part of this release.
 
 ## Artifacts and migration
 

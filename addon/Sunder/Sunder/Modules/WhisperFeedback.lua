@@ -41,7 +41,7 @@ function W:UpdatePeopleScrollbar(preview)
   local height=math.max(1,scroll:GetHeight())
   local maximum=math.max(0,child:GetHeight()-height)
   rail.maximum=maximum
-  rail:ClearAllPoints();rail:SetPoint("TOPRIGHT",scroll,"TOPRIGHT",-1,-4);rail:SetHeight(math.max(1,height-8))
+  Core.Components.WindowManager:LayoutListScrollRail(rail,scroll)
   rail.syncing=true
   rail:SetMinMaxValues(0,math.max(1,maximum))
   rail:SetValue(clamp(scroll:GetVerticalScroll(),0,maximum))
@@ -82,6 +82,18 @@ function W:LatestWhisperSnippet(frame)
   if not success or not accessible(text) or type(text)~="string" then return "New whisper received." end
   return text:gsub("|T.-|t",""):gsub("|A.-|a",""):gsub("[\r\n]"," ")
 end
+-- Preview only: native history and exact-message jump tokens stay unchanged.
+function W:WhisperToastText(text)
+  local function plain(value)
+    return value:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+      :gsub("|H.-|h(.-)|h", "%1"):gsub("|T.-|t", ""):gsub("|A.-|a", "")
+  end
+  text=plain(text):gsub("[\r\n]", " ")
+  local format=plain(_G.CHAT_WHISPER_GET or "%s whispers: ")
+  local pattern=format:gsub("%%1%$s", "SUNDERNAME"):gsub("%%s", "SUNDERNAME")
+    :gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1"):gsub("SUNDERNAME", ".-")
+  return (text:gsub("^"..pattern, "", 1))
+end
 function W:QueueMinimizedWhisper(person,sample,text,seed,nativeArgs)
   if self:Settings().minimizedPreviews==false then return end
   if not sample and W:IsConversationDisplayed(person) then return end
@@ -97,7 +109,7 @@ function W:QueueMinimizedWhisper(person,sample,text,seed,nativeArgs)
   text=accessible(text) and type(text)=="string" and text or self:LatestWhisperSnippet(person)
   self.minimizedWhispers=self.minimizedWhispers or {}
   if seed then for _,entry in ipairs(self.minimizedWhispers) do if entry.person==person then return end end end
-  local entry={person=person,record=record,sample=sample,name=name,text=text,received=GetTime(),nativeToken=nativeArgs}
+  local entry={person=person,record=record,sample=sample,name=name,text=sample and text or self:WhisperToastText(text),received=GetTime(),nativeToken=nativeArgs}
   if sample then
     for i=#(person.lines or {}),1,-1 do local line=person.lines[i];if not line.outgoing and line.text==text then entry.line=line;break end end
   elseif person.GetNumMessages then
@@ -131,7 +143,7 @@ function W:OpenMinimizedWhisper(entry)
   end
   self:UpdateMinimizedWhispers()
   host.windowManuallyClosed=nil;host.hubOpenedAt=GetTime()
-  host:SetMinimized(false)
+  if entry.sample then host:SetMinimized(false) end
   host.hub:Show();host.hub:SetAlpha(1);host:SaveMessageWindowState()
   if entry.sample then
     for i,c in ipairs(host.previewConversations) do if c==entry.person then host:SelectPreviewConversation(i);break end end
@@ -201,7 +213,8 @@ function W:UpdateMinimizedWhispers()
     local entry=queue[i]
     local record=entry.sample and entry.person or W.records[entry.person]
     local expired=cfg.minimizedPreviewUntilRead==false and now-entry.received>=clamp(tonumber(cfg.minimizedPreviewTime) or 20,5,60)
-    if expired or not record or entry.record and entry.record~=record or entry.sample and not entry.person.host then table.remove(queue,i) end
+    local displayed=not entry.sample and W:IsConversationDisplayed(entry.person)
+    if displayed or expired or not record or entry.record and entry.record~=record or entry.sample and not entry.person.host then table.remove(queue,i) end
   end
   local limit=clamp(tonumber(cfg.minimizedPreviewRows) or 5,1,10)
   self.whisperToastOffset=clamp(self.whisperToastOffset or 0,0,math.max(0,#queue-limit))
@@ -228,7 +241,11 @@ function W:UpdateMinimizedWhispers()
   tray.navigation.label:SetText(string.format("%d–%d / %d",offset+1,offset+count,#queue))
   local bg=Core.db.profile.chatBackgroundColor or {}
   local stamp=tostring(bg.r)..tostring(bg.g)..tostring(bg.b)..tostring(bg.a)..tostring(count)..":"..offset..":"..#queue..":"..self:InterfaceTextSize()..":"..self.hub:GetWidth()
-  for i=1,count do stamp=stamp..tostring(queue[i+offset])..queue[i+offset].received end
+  for i=1,count do
+    local entry=queue[i+offset]
+    local starred=entry.sample and entry.person.favorite or not entry.sample and W:IsFavorite(entry.person)
+    stamp=stamp..tostring(entry)..entry.received..tostring(starred)
+  end
   if tray.stamp==stamp then return end
   tray.stamp=stamp
   local padding=self:BodyPadding()
@@ -269,7 +286,7 @@ function W:UpdateMinimizedWhispers()
       self:WorkspaceFont(row.name,textSize);row.name:SetTextColor(self:ConversationLabelColor(false,entry.person))
       self:WorkspaceFont(row.snippet,self:InterfaceTextSize());row.snippet:SetTextColor(.78,.81,.84)
       local starred=entry.sample and entry.person.favorite or not entry.sample and W:IsFavorite(entry.person)
-      local badge=starred and "|TInterface\\AddOns\\Sunder\\Media\\Icons\\favorite.tga:12:12:0:0|t " or ""
+      local badge=starred and "|TInterface\\AddOns\\Sunder\\Media\\Icons\\favorite-filled.tga:12:12:0:0|t " or ""
       row.name:SetText(badge..entry.name);row.snippet:SetText(entry.text)
       local color=Core.db.profile.chatBackgroundColor or {r=.035,g=.04,b=.05,a=.25}
       if Core.Components.PaintGradientTexture then Core.Components.PaintGradientTexture(row.fill,color,color.a or .25,true)

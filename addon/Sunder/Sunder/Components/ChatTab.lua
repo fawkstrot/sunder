@@ -121,10 +121,7 @@ function ChatTabMixin:UpdateTitleDecoration()
   if self.titleIcon then
     local key = override
     if not key or key == "auto" then
-      local types = self.chatFrame.messageTypeList or {}
-      local guild = false
-      for _, kind in pairs(types) do if kind == "GUILD" or kind == "OFFICER" then guild = true end end
-      key = self.chatFrame == _G.ChatFrame2 and "read" or self.chatFrame.isTemporary and "reply" or guild and "windows" or "inbox"
+      key = self.chatFrame == _G.ChatFrame2 and "read" or self.chatFrame.isTemporary and "reply" or "inbox"
     end
     if not TITLE_ICONS[key] then key = "inbox" end
     local icon = self.titleIcon
@@ -134,9 +131,7 @@ function ChatTabMixin:UpdateTitleDecoration()
     end
     local size = math.max(10, math.min(18, tonumber(profile.chatTitleIconSize) or 14))
     icon:SetSize(size, size); icon:ClearAllPoints(); icon:SetPoint("LEFT", getLeftTextPadding(), 0)
-    if selected or hovered then icon:SetVertexColor(accent.r, accent.g, accent.b)
-    else icon:SetVertexColor(0.74, 0.8, 0.88) end
-    icon:SetAlpha((selected or hovered) and 0.9 or math.max(0.15, math.min(1, tonumber(profile.chatTitleIconOpacity) or 0.5)))
+    Core.Components.WindowManager:StyleTitleIcon(icon,hovered)
     icon:SetShown(enabled)
   end
   if not self.selectionLine then
@@ -159,6 +154,10 @@ function ChatTabMixin:GetLayoutWidth()
   local width = self:GetIconWidth() + self:GetTextWidth() + getLeftTextPadding() + Constants.TEXT_RIGHT_PADDING
   if self.unreadText and self.unreadText:IsShown() then
     width = width + UNREAD_COUNT_GAP + self.unreadText:GetStringWidth()
+  end
+  local header=self:GetParent()
+  if self.chatFrame and not self.chatFrame.isDocked and header and header.windowActionWidth then
+    width=math.min(width,math.max(40,header:GetWidth()-header.windowActionWidth-(header.windowTitleInset or 0)))
   end
   return width
 end

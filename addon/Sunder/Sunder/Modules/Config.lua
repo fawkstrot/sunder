@@ -6,7 +6,7 @@ local AceConfigDialog = Core.Libs.AceConfigDialog
 local AceGUI = Core.Libs.AceGUI
 local L = function(text) return Core:Localize(text) end
 
-local CURRENT_SETTINGS_VERSION = 8
+local CURRENT_SETTINGS_VERSION = 9
 
 local OpenNews = Constants.ACTIONS.OpenNews
 local LockMover = Constants.ACTIONS.LockMover
@@ -42,10 +42,10 @@ local SettingsValues = {
     HIDDEN = L("Hidden"),
   },
   timestampFormats = {
-    ["[%H:%M]"] = "[23:59]",
-    ["[%H:%M:%S]"] = "[23:59:59]",
-    ["[%I:%M %p]"] = "[11:59 PM]",
-    ["[%I:%M:%S %p]"] = "[11:59:59 PM]",
+    ["[%H:%M]"] = "24-hour [23:59]",
+    ["[%H:%M:%S]"] = "24-hour [23:59:59]",
+    ["[%I:%M %p]"] = "12-hour [11:59 PM]",
+    ["[%I:%M:%S %p]"] = "12-hour [11:59:59 PM]",
   },
   easingValues = {
     Linear = L("Linear"),
@@ -221,7 +221,11 @@ local function migrateSettings()
   end
   profile.settingsVersion = CURRENT_SETTINGS_VERSION
   if version < 8 then
-    profile.bodyPadding = tonumber(rawget(profile,"bodyPadding")) or 12
+    profile.bodyPadding = tonumber(rawget(profile,"bodyPadding")) or 8
+  end
+  -- Adopt the tighter default once; later explicit choices of 12 remain valid.
+  if version < 9 and tonumber(rawget(profile, "bodyPadding")) == 12 then
+    profile.bodyPadding = 8
   end
   -- Retired per-chat insets and top shade have no active rendering path.
   profile.messagePaddingLeft,profile.messagePaddingRight,profile.messagePaddingBottom=nil,nil,nil
@@ -279,6 +283,13 @@ end
 local function normalizeTimestamps()
   local profile = Core.db.profile
   local defaults = Core.defaults.profile
+  -- One-time application of the requested all-chat default. Subsequent off
+  -- choices survive normalization, reload and profile changes.
+  if not profile.timestampAllWindowsPolicyVersion then
+    profile.timestampsEnabled=true
+    profile.timestampAllWindows=true
+    profile.timestampAllWindowsPolicyVersion=1
+  end
   profile.timestampsEnabled = not not profile.timestampsEnabled
   profile.timestampColorEnabled = not not profile.timestampColorEnabled
   if TIMESTAMP_FORMATS[profile.timestampFormat] == nil then
@@ -430,6 +441,12 @@ function C:OnSlashCommand(input)
     Core:GetModule("Whispers"):StartPreview()
   elseif input == "favorites" then
     Core:GetModule("Whispers"):OpenFavoritesView()
+  elseif input == "guild" then
+    local guild=Core:GetModule("GuildChat",true)
+    if guild and guild.Open then guild:Open()
+    else self:Print("Guild Chat has not loaded yet. Restart the client once to discover the new module, then use /sunder guild.")end
+  elseif input == "party" or input == "raid" then
+    Core:GetModule("PartyChat"):Open()
   elseif input == "whispers" then
     self:OpenSettings("whispers")
   elseif input == "appearance" then
@@ -460,7 +477,7 @@ local settingsWindow
 -- reach other addons' windows. While EllesmereUI skins Sunder, settings open in a window Sunder keeps instead.
 function C:OpenSettings(section)
   local path = Core:GetSettingsPath(section)
-  local pageName = path[2] and ({whispers = "Whispers", appearance = "Appearance"})[path[2]]
+  local pageName = path[2] and ({whispers = "Whispers", appearance = "Appearance",guild="Guild Chat"})[path[2]]
   local eui = _G.EllesmereUI
   local integration = Core:GetModule("Ellesmere")
   if eui and type(eui.OpenPlugin) == "function" and integration.optionsRegistered then

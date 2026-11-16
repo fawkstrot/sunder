@@ -26,6 +26,7 @@ try:
         with zipfile.ZipFile(path) as z:
             names=z.namelist();roots={name.split('/')[0] for name in names}
             assert roots==({'Sunder','ROTBOTForever'} if '-upgrade' in path.name else {'Sunder'})
+            assert 'Sunder/Bindings.xml' in names,'Auto-loaded bindings missing from package'
             assert 'Sunder/Sunder.toc' in names and not any('/tests/' in n or '/.local/' in n for n in names)
             if '-upgrade' in path.name:assert [n for n in names if n.startswith('ROTBOTForever/')]==['ROTBOTForever/ROTBOTForever.toc']
 finally:

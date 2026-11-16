@@ -23,7 +23,7 @@ function DetachedChatDockMixin:UpdateFadeSettings()
 end
 
 function DetachedChatDockMixin:UpdateAutomaticVisibility()
-  if Core.db.profile.chatAlwaysVisible or self.typing then
+  if Core.db.profile.chatAlwaysVisible or self.typing or self.keepRoomVisible or self.dragFrame then
     self:QuickShow()
   else
     self:HideDelay(Core.db.profile.chatHoldTime)
@@ -47,15 +47,20 @@ end
 
 function DetachedChatDockMixin:UpdateStyle()
   local backgroundColor = Core.db.profile.headerBackgroundColor
-  self:SetGradientBackground(backgroundColor, backgroundColor.a)
+  if self:GetParent().windowSurfaceRegistered then Core.Components.WindowManager:ApplyNativeSurface(self:GetParent(),self)
+  else self:SetGradientBackground(backgroundColor,backgroundColor.a)end
   self.messageSeparator:SetSeparatorColor(Core:GetThemeColor("tabMessageSeparatorColor"))
 end
 
 -- Move the native frame: Sunder's detached layout is anchored to it.
--- All detached movement follows Sunder edit mode, including locked native tabs.
+-- Header dragging is always available unless this window is position-locked.
+function DetachedChatDockMixin:WindowSettings()
+  local frame=self.tab and self.tab.chatFrame
+  return Core.Components.WindowManager:Settings(frame and frame:GetName() or "detached")
+end
 function DetachedChatDockMixin:StartWindowDrag()
   local frame = self.tab and self.tab.chatFrame
-  if not self.editMode or not frame or frame.isDocked then
+  if not frame or frame.isDocked or not Core.Components.WindowManager:CanMove(self:WindowSettings()) then
     return false
   end
   if InCombatLockdown() and frame:IsProtected() then
@@ -65,11 +70,8 @@ function DetachedChatDockMixin:StartWindowDrag()
   self.dragFrame = frame
   self.dragWasMovable = frame:IsMovable()
   frame:SetMovable(true)
-  frame:StartMoving()
+  Core.Components.WindowManager:StartNativeMove(self,frame,nil,function()self:StopWindowDrag()end)
   self:QuickShow()
-  self.moverOverlay:SetScript("OnUpdate", function ()
-    if not IsMouseButtonDown("LeftButton") then self:StopWindowDrag() end
-  end)
   return true
 end
 
@@ -77,8 +79,7 @@ function DetachedChatDockMixin:StopWindowDrag()
   local frame = self.dragFrame
   if not frame then return end
   self.dragFrame = nil
-  self.moverOverlay:SetScript("OnUpdate", nil)
-  frame:StopMovingOrSizing()
+  Core.Components.WindowManager:StopNativeMove(self,frame)
   frame:SetMovable(self.dragWasMovable)
   self.dragWasMovable = nil
   if not frame.isDocked and not frame.isTemporary and FCF_SavePositionAndDimensions then
@@ -135,6 +136,7 @@ function DetachedChatDockMixin:SetEditMode(unlocked)
   end
   local frame = self.tab and self.tab.chatFrame
   self.moverOverlay:SetShown(self.editMode and frame ~= nil and not frame.isDocked)
+  if self.roomResize then self.roomResize:SetShown(not self.editMode and frame~=nil and not frame.isDocked)end
   if self.editMode and frame and not frame.isDocked then self:UpdateMoverBounds() end
 end
 
@@ -168,11 +170,11 @@ function DetachedChatDockMixin:CreateMoverOverlay(parent)
   overlay:SetScript("OnDragStart", function () self:StartWindowDrag() end)
   overlay:SetScript("OnDragStop", function () self:StopWindowDrag() end)
   overlay:SetScript("OnHide", function () self:StopWindowDrag() end)
-  self.resizeHandle = Core.Components.CreateResizeHandle(overlay, {
-    minWidth = 296, minHeight = 120,
+  local resizeOptions = {
+    minWidth = 296, minHeight = 120,settings=function()return self:WindowSettings()end,
     allowed = function ()
       local frame = self.tab and self.tab.chatFrame
-      return self.editMode and frame and not frame.isDocked
+      return frame and not frame.isDocked
         and not (InCombatLockdown() and frame:IsProtected())
     end,
     begin = function ()
@@ -187,7 +189,9 @@ function DetachedChatDockMixin:CreateMoverOverlay(parent)
         FCF_SavePositionAndDimensions(frame)
       end
     end,
-  })
+  }
+  self.resizeHandle=Core.Components.CreateResizeHandle(overlay,resizeOptions)
+  self.roomResize=Core.Components.WindowManager:CreateWindowResizer(parent,resizeOptions)
   overlay:Hide()
   self.editMode = not not Core.sunderMoverUnlocked
 end
@@ -199,9 +203,15 @@ function DetachedChatDockMixin:SetTab(tab)
   self.tab = tab
   self:SetEditMode(self.editMode)
   tab:SetParent(self)
-  tab:SetFrameStrata("LOW")
+  tab:SetFrameStrata(self:GetFrameStrata());tab:SetFrameLevel(self:GetFrameLevel()+2)
   tab:ClearAllPoints()
-  tab:SetPoint("LEFT", self, "LEFT", 0, 0)
+  tab:SetPoint("LEFT", self, "LEFT", 30, 0)
+  Core.Components.WindowManager:CreateNativeHeader(self,{
+    settings=function()return self:WindowSettings()end,
+    dockAction=function()Core:GetModule("UIManager"):DockWindow(self.tab.chatFrame)end,
+    start=function()self:StartWindowDrag()end,stop=function()self:StopWindowDrag()end,
+  })
+  if tab.SetWidth then tab:SetWidth(math.max(40,math.min(tab:GetWidth(),self:GetWidth()-86)))end
   if tab.UpdateVisualState then
     tab:UpdateVisualState()
   end

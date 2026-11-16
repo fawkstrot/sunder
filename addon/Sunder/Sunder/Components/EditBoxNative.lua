@@ -38,7 +38,7 @@ local function setPropagateKeyboardInput(editBox, propagate)
 end
 
 local function getLeftTextPadding()
-  return math.max(0, math.min(32, tonumber(Core.db.profile.bodyPadding) or 12))
+  return math.max(0, math.min(32, tonumber(Core.db.profile.bodyPadding) or 8))
 end
 
 

@@ -30,7 +30,7 @@ function Core:BuildOptions()
           return "Standalone interface active. EllesmereUI is optional; its styling is used automatically when available."
         end},
         commands = {type = "description", order = 7,
-          name = "/sunder: open settings\n/sunder appearance: shared chat appearance\n/sunder chat: chat settings\n/sunder whispers: conversations & notifications\n/sunder items: bag item protection\n/sunder lock: toggle move/resize mode\n/sunder minimap: show/hide the minimap button"},
+          name = "/sunder: open settings\n/sunder appearance: shared chat appearance\n/sunder chat: chat settings\n/sunder whispers: conversations & notifications\n/sunder guild: open Guild Chat room\n/sunder party: open Party Chat room\n/sunder items: bag item protection\n/sunder lock: toggle move/resize mode\n/sunder minimap: show/hide the minimap button"},
       },
     },
     profile = config.Pages.profile(),
@@ -98,7 +98,7 @@ function Core:BuildOptions()
     whispers.name, whispers.order = "Whispers", 3
     if appearance then appearance.order = 4 end
     local overview = {type = "group", name = "Overview", order = 1, args = {
-      intro = {type = "description", order = 1, name = "Chat windows: tabs, editors, scrolling and timestamps.\nWhispers: conversations, notifications and window behavior.\nAppearance: fonts, headers, backgrounds and spacing shared across both."},
+      intro = {type = "description", order = 1, name = "Chat windows: tabs, editors, scrolling and timestamps.\nWhispers: conversations, notifications and window behavior.\nGuild Chat: a native guild room with a live member roster.\nParty Chat: group conversation, members and status.\nAppearance: fonts, headers, backgrounds and spacing shared across chat."},
       globalLayout = self.globalLayoutOptions,
       ellesmereEdit = {type="execute",name="Open Ellesmere Edit UI",order=2,
         hidden=function()return not (_G.EllesmereUI and _G.EllesmereUI.OpenUnlockMode and _G.EllesmereUI.RegisterUnlockElements and _G.EllesmereUI.RegisterUnlockModeListener)end,
@@ -108,6 +108,16 @@ function Core:BuildOptions()
       args = {overview = overview, windows = windows, whispers = whispers, appearance = appearance}}
     args.whispers, args.appearance = nil, nil
     args.home.args.feature_whispers, args.home.args.feature_appearance = nil, nil
+  end
+  if args.guildChat and args.chat then
+    args.guildChat.name="Guild Chat";args.guildChat.order=3.5
+    args.guildChat.args.globalLayout=self.globalLayoutOptions
+    args.chat.args.guild=args.guildChat;args.guildChat=nil;args.home.args.feature_guildChat=nil
+  end
+  if args.partyChat and args.chat then
+    args.partyChat.name="Party Chat";args.partyChat.order=3.6
+    args.partyChat.args.globalLayout=self.globalLayoutOptions
+    args.chat.args.party=args.partyChat;args.partyChat=nil;args.home.args.feature_partyChat=nil
   end
   local function fitStandalone(group)
     for _, option in pairs(group.args or {}) do
@@ -121,6 +131,7 @@ end
 
 -- Stable entry points for slash commands, launcher buttons and older integrations.
 function Core:GetSettingsPath(section)
-  if section == "whispers" or section == "appearance" then return {"chat", section} end
+  if section == "windows" then return {"chat","windows"}end
+  if section == "whispers" or section == "appearance" or section=="guild" or section=="party" then return {"chat", section} end
   return {section or "home"}
 end

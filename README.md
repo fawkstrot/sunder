@@ -2,9 +2,11 @@
 
 Ancient craft. Modern utility.
 
-Sunder is a modular World of Warcraft addon focused on clear messaging today and optional quality-of-life tools as it grows. It combines smooth chat, unified Whispers, saved conversations, notifications and per-copy item protection. EllesmereUI styling and Edit UI integration are optional.
+Sunder is a modular World of Warcraft addon focused on clear messaging today and optional quality-of-life tools as it grows. It combines smooth chat, unified Whispers, Guild and Party/Raid rooms, saved conversations, notifications and per-copy item protection. EllesmereUI styling and Edit UI integration are optional.
 
 ![Sunder emblem](assets/branding/Sunder-project-icon.png)
+
+Current preview: **0.10.0-alpha.1**, an Alpha for WoW Forever 1.60.1. See the [changelog](addon/Sunder/CHANGELOG.md) and [release guide](docs/RELEASING.md) for status and limits.
 
 ## Repository layout
 
@@ -38,6 +40,7 @@ A clean install uses the `Sunder/` folder from the normal release ZIP. Existing 
 - `/sunder`: settings; `/sun` when that alias is available.
 - `/sunder whispers`, `/sunder appearance`, `/sunder items`: feature settings.
 - `/sunder messages`: open Whispers; `/sunder favorites`: its Favorites filter.
+- `/sunder guild`: open Guild Chat; `/sunder party` or `/sunder raid`: open the shared group room.
 - `/sunder lock`: standalone layout editing; Ellesmere Edit UI is also supported.
 - Previous slash commands and saved item-lock bindings remain compatible.
 
@@ -46,3 +49,5 @@ See [migration](docs/MIGRATION.md), [releases](docs/RELEASING.md), and [CurseFor
 ## License and provenance
 
 MIT; retain bundled notices. Chat began as Glassy/Glass. Original contributors and library licenses are preserved in the addon. See [LICENSE](LICENSE) and `addon/Sunder/UPSTREAM_README.md`.
+
+Feature guides: [window management](docs/WINDOW_MANAGEMENT.md), [Whispers history](docs/WHISPER_HISTORY.md), [Guild Chat](docs/GUILD_CHAT.md), [Party/Raid Chat](docs/PARTY_CHAT.md), and [item protection](docs/ITEM_PROTECTION.md).

@@ -6,15 +6,12 @@ for _,host in pairs(W.workspaces or {}) do host.pendingWhisperToast=nil end
 cfg.enabled=true;cfg.favoritesSeparate=false;cfg.mode="hub";cfg.previewConversations=10
 W:ClearPreviewData();W:StartPreview();W:SetMinimized(false,true);W:SetPeopleFilter("all")
 local first=W.previewConversations[1]
-local section=W.peopleSections.conversations
-section:GetScript("OnClick")()
-assert(W.peopleCollapsed.conversations)
+local row=W.previewTabs[1]
 for i=1,8 do W:RenderPreview();W:LayoutHub();drain() end
-assert(W.peopleCollapsed.conversations and not W.previewTabs[1]:IsShown(),"background refresh undid section collapse")
-local parent=section:GetParent();local offsets=W.peopleOffsets
+assert(row:IsShown() and row.pinControl:IsShown(),"background refresh lost a flat-list row/action")
+local parent=row:GetParent();local offsets=W.peopleOffsets
 W:LayoutPeopleRows(false)
-assert(section:GetParent()==parent and W.peopleOffsets==offsets,"inactive native layout stole sample controls")
-section:GetScript("OnClick")();assert(not W.peopleCollapsed.conversations and W.previewTabs[1]:IsShown())
+assert(row:GetParent()==parent and W.peopleOffsets==offsets,"inactive native layout stole sample controls")
 -- Read a row using its real click handler while in Unread.
 local person=W.previewConversations[3];person.unread=4
 W:SetPeopleFilter("unread");local row=W.previewTabs[3]

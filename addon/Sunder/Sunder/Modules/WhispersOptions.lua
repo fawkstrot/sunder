@@ -207,31 +207,40 @@ Core:RegisterFeature("whispers", {name = "Whispers", order = 20,
         name = "Sounds play for new incoming messages, once per event, with throttling. Outgoing replies and restored history stay silent. Preview bypasses notification suppression so you can test your selection. Normal WoW audio settings still apply."},
     }},
     display = {name = "Display & history", type = "group", order = 4, args = {
-      distinguishReplies = field("distinguishReplies", "toggle", "Different color for my replies", 0.1),
-      replyColor = {type="color",name="My reply color",order=0.2,hasAlpha=false,
+      distinguishReplies = field("distinguishReplies", "toggle", "Different color for my messages (all chat)", 0.1),
+      replyColor = {type="color",name="My message color",order=0.2,hasAlpha=false,
         get=function() return unpack(settings().replyColor or {0.70,0.73,0.78}) end,
         set=function(_,r,g,b) settings().replyColor={r,g,b};W:ApplySettings(false,"replyColor") end},
       replyMarker = field("replyMarker", "toggle", "Show reply chevron", 0.3),
       unreadBadges = field("unreadBadges", "toggle", "Unread count badges", 1),
-      timestamps = field("timestamps", "toggle", "Conversation timestamps", 2),
+      timestamps = field("timestamps", "toggle", "Conversation timestamps", 2,
+        {disabled=function()return Core.db.profile.timestampAllWindows end,desc="Uses the shared timestamp settings while All chat windows is enabled."}),
       timestampFormat = field("timestampFormat", "select", "Timestamp format", 3,
-        {values = {["[%H:%M]"] = "24-hour", ["[%H:%M:%S]"] = "24-hour with seconds", ["[%I:%M %p]"] = "12-hour"}}),
+        {disabled=function()return Core.db.profile.timestampAllWindows end, values = {["[%H:%M]"] = "24-hour", ["[%H:%M:%S]"] = "24-hour with seconds", ["[%I:%M %p]"] = "12-hour"}}),
       keepHistory = {type = "toggle", name = "Remember conversations across reloads", order = 4,
         get = function () return Core.db.profile.keepWhisperTabs end,
         set = function (_, value) Core.db.profile.keepWhisperTabs = value end},
-      historyLines = field("historyLines", "range", "Saved lines per conversation", 5,
+      historyLines = field("historyLines", "range", "Recent lines loaded on reopen", 5,
         {min = 20, max = 200, step = 10}),
-      historyConversations = field("historyConversations", "range", "Maximum saved conversations", 5.5,
+      historyConversations = field("historyConversations", "range", "Maximum reopened conversations", 5.5,
         {min = 5, max = 50, step = 1}),
+      archiveLines = field("archiveLines", "range", "Archived lines per person", 5.6,
+        {min=20,max=1000,step=20}),
+      archiveConversations = field("archiveConversations", "range", "Maximum archived people", 5.7,
+        {min=5,max=200,step=5}),
+      archiveStatus = {type="description",order=5.8,name=function()
+        return Core.db.char.whisperArchiveTrimmed and "History storage reached a limit. Older messages or conversations were trimmed; favorites are retained first. The archive has an 8 MiB text budget." or "Closing archives a conversation. Right-click an archived person to delete history with confirmation. Archive text is limited to 8 MiB; favorites are retained first."
+      end},
       clear = {type = "execute", name = "Forget saved conversation history", order = 6, confirm = true,
         func = function ()
           Core.db.char.whisperTabs, Core.db.char.whisperLayouts, Core.db.char.messageTabOrders = nil, nil, nil
+          Core.db.char.whisperArchive=nil;Core.db.char.whisperArchiveTrimmed=nil
           local history=Core:GetModule("WhisperTabs",true)
-          if history then history.pendingHistory=nil;history.restoreArchive=nil;history.restoreGeneration=(history.restoreGeneration or 0)+1 end
+          if history then history.liveSnapshot=nil;history.awaitingRestore=nil;history.archiveCaptured={};history.loadingArchive={};history.archiveGeneration=(history.archiveGeneration or 0)+1;history.pendingHistory=nil;history.restoreArchive=nil;history.restoreGeneration=(history.restoreGeneration or 0)+1 end
           Core.db.profile.keepWhisperTabs = false
         end},
       help = {type = "description", order = 7,
-        name = "Pins keep conversations visible until you unpin or close them. Read state does not clear while you are scrolled back. Saved history is local to this character and capped per conversation. Battle.net history uses stable BattleTags and waits for the friend list before restoring. Session-only name tokens are replaced before saving. Protected message content is left to native chat rendering. Forget disables future history saving and clears the saved snapshot; currently open session messages remain available until closed."},
+        name = "Pins keep conversations visible until you unpin or close them. Read state does not clear while you are scrolled back. Saved history is local to this character and capped per conversation. Battle.net history uses stable BattleTags and waits for the friend list before restoring. Session-only name tokens are replaced before saving. Protected message content is left to native chat rendering. Closing a pane keeps its transcript in the per-character archive. Favorites remain in Favorites; other closed people appear under Archived. Browse/search saved history includes older archived lines beyond the recent native pane. Archive settings and the 8 MiB text budget bound storage, prioritizing favorites and reporting trimming. Forget disables future saving and clears both the checkpoint and archive; currently open session messages remain available until closed."},
     }},
     preview = {name = "Samples & testing", type = "group", order = 5, args = {
       simulation = {type = "execute", name = "Run five-minute message test", order = 0.1,
@@ -261,6 +270,8 @@ Core:RegisterFeature("whispers", {name = "Whispers", order = 20,
   }}
 end})
 
+Core.defaults.profile.whispers.archiveLines = 500
+Core.defaults.profile.whispers.archiveConversations = 100
 Core.defaults.profile.whispers.historyLines = 100
 Core.defaults.profile.whispers.historyConversations = 20
 

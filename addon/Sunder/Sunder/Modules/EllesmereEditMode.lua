@@ -18,7 +18,7 @@ local function canonical(frame)
 end
 local function refresh(key)Core:Dispatch(Constants.ACTIONS.UpdateConfig(key))end
 
-function E:AddEditElement(key,label,frame,section,setWidth,setHeight,save,load,apply,hidden,live)
+function E:AddEditElement(key,label,frame,section,setWidth,setHeight,save,load,apply,hidden,live,locked)
   local api=_G.EllesmereUI
   if api._ELEMENT_SETTINGS_MAP and api.GetPluginModuleKey then
     local module=api.GetPluginModuleKey("Sunder","chat")
@@ -35,14 +35,14 @@ function E:AddEditElement(key,label,frame,section,setWidth,setHeight,save,load,a
   local element={key=key,label=label,group="Sunder",order=700,ownsPosition=true,noSpecLayout=true,
     getFrame=function()return frame end,getSize=function()return frame:GetWidth(),frame:GetHeight()end,
     isHidden=hidden or function()return false end,
-    setWidth=function(_,value)if not InCombatLockdown() then setWidth(math.max(100,math.min(UIParent:GetWidth(),tonumber(value) or 100)))end end,
-    setHeight=function(_,value)if not InCombatLockdown() then setHeight(math.max(100,math.min(UIParent:GetHeight(),tonumber(value) or 100)))end end,
+    setWidth=function(_,value)if not InCombatLockdown() and not (locked and locked())then setWidth(math.max(100,math.min(UIParent:GetWidth(),tonumber(value) or 100)))end end,
+    setHeight=function(_,value)if not InCombatLockdown() and not (locked and locked())then setHeight(math.max(100,math.min(UIParent:GetHeight(),tonumber(value) or 100)))end end,
     savePosition=function(_,point,relPoint,x,y)
-      if InCombatLockdown() then return end
+      if InCombatLockdown() or locked and locked()then return end
       place(frame,{point=point,relPoint=relPoint,x=x,y=y});save(canonical(frame))
     end,
     loadPosition=function()return copy(load())end,
-    clearPosition=function()place(frame,{point="CENTER",x=0,y=0});save(canonical(frame))end,
+    clearPosition=function()if locked and locked()then return end;place(frame,{point="CENTER",x=0,y=0});save(canonical(frame))end,
     applyPosition=function()if not InCombatLockdown() then apply()end end,
     onLiveMove=function()if live then live()end end,
   }
@@ -59,6 +59,7 @@ end
 function E:IsDetachedEditWindow(window)
   local frame=window and window.chatFrame
   if not window or not window.active or not frame or frame.isDocked or not window.detachedLayout then return false end
+  if Core.Components.WindowManager:GetChatRoom(frame)then return false end
   local W=Core:GetModule("Whispers")
   local record=W.records and W.records[frame]
   if record then return record.placement=="detached" and frame.inUse~=false end
@@ -89,7 +90,7 @@ function E:RefreshEditElements()
       function(value)local extra=main:GetHeight()-Core.db.profile.frameHeight;Core.db.profile.frameHeight=math.max(100,value-extra);refresh("frameHeight");main:UpdateLayoutBounds()end,
       function(p)Core.db.profile.positionAnchor={point=p.point,xOfs=p.x,yOfs=p.y};refresh("framePosition")end,
       function()local p=Core.db.profile.positionAnchor;return {point=p.point,relPoint=p.point,x=p.xOfs,y=p.yOfs}end,
-      function()refresh("framePosition")end)
+      function()refresh("framePosition")end,nil,nil,function()return Core.Components.WindowManager:Settings("main").movementLocked end)
     if self.editSession then main:Show();main.boundsFrame:Hide() end
   end
   for _,window in pairs(ui.state and ui.state.windows or {})do
@@ -106,11 +107,13 @@ function E:RefreshEditElements()
       local nativeTab=_G[frame:GetName().."Tab"]
       local label=nativeTab and nativeTab.Text and nativeTab.Text:GetText() or frame.name or frame:GetName()
       if _G.canaccessvalue and not _G.canaccessvalue(label) then label="Chat window" end
-      self:AddEditElement(key,label,frame,"Chat windows",
+      local room=Core.Components.WindowManager:GetChatRoom(frame)
+      local section=room and room.roomLabel or "Chat windows"
+      self:AddEditElement(key,label,frame,section,
         function(value)frame:SetWidth(value);ui:RefreshChatFrameLayout(frame);save(canonical(frame))end,
         function(value)frame:SetHeight(value);ui:RefreshChatFrameLayout(frame);save(canonical(frame))end,
         save,function()return position(frame)end,function()ui:RefreshChatFrameLayout(frame)end,
-        function()return not self:IsDetachedEditWindow(window) end)
+        function()return not self:IsDetachedEditWindow(window) end,nil,function()return Core.Components.WindowManager:Settings(frame:GetName()).movementLocked end)
       self.editElements[key].element.getInsets=function()
         local dock=window.detachedLayout and window.detachedLayout.dock
         local overlay=dock and dock.moverOverlay
@@ -123,22 +126,27 @@ function E:RefreshEditElements()
       end
     end
   end
-  for id,host in pairs(W.workspaces or {})do
-    if host.hub and not host.transientSettings and W:Settings().enabled then
-      local frame=host.hub;local key="Sunder_Whispers_"..id;seen[key]=true
+  local hosts={};for id,host in pairs(W.workspaces or {})do hosts[id]=host end
+  for id,controller in pairs(Core.Components.WindowManager.chatRooms or {})do
+    if controller.room and controller.frame and controller:IsRoom(controller.frame)then hosts[id.."_room"]=controller.room end
+  end
+  for id,host in pairs(hosts)do
+    local room=host.roomController
+    if host.hub and not host.transientSettings and (room or W:Settings().enabled)then
+      local frame=host.hub;local key=room and room.editKey or "Sunder_Whispers_"..id;seen[key]=true
       if self.editSession and not self.editSession.views[host] then
         self.editSession.views[host]={shown=frame:IsShown(),alpha=frame:GetAlpha(),minimized=host.minimized,closed=host.windowManuallyClosed}
         if host.finishCollapse then host.finishCollapse()end
         if host.minimized then host:SetMinimized(false,true)end
       end
-      self:AddEditElement(key,host:WorkspaceName(),frame,"Whispers",
+      self:AddEditElement(key,host:WorkspaceName(),frame,room and room.roomLabel or "Whispers",
         function(value)frame:SetWidth(math.max(host.minimumWorkspaceWidth or 480,value));host:SaveHubGeometry();host:LayoutHub()end,
         function(value)frame:SetHeight(math.max(220,value));host:SaveHubGeometry();host:LayoutHub()end,
         function(p)place(frame,p);host:SaveHubGeometry()end,
         function()local c=host:HubSettings();return {point=c.hubPoint,relPoint=c.hubPoint,x=c.hubX,y=c.hubY}end,
         function()local c=host:HubSettings();place(frame,{point=c.hubPoint,x=c.hubX,y=c.hubY});host:LayoutHub()end,
-        function()return not W.workspaces[id] or not W:Settings().enabled end,
-        function()host:RefreshWorkspaceClipRects()end)
+        function()if room then return not room.frame or not room:IsRoom(room.frame)end;return not W.workspaces[id] or not W:Settings().enabled end,
+        function()host:RefreshWorkspaceClipRects()end,function()return host:HubSettings().movementLocked end)
       if self.editSession then host.windowManuallyClosed=false;host.lastUserInteraction=GetTime();host.hubOpenedAt=GetTime();frame:SetAlpha(1);frame:Show();host.hubOverlay:Hide()end
     end
   end

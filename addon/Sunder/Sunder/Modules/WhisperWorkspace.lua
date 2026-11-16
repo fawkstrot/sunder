@@ -4,6 +4,7 @@ W.CONVERSATION_NAV_WIDTH = 148
 local ICONS = "Interface\\AddOns\\Sunder\\Media\\Icons\\"
 
 function W:EnsureWorkspaces()
+  W:MigratePersonFavorites()
   if self.workspaces then return end
   self.hostId = "messages"
   self.workspaces = {messages = self}
@@ -117,14 +118,75 @@ function W:IsFavorite(frame)
   return r and (r.favorite or r.key and Core.db.char.whisperFavorites and Core.db.char.whisperFavorites[r.key]) or false
 end
 
+function W:MigratePersonFavorites()
+  local char=Core.db.char;local saved=char.guildChat
+  char.whisperFavorites=char.whisperFavorites or {}
+  if not char.sharedPersonFavoritesMigrated then
+    for _,entries in ipairs({char.whisperArchive or {},char.whisperTabs or {}})do
+      for _,entry in pairs(entries)do
+        if entry.favorite and entry.kind~="BN_WHISPER" and type(entry.target)=="string" then
+          char.whisperFavorites[entry.target:lower()]=char.whisperFavorites[entry.target:lower()] or entry.target
+        end
+      end
+    end
+    char.sharedPersonFavoritesMigrated=true
+  end
+  if not saved or not saved.memberFavorites then return end
+  local guild=Core:GetModule("GuildChat",true)
+  for key,value in pairs(saved.memberFavorites)do
+    if value and type(key)=="string" and (not _G.canaccessvalue or _G.canaccessvalue(key))then
+      local member=guild and guild.memberByName and guild.memberByName[key]
+      char.whisperFavorites[key:lower()]=char.whisperFavorites[key:lower()] or member and member.name or key
+    end
+  end
+  saved.memberFavorites=nil
+end
+function W:IsPersonFavorite(key)
+  return type(key)=="string" and not not (Core.db.char.whisperFavorites or {})[key:lower()]
+end
+function W:RefreshPersonFavorites()
+  for _,host in pairs(W.workspaces or {})do
+    if host.hub and host.LayoutPeopleRows and not host.previewActive then host:LayoutPeopleRows(false);host:RefreshConversationNavigation(false)end
+  end
+  for _,room in pairs(Core.Components.WindowManager.chatRooms or {})do
+    if room.panel and room.FilterRoster then room:FilterRoster(false)end
+  end
+  W:UpdateBadges()
+end
+function W:SetPersonFavorite(key,target,value)
+  if _G.canaccessvalue and (not _G.canaccessvalue(key) or not _G.canaccessvalue(target))then return end
+  if type(key)~="string" or key=="" or key:find("|",1,true)then return end
+  W:MigratePersonFavorites()
+  key=key:lower();value=not not value
+  local char=Core.db.char;char.whisperFavorites=char.whisperFavorites or {}
+  char.whisperFavorites[key]=value and (target or key) or nil
+  for _,record in pairs(W.records or {})do if record.key==key then record.favorite=value end end
+  -- Update closed and startup snapshots too, so reopening/reload cannot resurrect
+  -- an old favorite after the shared contact has been unfavorited elsewhere.
+  local history=Core:GetModule("WhisperTabs",true)
+  local archive=history and history.ImportArchive and history:ImportArchive() or {}
+  for _,entries in ipairs({archive,char.whisperTabs or {}})do
+    for _,entry in pairs(entries)do
+      if entry.kind~="BN_WHISPER" and type(entry.target)=="string" and entry.target:lower()==key then entry.favorite=value end
+    end
+  end
+  if history and history.ScheduleSave then history:ScheduleSave()end
+  W:RefreshPersonFavorites()
+end
 function W:ToggleFavorite(frame)
   W:EnsureWorkspaces()
   local r = W.records and W.records[frame]
   if not r then return end
   local favorite = not W:IsFavorite(frame)
-  r.favorite = favorite
-  if r.key then Core.db.char.whisperFavorites[r.key] = favorite and frame.chatTarget or nil end
-  W:UpdateBadges()
+  if r.key then return W:SetPersonFavorite(r.key,frame.chatTarget,favorite)end
+  -- Battle.net records retain their stable archive identity; do not alias them
+  -- to a character contact with a similar display name.
+  r.favorite=favorite
+  local history=Core:GetModule("WhisperTabs",true)
+  local key=history and history.ArchiveKey and history:ArchiveKey(frame)
+  local entry=key and history:ImportArchive()[key]
+  if entry then entry.favorite=favorite end
+  W:RefreshPersonFavorites()
 end
 
 function W:StyleWindowIcon(button)
@@ -136,32 +198,11 @@ function W:StyleWindowIcon(button)
   local r, g, b = self:InterfaceAccent()
   local highlight = button:GetHighlightTexture()
   if highlight then highlight:SetVertexColor(r, g, b, self:UsesChatAppearance() and 0.06 or 0.12) end
+  if button.actionSelected~=nil then Core.Components.WindowManager:RefreshAction(button)end
 end
 
 function W:IconButton(parent, key, tooltip, action)
-  local b = CreateFrame("Button", nil, parent)
-  b:SetSize(26, 26)
-  local plate = b:CreateTexture(nil, "BACKGROUND")
-  plate:SetAllPoints(); plate:SetColorTexture(1, 1, 1, 0.035)
-  local icon = b:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(19, 19); icon:SetPoint("CENTER")
-  icon:SetTexture(ICONS..key..".tga"); icon:SetVertexColor(0.74, 0.8, 0.88)
-  b.icon, b.plate = icon, plate
-  b:SetHighlightTexture("Interface\\Buttons\\WHITE8X8")
-  b:GetHighlightTexture():SetVertexColor(0.5, 0.7, 1, 0.12)
-  b:SetScript("OnEnter", function ()
-    icon:SetVertexColor(1, 1, 1); icon:SetAlpha(1)
-    GameTooltip:SetOwner(b, "ANCHOR_TOP")
-    GameTooltip:AddLine(tooltip, 1, 1, 1); GameTooltip:Show()
-  end)
-  b:SetScript("OnLeave", function () icon:SetVertexColor(0.74, 0.8, 0.88); icon:SetAlpha(b.iconOpacity or 1); GameTooltip:Hide() end)
-  b:SetScript("OnMouseDown", function () icon:SetPoint("CENTER", 0, -1) end)
-  b:SetScript("OnMouseUp", function () icon:SetPoint("CENTER", 0, 0) end)
-  b:SetScript("OnDisable", function () icon:SetAlpha(0.25) end)
-  b:SetScript("OnEnable", function () icon:SetAlpha(b.iconOpacity or 1) end)
-  b:SetScript("OnClick", action)
-  self:StyleWindowIcon(b)
-  return b
+  return Core.Components.WindowManager:CreateAction(parent,key,tooltip,action,function(button)self:StyleWindowIcon(button)end)
 end
 
 function W:InterfaceAccent()
@@ -176,12 +217,18 @@ function W:RememberWhisperClass(sender,guid)
   if _G.canaccessvalue and (not _G.canaccessvalue(sender) or not _G.canaccessvalue(guid)) then return end
   local ok,_,class=pcall(GetPlayerInfoByGUID,guid)
   if not ok or type(class)~="string" or _G.canaccessvalue and not _G.canaccessvalue(class) then return end
-  W.whisperClasses=W.whisperClasses or {};W.whisperClasses[string.lower(sender)]=class
+  W.whisperClasses=W.whisperClasses or {};local key=string.lower(sender)
+  local changed=W.whisperClasses[key]~=class;W.whisperClasses[key]=class
+  if W.RememberPersonDetails then W:RememberPersonDetails(sender,{classFile=class})end
+  if changed and W.QueuePersonRefresh then W:QueuePersonRefresh()end
 end
 function W:ConversationLabelColor(selected,person)
   local record=person and W.records[person]
   local token=type(person)=="table" and person.classToken
-  if record and W.whisperClasses then token=W.whisperClasses[record.key] end
+  if record then
+    token=W.whisperClasses and W.whisperClasses[record.key]
+    if not token and W.PersonDetails then local known=W:PersonDetails(record.target or record.key);token=known and known.classFile end
+  end
   local classColor=token and ((_G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS or {})[token])
   if classColor then return classColor.r,classColor.g,classColor.b,1 end
   local color = self:UsesChatAppearance() and Core.GetThemeColor and Core:GetThemeColor(selected and "tabHighlightTextColor" or "tabTextColor")
@@ -216,6 +263,7 @@ function W:WorkspaceMenu(owner, frame)
   W:EnsureWorkspaces()
   MenuUtil.CreateContextMenu(owner, function (_, menu)
     menu:CreateButton("Open Whispers", function () W:OpenMessages() end)
+    menu:CreateButton(self.maximized and "Restore window size" or "Maximize window",function()Core.Components.WindowManager:ToggleMaximized(self)end)
     menu:CreateButton("Rename this window", function () self:PromptWorkspaceName() end)
     menu:CreateButton(self.minimized and "Restore window" or "Minimize window", function () self.hubOpenedAt=GetTime();self.lastUserInteraction=GetTime();self:SetMinimized(not self.minimized) end)
     menu:CreateButton("New whisper group", function ()
@@ -241,41 +289,29 @@ end
 -- Window manipulation is distinct from layout editing: the grip always moves;
 -- the blue edit overlay alone permits resizing.
 function W:CreateWindowControls(chrome)
-  local grip = CreateFrame("Button", nil, chrome)
-  grip:SetPoint("TOPLEFT", 8, -6); grip:SetSize(18, 28)
-  for row = 0, 2 do for col = 0, 1 do
-    local dot = grip:CreateTexture(nil, "OVERLAY")
-    dot:SetSize(2, 2); dot:SetPoint("CENTER", col * 5 - 2.5, 4 - row * 4)
-    dot:SetColorTexture(0.78, 0.68, 0.48, 0.85)
-  end end
-  grip:RegisterForDrag("LeftButton")
-  grip:SetScript("OnMouseDown", function (_, mouse) if mouse == "LeftButton" then self:BeginHubMove(true) end end)
-  grip:SetScript("OnDragStart", function () self:BeginHubMove(true) end)
-  grip:SetScript("OnMouseUp", function () self:UpdateHubMove(); self:StopHubMove() end)
-  grip:SetScript("OnDragStop", function () self:UpdateHubMove(); self:StopHubMove() end)
-  grip:SetScript("OnEnter", function ()
-    GameTooltip:SetOwner(grip, "ANCHOR_TOP"); GameTooltip:AddLine("Drag to move this window", 1, 1, 1)
-    GameTooltip:AddLine("Resize remains available in unlock mode.", 0.7, 0.75, 0.8); GameTooltip:Show()
-  end)
-  grip:SetScript("OnLeave", function () GameTooltip:Hide() end)
+  local grip=Core.Components.WindowManager:CreateGrip(chrome,function()self:BeginHubMove(true)end,function()self:UpdateHubMove();self:StopHubMove()end)
+  grip:SetPoint("TOPLEFT",8,-6)
   self.hubGrip = grip
-  local minimize = self:IconButton(chrome, "minimize", "Minimize / restore window", function () self:SetMinimized(not self.minimized) end)
-  minimize:SetPoint("TOPRIGHT", self.hub, "TOPRIGHT", -240, -7)
-  self.minimizeButton = minimize
+  self.movementLockButton=Core.Components.WindowManager:CreateLock(chrome,function()return self:HubSettings()end,function()self:StopHubMove();if self.roomResize then self.roomResize:FinishResize()end;if self.hubResize then self.hubResize:FinishResize()end;Core.Components.WindowManager:RefreshRoomActions(self)end,function(button)self:StyleWindowIcon(button)end)
   self.hubTitle:ClearAllPoints()
   self.hubTitle:SetPoint("TOPLEFT", chrome, "TOPLEFT", 64, -6)
   self.hubTitle:SetPoint("TOPRIGHT", chrome, "TOPRIGHT", -272, -6)
   local rename = CreateFrame("Button", nil, chrome)
   rename:SetPoint("TOPLEFT", self.hubTitle); rename:SetPoint("BOTTOMRIGHT", self.hubTitle)
   rename:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-  rename:SetScript("OnClick", function (_, mouse) self.hubOpenedAt=GetTime();self.lastUserInteraction=GetTime();if mouse == "LeftButton" and self.minimized then self:SetMinimized(false) elseif mouse == "RightButton" then self:WorkspaceMenu(rename) end end)
-  rename:SetScript("OnDoubleClick", function (_, mouse) if not mouse or mouse == "LeftButton" then self:PromptWorkspaceName() end end)
+  rename:SetScript("OnClick", function (_, mouse) self.hubOpenedAt=GetTime();self.lastUserInteraction=GetTime();if mouse == "LeftButton" and self.minimized then self:SetMinimized(false) elseif mouse == "RightButton" then self:WorkspaceMenu(rename) elseif self.roomController then self.roomController:SelectInput() end end)
+  rename:SetScript("OnDoubleClick", function (_, mouse) if not mouse or mouse == "LeftButton" then if self.roomController then self.roomController:ToggleMaximized()else Core.Components.WindowManager:ToggleMaximized(self)end end end)
   rename:SetScript("OnEnter", function ()
     GameTooltip:SetOwner(rename, "ANCHOR_TOP"); GameTooltip:AddLine(self:WorkspaceName(), 1, 1, 1)
     if self.previewActive then GameTooltip:AddLine("Local sample conversations. No whispers are sent.", 0.7, 0.75, 0.8) end
-    GameTooltip:AddLine("Double-click to rename  •  Right-click for window actions", 0.7, 0.75, 0.8); GameTooltip:Show()
+    GameTooltip:AddLine(self.roomController and "Drag to move • Double-click to maximize • Right-click for window actions" or "Double-click to maximize  •  Right-click for window actions", 0.7, 0.75, 0.8); GameTooltip:Show()
   end)
   rename:SetScript("OnLeave", function () GameTooltip:Hide() end)
+  do
+    rename:RegisterForDrag("LeftButton")
+    rename:SetScript("OnDragStart",function()self:BeginHubMove(true)end)
+    rename:SetScript("OnDragStop",function()self:UpdateHubMove();self:StopHubMove()end)
+  end
 end
 
 function W:RenameWorkspace(value)
@@ -300,13 +336,8 @@ function W:PromptWorkspaceName()
 end
 
 -- The compact header remains interactive while its body is collapsed.
-function W:PresentWindowBody(shown, alpha)
-  if self.hubBackground then self.hubBackground:SetAlpha(alpha or 1) end
-  for _, frame in pairs({self.hubContent, self.previewBody}) do
-    frame:SetAlpha(alpha or 1)
-    frame:SetShown(shown and (frame == self.hubContent and not self.previewActive or frame == self.previewBody and self.previewActive))
-  end
-
+function W:PresentWindowBody(shown,alpha)
+  Core.Components.WindowManager:PresentRoomBody(self,shown,alpha)
 end
 
 function W:PresentCollapsedHeader()
@@ -331,59 +362,9 @@ function W:UpdateTransitionBounds()
 end
 
 function W:SetMinimized(minimized, instant)
-  if not self.hub then return end
-  minimized = not not minimized
-  if self.minimized == minimized and not self.collapseAnimation then return end
-  if minimized then self:SaveHubGeometry() end
-  self:StopHubMove()
-  self.hubResize:FinishResize()
-  self:PresentWindowBody(false,1)
-  self.minimized = minimized
-  -- The header must never enter a transient root clipping rectangle.
-  self.hub:SetClipsChildren(false)
-  self:PresentCollapsedHeader()
-  local scale = UIParent:GetEffectiveScale() / self.hub:GetEffectiveScale()
-  local left = self.hub:GetLeft()
-  local edge = self:HubSettings().minimizeEdge or "TOP"
-  local anchor = edge == "BOTTOM" and "BOTTOMLEFT" or "TOPLEFT"
-  local y = edge == "BOTTOM" and self.hub:GetBottom() - UIParent:GetBottom() * scale
-    or self.hub:GetTop() - UIParent:GetTop() * scale
-  self.hub:ClearAllPoints()
-  self.hub:SetPoint(anchor, UIParent, anchor, left - UIParent:GetLeft() * scale, y)
-  local target = minimized and self:HeaderHeight() or self:HubSettings().hubHeight
-  local from = self.hub:GetHeight()
-  -- Animate only while transitioning; no idle per-frame handler or new frames.
-  local elapsed = 0
-  local function finish()
-    self.hub:SetScript("OnUpdate", nil)
-    self.hub:SetHeight(target)
-    self.hub:SetClipsChildren(false)
-    self.collapseAnimation, self.finishCollapse = nil, nil
-    self:UpdateTransitionBounds()
-    self:PresentWindowBody(not minimized, 1)
-    self:PresentCollapsedHeader()
-    self.minimizeButton.icon:SetTexture(ICONS..(minimized and "restore" or "minimize")..".tga")
-    if not minimized then
-      self:LayoutHub()
-      if self.previewActive then self:EnsurePreviewTabVisible(self.previewSelected) else self:EnsureHubTabVisible(self.selected) end
-    end
-    self:SaveMessageWindowState()
-  end
-  self.collapseAnimation = true
-  self.finishCollapse = finish
-  if instant then finish(); return end
-  self.hub:SetScript("OnUpdate", function (_, delta)
-    elapsed = elapsed + delta
-    local t = math.min(1, elapsed / 0.24)
-    local eased = t * t * (3 - 2 * t)
-    local opacity = minimized and math.max(0, 1 - t * 3) or math.max(0, (t - 0.45) / 0.55)
-    opacity = opacity * opacity * (3 - 2 * opacity)
-    self.hub:SetHeight(math.max(1,from + (target - from) * eased))
-    self:UpdateTransitionBounds()
-    self:PresentWindowBody(opacity > 0, opacity)
-    if t == 1 then finish() end
-  end)
+  return Core.Components.WindowManager:SetRoomMinimized(self,minimized,instant)
 end
+Core.Components.SetRoomMinimized=W.SetMinimized
 
 function W:TabDropTarget(x, y)
   local best, level
@@ -432,13 +413,14 @@ function W:KeepPinnedFirst(preview)
   local list = preview and self.previewConversations or self.hubOrder
   if not list then return end
   local selected = preview and list[self.previewSelected or 1]
-  local ordered = {}
-  for _, pinned in ipairs({true, false}) do
-    for _, item in ipairs(list) do
-      local r = preview and item or W.records[item]
-      if (r and not not r.pinned or false) == pinned then ordered[#ordered + 1] = item end
-    end
-  end
+  local ordered={};local positions={}
+  for i,item in ipairs(list)do ordered[i]=item;positions[item]=i end
+  table.sort(ordered,function(a,b)
+    local ar=preview and a or W.records[a] or {};local br=preview and b or W.records[b] or {}
+    local ap=Core.Components.WindowManager:PersonPriority(preview and a.favorite or not preview and W:IsFavorite(a),ar.pinned)
+    local bp=Core.Components.WindowManager:PersonPriority(preview and b.favorite or not preview and W:IsFavorite(b),br.pinned)
+    if ap~=bp then return ap<bp end;return positions[a]<positions[b]
+  end)
   for i, item in ipairs(ordered) do list[i] = item; if preview and item == selected then self.previewSelected = i end end
 end
 
@@ -485,7 +467,9 @@ function W:SortConversationTabs(mode)
   end
   table.sort(list, function (a, b)
     local ar, br = record(a), record(b)
-    if not not ar.pinned ~= not not br.pinned then return not not ar.pinned end
+    local ap=Core.Components.WindowManager:PersonPriority(preview and ar.favorite or not preview and W:IsFavorite(a),ar.pinned)
+    local bp=Core.Components.WindowManager:PersonPriority(preview and br.favorite or not preview and W:IsFavorite(b),br.pinned)
+    if ap~=bp then return ap<bp end
     if mode == "unread" and (ar.unread or 0) ~= (br.unread or 0) then return (ar.unread or 0) > (br.unread or 0) end
     if mode == "recent" then
       local x = preview and ar.lines[#ar.lines] and ar.lines[#ar.lines].time or ar.lastActivity or 0
@@ -590,51 +574,18 @@ end
 
 function W:ApplyHubAppearance()
   if not self.hub then return end
-  local cfg, profile, unified = W:Settings(), Core.db.profile, self:UsesChatAppearance()
-  local color = unified and profile.chatBackgroundColor or cfg.hubBackgroundColor
-  color = color or {r = 0.035, g = 0.04, b = 0.05, a = 0.5}
-  local headerColor = unified and profile.headerBackgroundColor or color
-  headerColor = headerColor or color
-  local opacity = unified and (color.a or 0.5) or (cfg.hubBackgroundOpacity == nil and 0.96 or cfg.hubBackgroundOpacity)
-  local header = unified and (headerColor.a or 0.5) or (cfg.hubHeaderOpacity == nil and 0.96 or cfg.hubHeaderOpacity)
-  local border = unified and 0 or (cfg.hubBorderOpacity == nil and 0.35 or cfg.hubBorderOpacity)
-  local r, g, b = self:InterfaceAccent()
-  local nativeBody = unified and not self.previewActive and self.selected and self.hubTabs and self.hubTabs[self.selected]
-  -- Native conversations already paint chat's scrolling background. Never tint it twice.
-  local bodyAlpha = self.minimized and 0 or nativeBody and 0 or opacity
-  local bodyTop = self:HeaderHeight() + (unified and (self:SingleRowHeader() and 0 or self:ConversationTabHeight()) + self:HeaderGap() or 0)
-  self.hubBackground:ClearAllPoints()
-  self.hubBackground:SetPoint("TOPLEFT", self.hub, "TOPLEFT", 0, -bodyTop)
-  self.hubBackground:SetPoint("BOTTOMRIGHT", self.hub, "BOTTOMRIGHT")
-  local paint = Core.Components.PaintGradientTexture or function (texture, c, alpha) texture:SetColorTexture(c.r, c.g, c.b, alpha) end
-  local fade = unified or cfg.hubUseChatFade
-  paint(self.hubBackground, color, bodyAlpha, fade)
-  paint(self.hubHeaderFill, headerColor, header, fade)
-  if not self.tabStripBackground then self.tabStripBackground = self.hub:CreateTexture(nil, "BACKGROUND") end
-  self.tabStripBackground:ClearAllPoints()
-  local strip = self.previewActive and self.previewTabScroll or self.tabScroll
-  if strip then
-    self.tabStripBackground:SetPoint("TOPLEFT", strip, "TOPLEFT")
-    self.tabStripBackground:SetPoint("TOPRIGHT", self.previewActive and self.previewFrame or self.hubContent, "TOPRIGHT")
-  else
-    self.tabStripBackground:SetPoint("TOPLEFT", self.hub, "TOPLEFT", 0, -self:HeaderHeight())
-    self.tabStripBackground:SetPoint("TOPRIGHT", self.hub, "TOPRIGHT", 0, -self:HeaderHeight())
-  end
-  self.tabStripBackground:SetHeight(self:ConversationTabHeight())
-  paint(self.tabStripBackground, headerColor, unified and not self:SingleRowHeader() and not self.minimized and header or 0, fade)
-  self.hubRule:ClearAllPoints()
-  self.hubRule:SetPoint("BOTTOMLEFT", unified and not self:SingleRowHeader() and self.tabStripBackground or self.hubChrome, "BOTTOMLEFT")
-  self.hubRule:SetPoint("BOTTOMRIGHT", unified and not self:SingleRowHeader() and self.tabStripBackground or self.hubChrome, "BOTTOMRIGHT")
-  local separator = unified and Core.GetThemeColor and Core:GetThemeColor("tabMessageSeparatorColor")
-  paint(self.hubRule, separator or {r=r,g=g,b=b}, self.minimized and 0 or separator and (separator.a or 0) or border, fade)
-  if self.hubMark then
-    self.hubMark:SetVertexColor(r, g, b)
-    self.hubMark:SetAlpha(unified and (profile.chatTitleIconOpacity or 0.5) or 1)
-  end
-  if self.hubTitle then self.hubTitle:SetTextColor(r, g, b) end
-  if self.hubEmptyIcon then self.hubEmptyIcon:SetVertexColor(r, g, b) end
-  for _, line in ipairs(self.hubBorders or {}) do line:SetColorTexture(r, g, b, border) end
-  if self.previewBackground then self.previewBackground:SetColorTexture(color.r, color.g, color.b, 0) end
+  local profile=Core.db.profile
+  local unified=self:UsesChatAppearance()
+  local r,g,b=self:InterfaceAccent()
+  local wm=Core.Components.WindowManager
+  for _,region in pairs({self.hubBackground,self.hubHeaderFill,self.tabStripBackground,self.hubRule})do wm:RetirePaint(region)end
+  if not self.tabStripBackground then self.tabStripBackground=self.hub:CreateTexture(nil,"BACKGROUND");wm:RetirePaint(self.tabStripBackground)end
+  for _,line in ipairs(self.hubBorders or {})do line:SetColorTexture(0,0,0,0)end
+  if self.hubMark then wm:StyleTitleIcon(self.hubMark,false)end
+  if self.hubTitle then self.hubTitle:SetTextColor(r,g,b)end
+  if self.hubEmptyIcon then self.hubEmptyIcon:SetVertexColor(r,g,b)end
+  if self.previewBackground then self.previewBackground:SetColorTexture(0,0,0,0)end
+  self:ApplyRoomStructure(self.RoomSidebarWidth and self:RoomSidebarWidth() or self.IsConversationList and self:IsConversationList() and self:ConversationListWidth() or 0)
 end
 
 
@@ -725,7 +676,7 @@ function W:RefreshConversationNavigation(preview)
   end
   nav.total, nav.hiddenUnread = count, hidden
   nav.unreadTotal = unreadTotal
-  local label = self.minimized and unreadTotal > 0 and (unreadTotal > 99 and "99+" or tostring(unreadTotal)) or tostring(count)
+  local label = unreadTotal > 99 and "99+" or tostring(unreadTotal)
   if label ~= nav.lastLabel then nav.all:SetText(label); nav.lastLabel = label end
   nav.all:GetFontString():SetTextColor(hidden > 0 and 1 or 0.74, hidden > 0 and 0.76 or 0.8, hidden > 0 and 0.28 or 0.88)
   nav.all.icon:SetVertexColor(hidden > 0 and 1 or 0.74, hidden > 0 and 0.76 or 0.8, hidden > 0 and 0.28 or 0.88)
@@ -875,7 +826,7 @@ local function metric(key, default, low, high)
   return math.max(low, math.min(high, tonumber(W:Settings()[key]) or default))
 end
 function W:BodyPadding()
-  return math.max(0,math.min(32,tonumber(Core.db.profile.bodyPadding) or 12))
+  return math.max(0,math.min(32,tonumber(Core.db.profile.bodyPadding) or 8))
 end
 function W:UsesChatAppearance() return self:Settings().hubMatchChat ~= false end
 function W:InterfaceTextSize()
@@ -968,13 +919,13 @@ function W:ConfigureTabPin(tab, record, action)
   if not tab.pinControl then tab.pinControl = self:IconButton(tab, "pin", "Pin / unpin this conversation", function () end) end
   tab.pinRecord = record
   tab.pinControl:SetScript("OnClick", action)
-  tab.pinControl:SetScript("OnLeave", function () self:StyleConversationTab(tab); GameTooltip:Hide() end)
 end
 
 function W:ToggleConversationPin(frame)
   local r = W.records and W.records[frame]
   if not r then return end
   r.pinned = not r.pinned
+  if r.key and Core.db.char.whisperPeoplePins then Core.db.char.whisperPeoplePins[r.key]=r.pinned or nil end
   local host = W:HubFor(frame)
   if r.placement == "hub" then
     if r.pinned then host:ReorderConversation(frame, 1, false) else host:KeepPinnedFirst(false); host:SaveConversationOrder(); host:LayoutHubTabs() end
@@ -991,19 +942,19 @@ function W:StyleConversationTab(tab)
   if label then
     label:ClearAllPoints(); label:SetPoint("LEFT", pad + (icon + 4) * 2 + 4, 0)
     label:SetWordWrap(false)
-    label:SetWidth(math.max(30, self:TabWidth() - pad * 2 - (icon + 4) * 2 - 22))
+    label:SetWidth(math.max(30, self:TabWidth() - pad * 2 - (icon + 4) * 2 - math.max(24,fontSize*2.2+8)))
     self:WorkspaceFont(label, fontSize)
   end
-  if tab.unread then self:WorkspaceFont(tab.unread, fontSize) end
+  if tab.unread then
+    self:WorkspaceFont(tab.unread,fontSize)
+    Core.Components.WindowManager:UpdateUnreadBadge(tab.unread,self:Settings().unreadBadges and tab.pinRecord and tab.pinRecord.unread or 0,fontSize)
+  end
   if tab.pinControl then
     local pin = tab.pinControl
     pin:ClearAllPoints(); pin:SetPoint("LEFT", pad + icon + 4, 0)
     pin:SetSize(icon + 4, self:ConversationTabHeight() - 4); pin.icon:SetSize(icon, icon)
     self:StyleWindowIcon(pin)
-    local pinned = tab.pinRecord and tab.pinRecord.pinned
-    local r, g, b = self:InterfaceAccent()
-    pin.icon:SetVertexColor(pinned and r or 0.45, pinned and g or 0.5, pinned and b or 0.6)
-    pin.icon:SetAlpha(pinned and 1 or pin.iconOpacity or 0.5)
+    Core.Components.WindowManager:SetActionSelected(pin,tab.pinRecord and tab.pinRecord.pinned,"pin")
   end
   if tab.favoriteButton then
     local star = tab.favoriteButton
@@ -1021,15 +972,11 @@ function W:ApplyWorkspaceMetrics()
   self.hubChrome:SetHeight(height)
   local right = pad
   self.hubActionButtons.Favorite:Hide(); self.hubActionButtons.Pin:Hide()
-  local actions = self:SingleRowHeader() and {"Close", "Settings", "Windows"} or {"Close", "Settings", "Windows", "Detach", "Search", "Reply"}
-  for _, name in ipairs({"Detach", "Search", "Reply"}) do self.hubActionButtons[name]:SetShown(not self:SingleRowHeader()) end
-  for _, name in ipairs(actions) do
-    local b = self.hubActionButtons[name]
-    b:ClearAllPoints(); b:SetPoint("RIGHT", self.hubChrome, "RIGHT", -right, 0)
-    b:SetSize(size, size); b.icon:SetSize(icon, icon)
-    self:StyleWindowIcon(b)
-    right = right + size + gap
-  end
+  local conversationActions=not self:SingleRowHeader() and not (self.IsConversationList and self:IsConversationList())
+  local actions = {"Close", "Settings", "Maximize", "CollapseTop", "CollapseBottom", "Lock", "Windows"}
+  if conversationActions then for _,id in ipairs({"Detach","Search","Reply"})do actions[#actions+1]=id end end
+  for _, name in ipairs({"Detach", "Search", "Reply"}) do self.hubActionButtons[name]:SetShown(conversationActions) end
+  right=Core.Components.WindowManager:LayoutRoomActions(self,actions,right,size,icon,gap)
   for _, nav in pairs({self.conversationNavigation, self.previewNavigation}) do
     local controlHeight = math.min(22, self:ConversationTabHeight())
     for _, control in ipairs({nav.left, nav.right, nav.all}) do control:SetHeight(controlHeight); self:StyleWindowIcon(control) end
@@ -1040,11 +987,7 @@ function W:ApplyWorkspaceMetrics()
   if self.conversationPicker then
     for _, row in ipairs(self.conversationPicker.rows) do self:WorkspaceFont(row:GetFontString(), metric("tabFontSize", 12, 10, 18)) end
   end
-  local minimize = self.minimizeButton
-  minimize:ClearAllPoints(); minimize:SetPoint("RIGHT", self.hubChrome, "RIGHT", -right, 0)
-  minimize:SetSize(size, size); minimize.icon:SetSize(icon, icon)
-  self:StyleWindowIcon(minimize)
-  right = right + size + pad
+  right=right+pad
   self.hubGrip:ClearAllPoints(); self.hubGrip:SetPoint("LEFT", self.hubChrome, "LEFT", pad, 0)
   self.hubMark:ClearAllPoints(); self.hubMark:SetPoint("LEFT", self.hubGrip, "RIGHT", pad, 0)
   self.hubGrip:SetHeight(height)

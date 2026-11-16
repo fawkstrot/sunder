@@ -3,9 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag matching the addon version (for example v0.9.11)
+        description: Existing release tag matching the addon version (for example v0.10.0-alpha.1)
         required: true
         type: string
+      release_type:
+        description: Must match the version suffix; mismatches stop before upload
+        required: true
+        type: choice
+        options: [alpha, beta, release]
+        default: alpha
       publish_curseforge:
         description: Upload the tested clean ZIP to CurseForge
         type: boolean
@@ -44,7 +50,8 @@ jobs:
       - name: Prepare checked artifacts and curated changelog
         env:
           TAG: ${{ inputs.tag }}
-        run: python tools/release.py prepare --root release-source --tag "$TAG"
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        run: python tools/release.py prepare --root release-source --tag "$TAG" --release-type "$RELEASE_TYPE"
       - uses: actions/upload-artifact@v4
         with:
           name: Sunder-${{ inputs.tag }}
@@ -54,13 +61,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
         run: |
+          prerelease=()
+          if [ "$RELEASE_TYPE" != release ]; then prerelease=(--prerelease); fi
           if gh release view "$TAG" --json isDraft > /tmp/sunder-release.json; then
             python -c 'import json; assert json.load(open("/tmp/sunder-release.json"))["isDraft"], "Refusing to modify a published release"'
             gh release upload "$TAG" release-source/dist/*.zip release-source/dist/release-manifest.json --clobber
-            gh release edit "$TAG" --notes-file release-source/dist/release-notes.md
+            gh release edit "$TAG" --notes-file release-source/dist/release-notes.md "${prerelease[@]}"
           else
-            gh release create "$TAG" release-source/dist/*.zip release-source/dist/release-manifest.json --verify-tag --draft --title "Sunder $TAG" --notes-file release-source/dist/release-notes.md
+            gh release create "$TAG" release-source/dist/*.zip release-source/dist/release-manifest.json --verify-tag --draft --title "Sunder $TAG" --notes-file release-source/dist/release-notes.md "${prerelease[@]}"
           fi
       - name: Upload clean package to CurseForge
         if: ${{ inputs.publish_curseforge }}
@@ -69,4 +79,5 @@ jobs:
           TAG: ${{ inputs.tag }}
           GAME_VERSION_IDS: ${{ inputs.game_version_ids }}
           GAME_VERSION_NAMES: ${{ inputs.game_version_names }}
-        run: python tools/release.py publish --root release-source --tag "$TAG" --game-versions "$GAME_VERSION_IDS" --game-version-names "$GAME_VERSION_NAMES"
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        run: python tools/release.py publish --root release-source --tag "$TAG" --release-type "$RELEASE_TYPE" --game-versions "$GAME_VERSION_IDS" --game-version-names "$GAME_VERSION_NAMES"

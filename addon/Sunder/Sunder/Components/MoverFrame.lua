@@ -77,6 +77,20 @@ function MoverFrameMixin:UpdateDragPosition()
 end
 
 function MoverFrameMixin:StartDragging()
+  local wm=Core.Components.WindowManager
+  if wm and not wm:CanMove(wm:Settings("main"))then return end
+  if self.nativeDragTarget then return end
+  if wm and self.layoutContainer then
+    self.nativeDragTarget=self.layoutContainer
+    wm:StartNativeMove(self,self.nativeDragTarget,function()
+      local manager=Core:GetModule("UIManager",true)
+      if manager then for _,window in pairs(manager.state.windows)do
+        local smf=window.slidingMessageFrame
+        if smf and smf.UpdateScrollChildRect then smf:UpdateScrollChildRect()end
+      end end
+    end,function()self:StopDragging()end)
+    return
+  end
   local parent = self:GetParent()
   local scale = parent and parent:GetEffectiveScale()
   local left, bottom = self:GetLeft(), self:GetBottom()
@@ -93,6 +107,15 @@ function MoverFrameMixin:StartDragging()
 end
 
 function MoverFrameMixin:StopDragging()
+  if self.nativeDragTarget then
+    local target=self.nativeDragTarget;self.nativeDragTarget=nil
+    Core.Components.WindowManager:StopNativeMove(self,target)
+    self:SetDragPosition(target:GetLeft(),target:GetTop()-self:GetHeight())
+    target:ClearAllPoints();target:SetPoint("TOPLEFT",self,"TOPLEFT")
+    local point,_,_,xOfs,yOfs=self:GetPoint(1)
+    Core:Dispatch(SaveFramePosition({point=point,xOfs=xOfs,yOfs=yOfs}))
+    return
+  end
   if self.dragOffsetX == nil then return end
   self:UpdateDragPosition()
   self.boundsFrame:SetScript("OnUpdate", nil)
@@ -196,6 +219,12 @@ function MoverFrameMixin:UpdateBounds()
   self.boundsFrame:SetPoint("BOTTOMRIGHT", self, "TOPLEFT", boundsRight - moverLeft, boundsBottom - moverTop)
 end
 
+function MoverFrameMixin:CreateStandardResizer(parent)
+  local options={};for key,value in pairs(self.resizeOptions)do options[key]=value end
+  options.allowed=function()return parent:IsShown()end
+  return Core.Components.WindowManager:CreateWindowResizer(parent,options)
+end
+
 function MoverFrameMixin:Init()
   self:SetClampedToScreen(true)
   self.boundsRegions = {}
@@ -247,7 +276,8 @@ function MoverFrameMixin:Init()
   self.leftBorder:SetColorTexture(EDIT_MODE_BLUE_R, EDIT_MODE_BLUE_G, EDIT_MODE_BLUE_B, EDIT_MODE_BORDER_ALPHA)
   self.rightBorder:SetColorTexture(EDIT_MODE_BLUE_R, EDIT_MODE_BLUE_G, EDIT_MODE_BLUE_B, EDIT_MODE_BORDER_ALPHA)
 
-  self.resizeHandle = Core.Components.CreateResizeHandle(self.boundsFrame, {
+  self.resizeOptions = {
+    settings=function()return Core.Components.WindowManager:Settings("main")end,
     minWidth = 100, minHeight = 100,
     allowed = function () return Core.sunderMoverUnlocked and self:IsShown() end,
     begin = function ()
@@ -266,7 +296,8 @@ function MoverFrameMixin:Init()
       local point, _, _, xOfs, yOfs = self:GetPoint(1)
       Core:Dispatch(SaveFramePosition({point = point, xOfs = xOfs, yOfs = yOfs}))
     end,
-  })
+  }
+  self.resizeHandle=Core.Components.CreateResizeHandle(self.boundsFrame,self.resizeOptions)
   self:Hide()
 
   self.boundsFrame:RegisterForDrag("LeftButton")

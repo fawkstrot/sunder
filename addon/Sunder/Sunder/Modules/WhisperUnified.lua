@@ -35,10 +35,8 @@ function W:StylePeopleFilter(button)
   local active=(self.peopleFilter or "all")==button.key
   local hover=button.hovered
   local r,g,b=self:InterfaceAccent()
-  button.plate:SetColorTexture(active and r or 1,active and g or 1,active and b or 1,active and .075 or hover and .035 or 0)
-  button.indicator:SetColorTexture(r,g,b,active and .8 or 0)
-  button.icon:SetVertexColor(active and r or hover and .9 or .58,active and g or hover and .92 or .63,active and b or hover and .96 or .70)
-  button:GetFontString():SetTextColor(active and .97 or .68,active and .88 or .72,active and .67 or .78)
+  Core.Components.WindowManager:StyleFilterButton(button,active,hover,r,g,b)
+  button.icon:SetAlpha(button.pressed and .65 or 1)
   if button.counter then
     local hasUnread=(button.unreadTotal or 0)>0
     button.counter:SetTextColor(hasUnread and 1 or .45,hasUnread and .80 or .50,hasUnread and .30 or .57)
@@ -47,7 +45,8 @@ end
 function W:EnsurePeopleFilters()
   if self.peopleFilters then return end
   local bar=CreateFrame("Frame",nil,self.hub);self.peopleFilters=bar
-  bar:SetHeight(26)
+  bar:SetHeight(32)
+  bar.rule=bar:CreateTexture(nil,"BORDER");bar.rule:SetPoint("BOTTOMLEFT",1,0);bar.rule:SetPoint("BOTTOMRIGHT",-1,0);bar.rule:SetHeight(1);bar.rule:SetColorTexture(.64,.69,.76,.14)
   local track=bar:CreateTexture(nil,"BACKGROUND");track:SetAllPoints();track:SetColorTexture(0,0,0,0)
   bar.buttons={}
   for index,item in ipairs({{"all","All whispers","inbox"},{"unread","Unread whispers","read"},{"favorites","Favorites","favorite"}}) do
@@ -69,9 +68,10 @@ function W:EnsurePeopleFilters()
       if key=="unread" then GameTooltip:AddLine((b.unreadTotal or 0).." unread messages",1,.8,.35) end
       GameTooltip:AddLine(key=="all" and "Every conversation, with favorites first." or key=="unread" and "People with messages you have not read." or "Starred people and saved contacts.",.7,.75,.8);GameTooltip:Show()
     end)
-    b:SetScript("OnLeave",function() b.hovered=nil;self:StylePeopleFilter(b);GameTooltip:Hide() end)
-    b:SetScript("OnMouseDown",function() b.icon:SetAlpha(.65) end)
-    b:SetScript("OnMouseUp",function() b.icon:SetAlpha(1) end)
+    b:SetScript("OnLeave",function() b.hovered=nil;b.pressed=nil;self:StylePeopleFilter(b);GameTooltip:Hide() end)
+    b:SetScript("OnMouseDown",function() b.pressed=true;self:StylePeopleFilter(b) end)
+    b:SetScript("OnMouseUp",function() b.pressed=nil;self:StylePeopleFilter(b) end)
+    b:SetScript("OnHide",function() b.hovered=nil;b.pressed=nil;self:StylePeopleFilter(b) end)
   end
 end
 function W:RefreshPeopleFilterCounts()
@@ -99,16 +99,6 @@ function W:PositionConversationBody()
   self.previewBody:SetPoint("TOPRIGHT",self.hub,"TOPRIGHT",-self:BodyPadding(),-top-self:BodyPadding())
   self.previewBody:SetHeight(math.max(1,self.hub:GetHeight()-top-self:BodyPadding()*2))
 end
-local paint=W.ApplyHubAppearance
-function W:ApplyHubAppearance()
-  paint(self)
-  if self:UsesUnifiedPeople() and self.whisperSurface then
-    local top=self:HeaderHeight()+self:HeaderGap()
-    self.whisperSurface:ClearAllPoints();self.whisperSurface:SetPoint("TOPLEFT",self.hub,"TOPLEFT",0,-top)
-    self.whisperSurface:SetPoint("TOPRIGHT",self.hub,"TOPRIGHT",0,-top)
-    self.whisperSurface:SetHeight(math.max(1,self.hub:GetHeight()-top))
-  end
-end
 local strip=W.LayoutConversationStrip
 function W:LayoutConversationStrip(preview)
   strip(self,preview)
@@ -118,11 +108,13 @@ function W:LayoutConversationStrip(preview)
   local bar=self.peopleFilters
   local top=self:HeaderHeight()+self:HeaderGap()
   bar:ClearAllPoints();bar:SetPoint("TOPLEFT",self.hub,"TOPLEFT",0,-top);bar:SetWidth(math.max(1,self.hub:GetWidth()))
+  bar:SetFrameLevel(self.hubChrome:GetFrameLevel()+1)
   bar:SetShown(not self.minimized)
   self:RefreshPeopleFilterCounts()
   local width=bar:GetWidth()/3
   for i,b in ipairs(bar.buttons) do
-    b:ClearAllPoints();b:SetPoint("TOPLEFT",(i-1)*width,0);b:SetSize(width,26)
+    local left=math.floor((i-1)*width);local right=i==3 and bar:GetWidth() or math.floor(i*width)
+    b:ClearAllPoints();b:SetPoint("TOPLEFT",left,0);b:SetSize(right-left,bar:GetHeight())
     local size=math.max(10,self:InterfaceTextSize()-1)
     local text=b:GetFontString()
     self:WorkspaceFont(text,size)
@@ -135,7 +127,7 @@ function W:LayoutConversationStrip(preview)
     end
     local total=12+5+labelWidth+counterWidth
     b.icon:ClearAllPoints();b.icon:SetPoint("LEFT",b,"CENTER",-total/2,0)
-    text:ClearAllPoints();text:SetPoint("LEFT",b.icon,"RIGHT",5,0);text:SetWidth(labelWidth+1);text:SetJustifyH("LEFT")
+    text:ClearAllPoints();text:SetPoint("LEFT",b.icon,"RIGHT",5,0);text:SetWidth(labelWidth+1);text:SetHeight(size+2);text:SetJustifyH("LEFT");text:SetJustifyV("MIDDLE")
     if b.counter then b.counter:ClearAllPoints();b.counter:SetPoint("LEFT",text,"RIGHT",5,0) end
     self:StylePeopleFilter(b)
   end
@@ -145,50 +137,91 @@ function W:LayoutConversationStrip(preview)
     scroll:SetHeight(math.max(1,self.hub:GetHeight()-top-32))
   end
 end
-local function section(host,child,key,label,y,count,new)
-  host.peopleSections=host.peopleSections or {}
-  local b=host.peopleSections[key]
-  if not b then
-    b=CreateFrame("Button",nil,child);host.peopleSections[key]=b
-    b:SetNormalFontObject("SunderChatDockFont")
-    b.icon=b:CreateTexture(nil,"ARTWORK");b.icon:SetSize(12,12);b.icon:SetPoint("LEFT",2,0)
-    b.chevron=b:CreateTexture(nil,"ARTWORK");b.chevron:SetTexture(ICONS.."right.tga");b.chevron:SetSize(10,10);b.chevron:SetPoint("RIGHT",-2,0)
-    b.count=b:CreateFontString(nil,"OVERLAY","SunderChatDockFont");b.count:SetPoint("RIGHT",b.chevron,"LEFT",-8,0)
-    b.count:SetJustifyH("RIGHT")
-    b:SetHighlightTexture("Interface\\Buttons\\WHITE8X8");b:GetHighlightTexture():SetVertexColor(1,1,1,.035)
-    b:SetScript("OnClick",function()
-      host.hubOpenedAt=GetTime();host.lastUserInteraction=GetTime()
-      host.peopleCollapsed=host.peopleCollapsed or {};host.peopleCollapsed[key]=not host.peopleCollapsed[key]
-      host:LayoutPeopleRows(not not host.previewActive);host:RefreshConversationNavigation(not not host.previewActive)
-    end)
-    b:SetScript("OnEnter",function()
-      GameTooltip:SetOwner(b,"ANCHOR_RIGHT");GameTooltip:AddLine(label,1,1,1)
-      GameTooltip:AddLine((b.peopleCount or 0).." people · "..(b.unreadCount or 0).." unread messages",.7,.75,.8)
-      GameTooltip:AddLine("Click to collapse or expand",.7,.75,.8);GameTooltip:Show()
-    end)
-    b:SetScript("OnLeave",function() GameTooltip:Hide() end)
-  end
-  b.peopleCount=count;b.unreadCount=new
-  local pad=host:BodyPadding()
-  b:SetParent(child);b:ClearAllPoints();b:SetPoint("TOPLEFT",pad,-y)
-  b:SetSize(host:ConversationListWidth()-pad*2,24);b:SetText(label)
-  b.icon:SetTexture(ICONS..(key=="favorites" and "favorite" or "inbox")..".tga");b.icon:SetVertexColor(.68,.63,.49)
-  b.chevron:SetRotation(host.peopleCollapsed and host.peopleCollapsed[key] and 0 or -math.pi/2);b.chevron:SetVertexColor(.55,.59,.66)
-  local text=b:GetFontString();text:ClearAllPoints();text:SetPoint("LEFT",b.icon,"RIGHT",6,0);text:SetPoint("RIGHT",b.count,"LEFT",-8,0);text:SetJustifyH("LEFT");text:SetWordWrap(false)
-  text:SetTextColor(.68,.71,.77)
-  b.count:SetText(new>0 and tostring(new) or tostring(count));b.count:SetTextColor(new>0 and 1 or .44,new>0 and .80 or .49,new>0 and .30 or .57)
-  host:WorkspaceFont(text,math.max(10,host:InterfaceTextSize()-1));host:WorkspaceFont(b.count,math.max(10,host:InterfaceTextSize()-2));b:Show()
-  return y+30
+function W:SavedPersonPinned(contact)
+  local history=Core:GetModule("WhisperTabs",true)
+  local entry=contact.archiveKey and history and history:ImportArchive()[contact.archiveKey]
+  return entry and entry.layout and entry.layout.pinned or Core.db.char.whisperPeoplePins and Core.db.char.whisperPeoplePins[contact.key or contact.archiveKey] or false
+end
+function W:ToggleSavedPin(contact)
+  local key=contact.key or contact.archiveKey;if not key then return end
+  Core.db.char.whisperPeoplePins=Core.db.char.whisperPeoplePins or {}
+  local pins=Core.db.char.whisperPeoplePins;local pinned=not self:SavedPersonPinned(contact)
+  local count=0;for _ in pairs(pins)do count=count+1 end
+  if pinned and count>=200 then return end
+  pins[key]=pinned or nil
+  if contact.key and Core.db.char.whisperLayouts and Core.db.char.whisperLayouts[contact.key]then Core.db.char.whisperLayouts[contact.key].pinned=pinned end
+  local history=Core:GetModule("WhisperTabs",true)
+  local entry=contact.archiveKey and history and history:ImportArchive()[contact.archiveKey]
+  if entry then entry.layout=entry.layout or {};entry.layout.pinned=pinned end
+  self:LayoutPeopleRows(false)
+end
+function W:ToggleSavedFavorite(contact)
+  local history=Core:GetModule("WhisperTabs",true)
+  local entry=contact.archiveKey and history and history:ImportArchive()[contact.archiveKey]
+  local favorite=not (entry and entry.favorite or contact.key and Core.db.char.whisperFavorites[contact.key])
+  if contact.key then return W:SetPersonFavorite(contact.key,entry and entry.target or contact.target,favorite)end
+  if entry then entry.favorite=favorite end
+  W:RefreshPersonFavorites()
 end
 function W:OpenSavedFavorite(contact)
+  if contact.archiveKey then
+    local history=Core:GetModule("WhisperTabs",true)
+    if history then history:OpenArchive(contact.archiveKey) end
+    return
+  end
   for frame,r in pairs(W.records or {}) do
     if frame.inUse and r.key==contact.key then W:SelectConversation(frame,false);return end
   end
   if InCombatLockdown() or not FCF_OpenTemporaryWindow then return end
   local ok,frame=pcall(FCF_OpenTemporaryWindow,"WHISPER",contact.target,nil,false)
   if ok and frame then C_Timer.After(0,function()
-    if frame.inUse and W:Key(frame)==contact.key then W:MoveToWorkspace(frame,"messages") end
+    if frame.inUse and W:Key(frame)==contact.key then
+      W:MoveToWorkspace(frame,"messages")
+    end
   end) end
+end
+function W:RenderSavedPersonRow(contact,child,y,savedRowIndex,isFavorite)
+  local pad=self:BodyPadding()
+  local b=self.savedFavoriteRows[savedRowIndex]
+  if not b then
+    b=CreateFrame("Button",nil,child);self.savedFavoriteRows[savedRowIndex]=b
+    b:SetNormalFontObject("SunderChatDockFont")
+    b.favoriteButton=self:IconButton(b,"favorite","Favorite / unfavorite saved conversation",function()self:ToggleSavedFavorite(b.contact)end)
+    b:SetHighlightTexture("Interface\\Buttons\\WHITE8X8");b:GetHighlightTexture():SetVertexColor(1,1,1,.06)
+    b:RegisterForClicks("LeftButtonUp","RightButtonUp")
+    b:SetScript("OnClick",function(button,mouse)
+      if mouse=="RightButton" then
+        local history=Core:GetModule("WhisperTabs",true)
+        if MenuUtil and MenuUtil.CreateContextMenu then
+          MenuUtil.CreateContextMenu(button,function(_,menu)
+            menu:CreateButton("Open conversation",function() W:OpenSavedFavorite(button.contact) end)
+            Core.Components.WindowManager:AddInspectAction(menu,button.contact.target or button.contact.key)
+            if history and button.contact.archiveKey then
+            menu:CreateButton("Browse / search saved history",function() history:ShowArchive(button.contact.archiveKey) end)
+            menu:CreateButton("Delete saved history…",function() history:RequestDelete(button.contact.archiveKey) end)
+            end
+          end)
+        end
+      else W:OpenSavedFavorite(button.contact) end
+    end)
+    b:SetScript("OnEnter",function(button)
+      GameTooltip:SetOwner(button,"ANCHOR_RIGHT");GameTooltip:AddLine(button.contact.target,1,1,1)
+      GameTooltip:AddLine("Open conversation — no message is sent",.7,.75,.8)
+      if button.contact.archiveKey then GameTooltip:AddLine("Right-click for saved history, search or confirmed deletion.",.7,.75,.8) end
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave",function()GameTooltip:Hide()end)
+  end
+  b.contact=contact;b:ClearAllPoints();b:SetPoint("TOPLEFT",child,"TOPLEFT",pad,-y)
+  b:SetSize(self:TabWidth(),self:ConversationRowHeight());local person=W:PersonDetails(contact.key or contact.target)
+  b:SetText(W.whisperNames and W.whisperNames[contact.key] or person and person.name or contact.target)
+  b.savedFavorite=isFavorite
+  Core.Components.WindowManager:SetActionSelected(b.favoriteButton,isFavorite,"favorite")
+  b:GetFontString():SetTextColor(.62,.65,.70)
+  b.savedFavoriteAction=function()self:ToggleSavedFavorite(b.contact)end
+  b.savedPinAction=function()self:ToggleSavedPin(b.contact)end;b.savedPinned=self:SavedPersonPinned(contact)
+  self:LayoutPersonDetails(b,contact.key or contact.target);b:Show();return b
+
 end
 local layout=W.LayoutPeopleRows
 function W:LayoutPeopleRows(preview)
@@ -204,65 +237,85 @@ function W:LayoutPeopleRows(preview)
   self:RefreshPeopleFilterCounts()
   if not child then return end
   local pad=self:BodyPadding()
-  local groups={favorites={},conversations={}};local active={}
+  local groups={favorites={},conversations={},archived={}};local active={};local activeArchive={}
   local filter=self.peopleFilter or "all"
   for i,item in ipairs(list) do
     local tab=preview and tabs[i] or tabs[item]
     if tab then tab:Hide() end
     local r=not preview and W.records[item]
     if r and r.key then active[r.key]=true end
+    local history=not preview and Core:GetModule("WhisperTabs",true)
+    local archiveKey=history and history.ArchiveKey and history:ArchiveKey(item)
+    if archiveKey then activeArchive[archiveKey]=true end
     local fav=favorite(item,preview)
-    if filter=="all" or filter=="unread" and unread(item,preview)>0 or filter=="favorites" and fav then
+    if filter=="all" and (preview or not fav or W:HasConversationHistory(item)) or filter=="unread" and unread(item,preview)>0 or filter=="favorites" and fav then
       local group=groups[fav and "favorites" or "conversations"]
       group[#group+1]={item=item,index=i,tab=tab}
     end
   end
   local contacts={}
-  if not preview and filter~="unread" then
+  if not preview and filter=="favorites" then
     for key,target in pairs(Core.db.char.whisperFavorites or {}) do
       if type(target)=="string" and not active[key] then contacts[#contacts+1]={key=key,target=target} end
     end
     table.sort(contacts,function(a,b)return a.target:lower()<b.target:lower() end)
   end
-  self.peopleOffsets={};self.peopleVisualOrder={};self.savedFavoriteRows=self.savedFavoriteRows or {}
-  for _,b in pairs(self.peopleSections or {}) do b:Hide() end
-  for _,b in ipairs(self.savedFavoriteRows) do b:Hide() end
-  local y,step=pad,self:ConversationRowStep()
-  for _,key in ipairs({"favorites","conversations"}) do
-    local group=groups[key];local count=#group+(key=="favorites" and #contacts or 0)
-    if count>0 then
-      if y>pad then y=y+10 end
-      local new=0;for _,entry in ipairs(group) do new=new+unread(entry.item,preview) end
-      y=section(self,child,key,key=="favorites" and "Favorites" or "Conversations",y,count,new)
-      if not (self.peopleCollapsed and self.peopleCollapsed[key]) then
-        for _,entry in ipairs(group) do
-          self.peopleOffsets[entry.index]=y
-          self.peopleVisualOrder[#self.peopleVisualOrder+1]={index=entry.index,y=y}
-          if entry.tab then
-            entry.tab:ClearAllPoints();entry.tab:SetPoint("TOPLEFT",child,"TOPLEFT",pad,-y);entry.tab:Show()
-          end
-          y=y+step
-        end
-        if key=="favorites" then for i,contact in ipairs(contacts) do
-          local b=self.savedFavoriteRows[i]
-          if not b then
-            b=CreateFrame("Button",nil,child);self.savedFavoriteRows[i]=b
-            b:SetNormalFontObject("SunderChatDockFont")
-            b:SetHighlightTexture("Interface\\Buttons\\WHITE8X8");b:GetHighlightTexture():SetVertexColor(1,1,1,.06)
-            b:SetScript("OnClick",function(button) W:OpenSavedFavorite(button.contact) end)
-            b:SetScript("OnEnter",function(button)
-              GameTooltip:SetOwner(button,"ANCHOR_RIGHT");GameTooltip:AddLine(button.contact.target,1,1,1)
-              GameTooltip:AddLine("Open conversation — no message is sent",.7,.75,.8);GameTooltip:Show()
-            end)
-            b:SetScript("OnLeave",function()GameTooltip:Hide()end)
-          end
-          b.contact=contact;b:ClearAllPoints();b:SetPoint("TOPLEFT",child,"TOPLEFT",pad,-y)
-          b:SetSize(self:TabWidth(),self:ConversationRowHeight());b:SetText("|TInterface\\AddOns\\Sunder\\Media\\Icons\\favorite.tga:12:12:0:0|t "..(W.whisperNames and W.whisperNames[contact.key] or contact.target))
-          b:GetFontString():SetJustifyH("LEFT");b:GetFontString():SetTextColor(.62,.65,.70)
-          self:WorkspaceFont(b:GetFontString(),self:InterfaceTextSize());b:Show();y=y+step
-        end end
+  local archived={}
+  if not preview then
+    local history=Core:GetModule("WhisperTabs",true)
+    for frame in pairs(W.records or {}) do
+      local archiveKey=frame.inUse and history and history.ArchiveKey and history:ArchiveKey(frame)
+      if archiveKey then activeArchive[archiveKey]=true end
+    end
+  end
+  if not preview and filter~="unread" then
+    local history=Core:GetModule("WhisperTabs",true)
+    for archiveKey,entry in pairs(history and history.ImportArchive and history:ImportArchive() or {}) do
+      if not activeArchive[archiveKey] and (filter=="favorites" and entry.favorite or #(entry.lines or {})>0 or filter=="favorites" and entry.target and W:IsPersonFavorite(entry.target)) then
+        local key=entry.target and entry.target:lower()
+        local fav=entry.favorite or key and Core.db.char.whisperFavorites and Core.db.char.whisperFavorites[key]
+        local contact={key=key,target=entry.displayName or entry.target or entry.battleTag or "Whisper",archiveKey=archiveKey}
+        if fav then
+          local found=false
+          for _,existing in ipairs(contacts) do if existing.key==key and key then existing.archiveKey=archiveKey;found=true;break end end
+          if not found then contacts[#contacts+1]=contact end
+        elseif filter=="all" then archived[#archived+1]=contact end
       end
     end
+    table.sort(archived,function(a,b)return a.target:lower()<b.target:lower() end)
+  end
+  self.peopleOffsets={};self.peopleVisualOrder={};self.savedFavoriteRows=self.savedFavoriteRows or {}
+  for _,b in pairs(self.peopleSections or {})do b:Hide()end
+  for _,b in ipairs(self.savedFavoriteRows)do b:Hide()end
+  local visible={}
+  for _,key in ipairs({"favorites","conversations"})do
+    for _,entry in ipairs(groups[key])do
+      local record=preview and entry.item or W.records[entry.item] or {}
+      entry.favorite=key=="favorites";entry.pinned=record.pinned;entry.order=entry.index;visible[#visible+1]=entry
+    end
+  end
+  for _,collection in ipairs({contacts,archived})do for _,contact in ipairs(collection)do
+    visible[#visible+1]={contact=contact,favorite=collection==contacts,pinned=self:SavedPersonPinned(contact),order=#list+#visible+1}
+  end end
+  table.sort(visible,function(a,b)
+    local x=Core.Components.WindowManager:PersonPriority(a.favorite,a.pinned);local y=Core.Components.WindowManager:PersonPriority(b.favorite,b.pinned)
+    if x~=y then return x<y end;return a.order<b.order
+  end)
+  local y,step=pad,self:ConversationRowStep();local savedRowIndex=0
+  for i,entry in ipairs(visible)do
+    local row=entry.tab
+    if entry.contact then
+      savedRowIndex=savedRowIndex+1;row=self:RenderSavedPersonRow(entry.contact,child,y,savedRowIndex,entry.favorite)
+    else
+      self.peopleOffsets[entry.index]=y;self.peopleVisualOrder[#self.peopleVisualOrder+1]={index=entry.index,y=y}
+      if row then
+        row:ClearAllPoints();row:SetPoint("TOPLEFT",child,"TOPLEFT",pad,-y);row:Show()
+        local record=not preview and W.records[entry.item]
+        self:LayoutPersonDetails(row,preview and entry.item.name or record and (record.target or record.key),preview and entry.item or nil)
+      end
+    end
+    if row and row.separator then row.separator:SetShown(i<#visible)end
+    y=y+step
   end
   if not self.peopleEmpty then self.peopleEmpty=child:CreateFontString(nil,"OVERLAY","SunderChatDockFont") end
   local empty=self.peopleEmpty;empty:SetParent(child);empty:ClearAllPoints();empty:SetPoint("TOPLEFT",pad,-pad)
@@ -272,16 +325,16 @@ function W:LayoutPeopleRows(preview)
   empty:SetShown(y==pad)
   child:SetHeight(math.max(y==pad and 60 or 1,y+pad))
   scroll:SetVerticalScroll(math.max(0,math.min(scroll:GetVerticalScroll(),y+pad-scroll:GetHeight())))
+  self:UpdatePeopleScrollIndicator(scroll,child)
 end
 local reveal=W.RevealPerson
 function W:RevealPerson(preview,index)
   if not self:UsesUnifiedPeople() then return reveal(self,preview,index) end
   local list,_,scroll=data(self,preview);local person=list[index]
   if not person or not scroll then return end
-  local key=favorite(person,preview) and "favorites" or "conversations"
   if not self.peopleOffsets or self.peopleOffsets[index]==nil then
     if not self.explicitPeopleNavigation then return end
-    self.peopleFilter="all";self.peopleCollapsed=self.peopleCollapsed or {};self.peopleCollapsed[key]=nil
+    self.peopleFilter="all"
     self:LayoutConversationStrip(preview)
     self:LayoutPeopleRows(preview)
   end
@@ -409,11 +462,12 @@ end
 local badges=W.UpdateBadges
 function W:UpdateBadges()
   badges(self)
+  for _,host in pairs(W.workspaces or {W})do if host.hub then host:RefreshConversationEmptyState()end end
   if not W.hub or not W:UsesUnifiedPeople() or W.previewActive then return end
   local parts={W.peopleFilter or "all"}
   for _,frame in ipairs(W.hubOrder or {}) do
     local r=W.records[frame] or {}
-    parts[#parts+1]=tostring(frame)..":"..tostring(r.unread or 0)..":"..tostring(not not W:IsFavorite(frame))
+    parts[#parts+1]=tostring(frame)..":"..tostring(r.unread or 0)..":"..tostring(not not W:IsFavorite(frame))..":"..tostring(r.hasMessages or false)
   end
   for key,name in pairs(Core.db.char.whisperFavorites or {}) do parts[#parts+1]=key..":"..tostring(name) end
   local stamp=table.concat(parts,";")

@@ -2,6 +2,9 @@ local Core = unpack(select(2, ...))
 
 -- Cursor deltas avoid native sizing changing chat's anchors or lock state.
 Core.Components.CreateResizeHandle = function (overlay, options)
+  local function allowed()
+    return (not options.settings or Core.Components.WindowManager:CanMove(options.settings())) and options.allowed()
+  end
   local handle = CreateFrame("Button", nil, overlay)
   handle:SetSize(24, 24)
   handle:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -2, 2)
@@ -17,10 +20,10 @@ Core.Components.CreateResizeHandle = function (overlay, options)
     options.finish()
   end
 
-  function handle:UpdateResize()
+  function handle:UpdateResize(finishing)
     local state = self.resizeState
     if not state then return end
-    if not options.allowed() or not IsMouseButtonDown("LeftButton") then
+    if not allowed() or not finishing and not IsMouseButtonDown("LeftButton") then
       self:FinishResize()
       return
     end
@@ -34,7 +37,7 @@ Core.Components.CreateResizeHandle = function (overlay, options)
   end
 
   handle:SetScript("OnMouseDown", function (_, button)
-    if button ~= "LeftButton" or not options.allowed() then return end
+    if button ~= "LeftButton" or not allowed() then return end
     local target, width, height = options.begin()
     if not target then return end
     local scale = target:GetEffectiveScale()
@@ -51,7 +54,7 @@ Core.Components.CreateResizeHandle = function (overlay, options)
     handle:SetScript("OnUpdate", function () handle:UpdateResize() end)
   end)
   handle:SetScript("OnMouseUp", function (_, button)
-    if button == "LeftButton" then handle:UpdateResize(); handle:FinishResize() end
+    if button == "LeftButton" then handle:UpdateResize(true); handle:FinishResize() end
   end)
   handle:SetScript("OnHide", function () handle:FinishResize() end)
   return handle

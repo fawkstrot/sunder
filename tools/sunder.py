@@ -26,6 +26,14 @@ def check():
     toc=(ADDON/'Sunder.toc').read_text(encoding='utf-8')
     for line in toc.splitlines():
         if line.strip() and not line.startswith('#'):resource(ADDON/line.strip().replace(chr(92),'/'))
+    # WoW automatically loads Bindings.xml through its binding parser; TOC loading
+    # sends Binding elements to the ordinary UI parser and emits XML warnings.
+    assert not any(line.strip().lower()=='bindings.xml' for line in toc.splitlines()),'Bindings.xml must not be loaded as ordinary UI XML'
+    bindings=ET.parse(ADDON/'Bindings.xml').getroot()
+    assert bindings.tag=='Bindings'
+    headers=[node.get('header') for node in bindings if node.get('header')]
+    assert len(headers)==len(set(headers)),'Binding headers must be declared once'
+    assert {'SUNDER_PROTECT_ITEM','ROTBOT_FOREVER_PROTECT_ITEM'} <= {node.get('name') for node in bindings}
     assert '## SavedVariables: SunderDB' in toc
     assert (ADDON/'Sunder/Migration.lua') in visited
     assert not any(line.strip() and not line.startswith('#') for line in (COMPAT/'ROTBOTForever.toc').read_text().splitlines()),'Legacy loader must contain metadata only'
@@ -42,7 +50,7 @@ def check():
 def tests():
     check()
     env=dict(os.environ,SUNDER_ADDON_ROOT=str(ADDON),PYTHONDONTWRITEBYTECODE='1',PYTHONIOENCODING='utf-8')
-    cases=['work/test_chat_spacing097.py','work/test_bank_sort098.py','work/test_edit_registration0910.py','work/test_settings094.py','work/test_item_clicks093.py','work/sunder-tests/test_editors_bounds.py']
+    cases=['work/test_guild_chat.py','work/test_party_chat.py','work/test_global_appearance.py','work/test_archive.py','work/test_chat_spacing097.py','work/test_bank_sort098.py','work/test_edit_registration0910.py','work/test_settings094.py','work/test_item_clicks093.py','work/sunder-tests/test_editors_bounds.py']
     for case in cases:
         result=subprocess.run([sys.executable,'-c',"import os,runpy,sys;runpy.run_path(sys.argv[1],init_globals={'os':os},run_name='__main__')",case],cwd=ROOT/'tests/regression',env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8')
         if result.returncode:

@@ -56,6 +56,56 @@ function UIManager:GetVisibleSlidingMessageFrame(preferredChatFrame)
   end
 end
 
+-- Explicit surface clicks select the next native Enter destination. They never
+-- open an editor, rewrite a draft, or take focus from non-chat controls.
+function UIManager:SelectMessageInput(chatFrame,plainClick)
+  if plainClick and ((IsShiftKeyDown and IsShiftKeyDown()) or (IsControlKeyDown and IsControlKeyDown()) or (IsAltKeyDown and IsAltKeyDown())) then return false end
+  if Core.sunderMoverUnlocked or Core.sunderEllesmereEditing then return false end
+  local window=self:GetChatWindow(chatFrame)
+  if not window then return false end
+  local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
+  if room and room.CanSend and not room:CanSend()then return false end
+  local focus=GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+  if focus then
+    local chatFocus=false
+    for _,candidate in pairs(self.state.windows) do if candidate.editBox==focus then chatFocus=true;break end end
+    if not chatFocus then return false end
+  end
+  local whispers=Core:GetModule("Whispers",true)
+  if whispers and whispers.IsWhisper and whispers:IsWhisper(chatFrame) then
+    whispers:SelectConversation(chatFrame,false)
+    return true
+  end
+  local input=self:GetLayoutEditBox(window)
+  if not input then return false end
+  local util=_G.ChatFrameUtil
+  local selectInput=util and util.SetLastActiveWindow or _G.ChatEdit_SetLastActiveWindow
+  if not selectInput then return false end
+  _G.SELECTED_CHAT_FRAME=chatFrame
+  selectInput(input)
+  return true
+end
+
+-- Retire an unavailable room as the next Enter destination without moving drafts.
+function UIManager:ReleaseMessageInput(frame)
+  if _G.SELECTED_CHAT_FRAME~=frame then return end
+  local window=self:GetChatWindow(frame)
+  local input=window and self:GetLayoutEditBox(window)
+  if input and input.ClearFocus then input:ClearFocus()end
+  if _G.ChatFrame1 and frame~=ChatFrame1 then self:SelectMessageInput(ChatFrame1)end
+end
+
+function UIManager:DockWindow(frame)
+  if not frame or frame.isDocked then return end
+  if InCombatLockdown() and frame:IsProtected()then
+    Core:GetModule("Config"):Print("Return this window to General after combat.");return
+  end
+  if not FCF_DockFrame then Core:GetModule("Config"):Print("This client cannot dock this window.");return end
+  FCF_DockFrame(frame)
+  if FCF_SelectDockFrame then FCF_SelectDockFrame(frame)end
+  self:ScheduleChatFrameLayout(frame)
+end
+
 function UIManager:CreateChatWindow(chatFrame, temporary)
   local existing = self:GetChatWindow(chatFrame)
   if existing then
@@ -127,6 +177,7 @@ function UIManager:CreateDetachedLayout(window)
     dock = CreateDetachedChatDock(container, window.tab),
   }
   window.detachedLayout = layout
+  Core.Components.WindowManager:RegisterNativeSurface(container,layout.dock)
   self.container:AddHoverRegion(container)
 
   container:SetScript("OnSizeChanged", function ()
@@ -142,6 +193,8 @@ function UIManager:CreateDetachedLayout(window)
         window.slidingMessageFrame and
         window.slidingMessageFrame.chatFrame == chatFrame
       ) then
+        local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
+        if room then self:RefreshChatFrameLayout(chatFrame);return end
         local editBox = self:GetLayoutEditBox(window)
         if editBox then
           editBox:SetSunderParent(container, true)
@@ -168,6 +221,8 @@ function UIManager:RefreshChatFrameLayout(chatFrame)
     return
   end
 
+  local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
+  if room and room.LayoutWindow and room:LayoutWindow(window) then return end
   local whispers = Core:GetModule("Whispers", true)
   if whispers and whispers.LayoutWindow and whispers:LayoutWindow(window) then return end
   local slidingMessageFrame = window.slidingMessageFrame
@@ -265,6 +320,15 @@ function UIManager:CreateRootFrames()
   self.container:SetPoint("TOPLEFT", self.moverFrame)
   self.moverFrame:AddBoundsRegion(self.container)
   self.dock = CreateChatDock(self.container)
+  local wm=Core.Components.WindowManager
+  wm:RegisterNativeSurface(self.container,self.dock)
+  wm:CreateNativeHeader(self.dock,{
+    settings=function()return wm:Settings("main")end,
+    settingsAction=function()Core:GetModule("Config"):OpenSettings("windows")end,
+    start=function()if wm:CanMove(wm:Settings("main"))then self.moverFrame:StartDragging()end end,
+    stop=function()self.moverFrame:StopDragging()end,
+  })
+  self.mainResize=self.moverFrame:CreateStandardResizer(self.container)
   self.container:AddHoverRegion(self.dock.overflowButton.list)
   self.slidingMessageFramePool = CreateSlidingMessageFramePool(self.container)
 end
@@ -407,6 +471,24 @@ function UIManager:HookChatWindowLifecycle()
 
   -- Close window
   self:RawHook("FCF_Close", function (chatFrame)
+    local history=Core:GetModule("WhisperTabs",true)
+    if history and history.BeforeClose then
+      local ok,err=pcall(history.BeforeClose,history,chatFrame)
+      if not ok then
+        Core.db.char.whisperHistoryError=tostring(err)
+        Core:GetModule("Config"):Print("Unable to save this conversation. It has been kept open; try again after reloading.")
+        return
+      end
+    end
+    local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
+    if room and room.OnWindowClosed then
+      local ok,err=pcall(room.OnWindowClosed,room,chatFrame)
+      if not ok then
+        Core.db.char.guildRoomHistoryError=tostring(err)
+        Core:GetModule("Config"):Print("Unable to save this chat room. The window has been kept open; try again after reloading.")
+        return
+      end
+    end
     self.hooks["FCF_Close"](chatFrame)
     self:ReleaseChatWindow(chatFrame)
   end, true)

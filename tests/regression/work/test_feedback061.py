@@ -34,6 +34,7 @@ local animate=tray:GetScript('OnUpdate');assert(animate);animate(tray,.2)
 assert(tray.rows[1].entry.person==fourth and tray.rows[3].entry.person==second)
 assert(not tray.rows[4] or not tray.rows[4]:IsShown())
 assert(tray:GetHeight()>100 and not tray:GetScript('OnUpdate'))
+fourth.favorite=true;W:UpdateMinimizedWhispers();assert(tray.rows[1].name:GetText():find('favorite-filled.tga',1,true),'favorite toaster used outline');fourth.favorite=false
 local original=#W.minimizedWhispers
 W:QueueMinimizedWhisper(fourth,true,'Updated whisper');assert(#W.minimizedWhispers==original+1)
 assert(tray.rows[1].snippet:GetText()=='Updated whisper')

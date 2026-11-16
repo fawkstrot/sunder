@@ -45,6 +45,8 @@ Core:NewModule("UIManager", "AceHook-3.0")
 Core:NewModule("WhisperTabs")
 Core:NewModule("Whispers", "AceHook-3.0")
 Core:NewModule("ItemProtection")
+Core:NewModule("GuildChat")
+Core:NewModule("PartyChat")
 
 -- Default settings
 Core.defaults = {
@@ -60,7 +62,7 @@ Core.defaults = {
     frameWidth = 600,
     frameHeight = 250,
     textLeftPadding = 4,
-    bodyPadding = 12,
+    bodyPadding = 8,
     tabFontSize = 13,
     tabTextColor = {r = 1, g = 209 / 255, b = 0, a = 0.7},
     tabHighlightTextColor = {r = 1, g = 209 / 255, b = 0, a = 1},
@@ -154,7 +156,8 @@ Core.defaults = {
     messageBlacklistEnabled = false,
     messageBlacklist = "",
     scrollbackLines = 500,
-    timestampsEnabled = false,
+    timestampsEnabled = true,
+    timestampAllWindows = true,
     timestampFormat = "[%H:%M:%S]",
     timestampColorEnabled = true,
     timestampColor = {

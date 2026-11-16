@@ -16,7 +16,16 @@ local canaccessvalue = canaccessvalue
 local MessageLineMixin = {}
 
 local function getLeftTextPadding()
-  return math.max(0, math.min(32, tonumber(Core.db.profile.bodyPadding) or 12))
+  return math.max(0, math.min(32, tonumber(Core.db.profile.bodyPadding) or 8))
+end
+
+-- Every row is explicitly bound to its renderer. The clipping viewport is an
+-- implementation detail, never a source of width or a reason to borrow General.
+local function layoutMetrics(row)
+  local owner=assert(row.sunderRenderer,"Message row requires its owning renderer")
+  local width=owner:GetLayoutWidth()
+  local clearance=(owner.windowSurface or owner.whisperFullSurface or owner.sharedFullSurface) and 6 or 0
+  return width,clearance
 end
 
 local function isAccessible(value)
@@ -33,6 +42,9 @@ local function measureTextHeight(text, width)
   end
   measureText:SetFontObject("SunderMessageFont")
   measureText:SetWidth(width)
+  measureText:SetWordWrap(true)
+  if measureText.SetNonSpaceWrap then measureText:SetNonSpaceWrap(true)end
+  if measureText.SetMaxLines then measureText:SetMaxLines(0)end
   measureText:SetIndentedWordWrap(Core.db.profile.indentWordWrap)
   local lineHeight = measureText:GetLineHeight()
   if not isAccessible(text) then
@@ -49,7 +61,7 @@ end
 
 local function updateBackground(self)
   local color = Core.db.profile.chatBackgroundColor
-  local frameWidth = Core.db.profile.frameWidth
+  local frameWidth = layoutMetrics(self)
   local leftFadeWidth = tonumber(Core.db.profile.backgroundFadeLeftPercent) or 0
   local rightFadeWidth = tonumber(Core.db.profile.backgroundFadeRightPercent) or 0
   if (
@@ -118,7 +130,8 @@ function MessageLineMixin:UpdateFadeSettings()
 end
 
 function MessageLineMixin:Init()
-  self:SetWidth(Core.db.profile.frameWidth)
+  local width=layoutMetrics(self)
+  self:SetWidth(width)
   self:UpdateFadeSettings()
   updateBackground(self)
 
@@ -129,6 +142,10 @@ function MessageLineMixin:Init()
 
   -- Hyperlink handling
   self:SetHyperlinksEnabled(true)
+  self:EnableMouse(true)
+  self:SetScript("OnMouseDown",function(_,button)
+    if button=="LeftButton" then Core:GetModule("UIManager"):SelectMessageInput(self.sourceFrame,true) end
+  end)
 
   self:SetScript("OnHyperlinkClick", function (_, link, text, button)
     Core:Dispatch(HyperlinkClick({link, text, button, self.sourceFrame}))
@@ -202,14 +219,17 @@ end
 ---
 -- Update layout and the measured height used for slide animations
 function MessageLineMixin:UpdateFrame()
-  local frameWidth = Core.db.profile.frameWidth
+  local frameWidth,clearance = layoutMetrics(self)
   local leftPadding = getLeftTextPadding()
-  local textWidth = math.max(1, frameWidth - leftPadding - getLeftTextPadding())
+  local textWidth = math.max(1, frameWidth - leftPadding - math.max(getLeftTextPadding(),clearance))
   self.sunderLayoutWidth = frameWidth
   self:SetWidth(frameWidth)
   self:UpdateFadeSettings()
   self.text:SetWidth(textWidth)
   self.text:SetIndentedWordWrap(Core.db.profile.indentWordWrap)
+  self.text:SetWordWrap(true)
+  if self.text.SetNonSpaceWrap then self.text:SetNonSpaceWrap(true)end
+  if self.text.SetMaxLines then self.text:SetMaxLines(0)end
 
   local textHeight, lineHeight = measureTextHeight(self.sunderDisplayText, textWidth)
   local padding = lineHeight * Core.db.profile.messageLinePadding
@@ -233,13 +253,15 @@ function MessageLineMixin:UpdateTextures()
   updateBackground(self)
 end
 
-local function CreateMessageLine(parent)
+local function CreateMessageLine(parent,renderer)
+  assert(renderer and renderer.GetLayoutWidth,"Message rows must be created by a renderer")
   local FadingFrameMixin = Core.Components.FadingFrameMixin
   local GradientBackgroundMixin = Core.Components.GradientBackgroundMixin
 
   local frame = CreateFrame("Frame", nil, parent)
   local object = Mixin(frame, FadingFrameMixin, GradientBackgroundMixin, MessageLineMixin)
 
+  object.sunderRenderer=renderer
   FadingFrameMixin.Init(object)
   GradientBackgroundMixin.Init(object)
   MessageLineMixin.Init(object)
@@ -247,9 +269,10 @@ local function CreateMessageLine(parent)
   return object
 end
 
-local function CreateMessageLinePool(parent)
+local function CreateMessageLinePool(parent,renderer)
+  assert(renderer and renderer.GetLayoutWidth,"Message pools require an explicit renderer owner")
   return CreateObjectPool(
-    function () return CreateMessageLine(parent) end,
+    function () return CreateMessageLine(parent,renderer) end,
     function (_, message)
       -- Reset all animations and timers
       message:QuickHide()
@@ -261,6 +284,7 @@ local function CreateMessageLinePool(parent)
       message.sunderHeight = nil
       message.sourceText = nil
       message.sourceFrame = nil
+      message.sourceLineID=nil;message.sunderOwnMessage=nil
       message.receivedAt = nil
       message.sunderHideAt = nil
       message.sunderPreview = nil

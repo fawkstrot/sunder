@@ -137,7 +137,7 @@ end
 
 -- Newest first, in each message's chat color. Secret and blocked lines are never searched.
 local function searchChatFrame(chatFrame, query)
-  local lines, found = {}, 0
+  local lines, found, bytes = {}, 0, 0
   query = query:lower()
   for index = chatFrame:GetNumMessages(), 1, -1 do
     local text, red, green, blue = chatFrame:GetMessageInfo(index)
@@ -145,7 +145,8 @@ local function searchChatFrame(chatFrame, query)
     if plain and plain:lower():find(query, 1, true) and not TP:IsMessageBlacklisted(plain) then
       found = found + 1
       if found <= SEARCH_RESULT_LIMIT then
-        lines[#lines + 1] = "|cff"..toHex(red)..toHex(green)..toHex(blue)..plain:gsub("|", "||").."|r"
+        local result="|cff"..toHex(red)..toHex(green)..toHex(blue)..plain:gsub("|", "||").."|r"
+        if bytes+#result+1<=MAX_COPY_BYTES then lines[#lines+1]=result;bytes=bytes+#result+1 end
       end
     end
   end
@@ -154,7 +155,7 @@ end
 
 local function updateSearch()
   local query = searchInput:GetText() or ""
-  if query == "" then
+  if query == "" and not searchFrame.archive then
     searchResults:SetLabel(L("Type to search"))
     searchResults:SetText("")
     return
@@ -162,8 +163,8 @@ local function updateSearch()
   local lines, found = searchChatFrame(searchFrame.chatFrame, query)
   if found == 0 then
     searchResults:SetLabel(L("No messages found"))
-  elseif found > SEARCH_RESULT_LIMIT then
-    local shown = " ("..L("showing the newest").." "..SEARCH_RESULT_LIMIT..")"
+  elseif found > #lines then
+    local shown = " ("..L("showing the newest").." "..#lines..")"
     searchResults:SetLabel(L("Messages found:").." "..found..shown)
   else
     searchResults:SetLabel(L("Messages found:").." "..found)
@@ -207,9 +208,25 @@ function ChatCopy:ShowSearch(chatFrame)
   end
 
   ensureSearchWindow()
+  searchFrame.archive=nil
   searchFrame.chatFrame = chatFrame
   searchFrame:SetTitle(L("Sunder: Search — ")..getFrameLabel(chatFrame))
   searchFrame:Show()
   updateSearch()
   searchInput:SetFocus()
+end
+
+-- Reuse the bounded search/copy shell; opening history creates no native chat
+-- window, reply recipient or rendered message frames.
+function ChatCopy:ShowArchive(entry)
+  ensureSearchWindow()
+  searchFrame.archive=true
+  searchFrame.chatFrame={GetNumMessages=function() return #(entry.lines or {}) end,
+    GetMessageInfo=function(_,index)
+      local line=entry.lines[index]
+      local stamp=type(line.receivedAt)=="number" and date("[%Y-%m-%d %H:%M] ",line.receivedAt) or ""
+      return stamp..line[1],line[2],line[3],line[4]
+    end}
+  searchFrame:SetTitle(L("Sunder: Saved history — ")..(entry.displayName or entry.target or entry.battleTag or "Whisper"))
+  searchInput:SetText("");searchFrame:Show();updateSearch();searchInput:SetFocus()
 end

@@ -59,6 +59,7 @@ function getTimestampColorHex() return "ffffff" end
 ''')
 lua.execute(processor+'\ntimestampTest = timestampProcessor')
 lua.execute('''
+Core.db.profile.timestampAllWindows=false
 cfg.timestamps=true;cfg.timestampFormat="[%H:%M]"
 local text=timestampTest("hello",HistoryFrame7,1006)
 assert(text:find("1006",1,true) and text:find("hello",1,true))
@@ -67,6 +68,17 @@ cfg.timestamps=true
 ChatFrameUtil.GetTimestampFormat=function() return "native" end
 local replaced=timestampTest(date("native",1006).."hello",HistoryFrame7,1006)
 assert(not replaced:find("native",1,true) and replaced:find("hello",1,true),"native timestamp was doubled")
+local p=Core.db.profile
+local wasEnabled,wasAll,wasFormat,wasColor=p.timestampsEnabled,p.timestampAllWindows,p.timestampFormat,p.timestampColorEnabled
+p.timestampsEnabled=true;p.timestampAllWindows=true;p.timestampColorEnabled=false;p.timestampFormat="[%I:%M %p]"
+cfg.timestamps=false
+for _,frame in ipairs({HistoryFrame7,{chatType="GUILD",GetName=function()return "NewGuildSlot"end},{chatType="PARTY",GetName=function()return "NewPartySlot"end},{GetName=function()return "General"end}})do
+ local out=timestampTest("hello",frame,1006)
+ assert(out:find("|cff999999",1,true) and out:find("[%I:%M %p]:1006",1,true),"all-window 12-hour setting was bypassed")
+end
+p.timestampFormat="[%H:%M]";assert(timestampTest("hello",HistoryFrame7,1006):find("[%H:%M]:1006",1,true))
+p.timestampsEnabled=false;cfg.timestamps=true;assert(timestampTest("hello",HistoryFrame7,1006)=="hello","master off leaked independent Whispers timestamps")
+p.timestampsEnabled,p.timestampAllWindows,p.timestampFormat,p.timestampColorEnabled=wasEnabled,wasAll,wasFormat,wasColor;cfg.timestamps=true
 Core.db.profile.keepWhisperTabs=true
 Core.db.char.whisperTabs={savedSnapshot};HistoryFrame7.history={}
 History:Restore()

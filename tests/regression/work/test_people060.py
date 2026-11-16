@@ -6,7 +6,7 @@ cfg.name=nil;cfg.conversationLayout=nil;cfg.conversationListRatio=30;cfg.hubMatc
 W:ClearPreviewData();W:OpenMessages();W.hub:SetWidth(600);W:RefreshHubStyle()
 assert(W:IsConversationList() and not W:SingleRowHeader())
 assert(W:WorkspaceName()=='Whispers')
-assert(W:ConversationListWidth()==180 and W:ConversationBodyLeft()==180+W:HeaderGap())
+assert(W:ConversationListWidth()==150 and W:ConversationBodyLeft()==150+W:HeaderGap())
 cfg.previewConversations=30;W:StartPreview();W:RefreshHubStyle()
 assert(W.previewTabScroll.points.TOPLEFT.y==-W:HeaderHeight()-W:HeaderGap())
 assert(W.previewBody.points.TOPLEFT.x==W:ConversationBodyLeft()+W:BodyPadding())
@@ -44,7 +44,7 @@ local favorites=W:GetWorkspace('group2');favorites:OpenMessages();favorites:Refr
 assert(not favorites.contactPane and not favorites.contactScroll)
 assert(favorites:ConversationListWidth()>=140)
 ''')
-print('People layout passed: default 30/70 split, separate title, native/sample right-pane bounds, 30 vertical rows, paging/reveal, sorting/pinning, horizontal insertion marker, edge scrolling, minimized navigation and reversible tab layout.')
+print('People layout passed: shared minimum with proportional split, separate title, native/sample right-pane bounds, 30 vertical rows, paging/reveal, sorting/pinning, horizontal insertion marker, edge scrolling, minimized navigation and reversible tab layout.')
 
 # Exercise the complete timed scenario with the new layout loaded.
 exec("\n".join(Path("work/test_scenario051.py").read_text().splitlines()[1:]))

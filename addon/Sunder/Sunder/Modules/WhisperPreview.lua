@@ -184,12 +184,14 @@ function W:RenderPreview()
   for index, line in ipairs(selected and selected.lines or {}) do
     if selected.readMarker == index then self.previewBody:AddMessage("|cff8c98a8— New messages —|r", 0.55, 0.6, 0.66) end
     self.previewRenderedRows=self.previewRenderedRows+1+(selected.readMarker==index and 1 or 0);line.renderedRow=self.previewRenderedRows
-    local stamp = cfg.timestamps and ("|cff89939e"..date(cfg.timestampFormat, line.time).."|r ") or ""
+    local global=Core.db.profile
+    local all=global.timestampsEnabled and global.timestampAllWindows
+    local stamp = (all or not global.timestampAllWindows and cfg.timestamps) and ("|cff999999"..date(all and global.timestampFormat or cfg.timestampFormat, line.time).."|r ") or ""
     local sender = line.outgoing and "|cffbac3ceYou|r" or ("|cff"..hex..selected.name.."|r")
     local replyColor=self:Settings().replyColor or {0.70,0.73,0.78}
     local differentiate=line.outgoing and self:Settings().distinguishReplies~=false
     local marker=differentiate and self:Settings().replyMarker and "› " or ""
-    self.previewBody:AddMessage(marker..(line==self.previewJumpLine and "|cffffc738›|r " or "")..stamp..sender..": "..line.text, differentiate and replyColor[1] or 0.94, differentiate and replyColor[2] or 0.9, differentiate and replyColor[3] or 0.95)
+    self.previewBody:AddMessage(marker..(line==self.previewJumpLine and "|cffffc738›|r " or "")..stamp..(line.outgoing and "" or sender..": ")..line.text, differentiate and replyColor[1] or 0.94, differentiate and replyColor[2] or 0.9, differentiate and replyColor[3] or 0.95)
   end
   self:UpdatePreviewBadges()
 end
@@ -200,9 +202,9 @@ function W:UpdatePreviewBadges()
   local total = 0
   for index, conversation in ipairs(self.previewConversations) do
     total = total + conversation.unread
-    local suffix = self:Settings().unreadBadges and conversation.unread > 0 and (" ("..conversation.unread..")") or ""
+    conversation.level=conversation.level or (20+index%40)
     conversation.classToken=conversation.classToken or ({"MAGE","WARRIOR","PRIEST","DRUID","ROGUE","HUNTER","PALADIN","WARLOCK","SHAMAN"})[(index-1)%9+1]
-    local label = conversation.name..suffix
+    local label = conversation.name
     if self.previewTabs[index].lastPreviewLabel ~= label then
       self.previewTabs[index]:SetText(label); self.previewTabs[index].lastPreviewLabel = label
     end
@@ -280,7 +282,7 @@ function W:UpdatePreviewActions()
 end
 
 function W:ConfigurePreviewTab(tab, c, index)
-  if tab.favoriteButton then tab.favoriteButton.icon:SetVertexColor(c.favorite and 1 or 0.45, c.favorite and 0.76 or 0.5, c.favorite and 0.28 or 0.6) end
+  if tab.favoriteButton then Core.Components.WindowManager:SetActionSelected(tab.favoriteButton,c.favorite,"favorite")end
   self:StyleConversationTab(tab)
   if tab.previewBound == c and tab.previewIndex == index then tab:Show(); return end
   tab.previewBound, tab.previewIndex = c, index
@@ -308,6 +310,7 @@ function W:ConfigurePreviewTab(tab, c, index)
       for i,item in ipairs(host.previewConversations or {}) do if item==person then host:SelectPreviewConversation(i);break end end
     end
   end)
+  if not tab.unread then tab.unread=tab:CreateFontString(nil,"OVERLAY","SunderChatDockFont");tab.unread:SetPoint("RIGHT",-5,0);tab.unread:SetTextColor(1,.82,0)end
   local label = tab:GetFontString()
   label:ClearAllPoints(); label:SetPoint("LEFT", 27, 0); label:SetWidth(157); label:SetJustifyH("LEFT")
   if not tab.favoriteButton then
@@ -315,8 +318,8 @@ function W:ConfigurePreviewTab(tab, c, index)
     tab.favoriteButton:SetSize(20, 22); tab.favoriteButton.icon:SetSize(15, 15); tab.favoriteButton:SetPoint("LEFT", 3, 0)
   end
   tab.favoriteButton:SetScript("OnClick", function () self:PreviewAction("Favorite", c) end)
-  tab.favoriteButton:SetScript("OnLeave", function () self:UpdatePreviewBadges(); GameTooltip:Hide() end)
-  tab.favoriteButton.icon:SetVertexColor(c.favorite and 1 or 0.45, c.favorite and 0.76 or 0.5, c.favorite and 0.28 or 0.6)
+  tab.favoriteButton:SetScript("OnLeave", function () tab.favoriteButton.hovered=nil;Core.Components.WindowManager:RefreshAction(tab.favoriteButton);self:UpdatePreviewBadges(); GameTooltip:Hide() end)
+  Core.Components.WindowManager:SetActionSelected(tab.favoriteButton,c.favorite,"favorite")
   self:StyleConversationTab(tab)
   self:ConfigureTabPin(tab, c, function () self:PreviewAction("Pin", c) end)
   self:StyleConversationTab(tab)

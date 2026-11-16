@@ -300,7 +300,7 @@ function SlidingMessageFrameMixin:ScheduleMessageHides(messages)
           tonumber(Core.db.profile.chatSlideInDuration) or 0
         )
         message.sunderHideAt = now + animationDuration + 0.75
-      elseif Core.db.profile.chatAlwaysVisible or keep then
+      elseif Core.db.profile.chatAlwaysVisible or keep or self.keepRoomMessages then
         message.sunderHideAt = nil
       else
         message.sunderHideAt = regularHideAt
@@ -318,7 +318,7 @@ end
 function SlidingMessageFrameMixin:UpdateAlwaysVisible()
   local whispers = Core:GetModule("Whispers", true)
   local keep = whispers and whispers.KeepMessagesVisible and whispers:KeepMessagesVisible(self.chatFrame)
-  if Core.db.profile.chatAlwaysVisible or keep then
+  if Core.db.profile.chatAlwaysVisible or keep or self.keepRoomMessages then
     self:CancelMessageHideTimer(true)
     for _, message in ipairs(self.state.messages) do
       message:Show()
@@ -362,10 +362,12 @@ function SlidingMessageFrameMixin:CreateMessageFrame(messageArgs)
   local message = self.messageFramePool:Acquire()
   message.text:ClearText()
   message.text:SetFontObject("SunderMessageFont")
-  local processedText, sourceText = TP:ProcessText(text, frame, messageArgs.receivedAt, messageArgs[6])
+  local processedText, sourceText = TP:ProcessText(text, frame, messageArgs.receivedAt, messageArgs[6],messageArgs[8])
   message.sourceColor={red,green,blue}
   message.sourceTypeID=messageArgs[6]
-  local replyRed,replyGreen,replyBlue=TP:WhisperReplyStyle(frame,messageArgs[6])
+  message.sourceLineID=messageArgs[8]
+  message.sunderOwnMessage=TP.IsOwnChatLine and TP:IsOwnChatLine(text,messageArgs[6],messageArgs[8])
+  local replyRed,replyGreen,replyBlue=TP:WhisperReplyStyle(frame,messageArgs[6],message.sunderOwnMessage,text,messageArgs[8])
   if replyRed then red,green,blue=replyRed,replyGreen,replyBlue end
   message.sourceText = sourceText
   message.sourceFrame = frame
@@ -377,6 +379,7 @@ function SlidingMessageFrameMixin:CreateMessageFrame(messageArgs)
 
   -- Adjust height to contain text
   message:UpdateFrame()
+  if self.sharedFullSurface then message:SetBackgroundCoverage(1)end
 
   return message
 end
@@ -452,10 +455,15 @@ function SlidingMessageFrameMixin:AddDemoMessage(text, red, green, blue)
   UIManager:QueueFrameForUpdate(self)
 end
 
+local function suppressGuildNotice(frame,value)
+  local guild=Core:GetModule("GuildChat",true)
+  return guild and guild.IsStartupNotice and guild:IsRoom(frame) and guild:IsStartupNotice(value)
+end
 function SlidingMessageFrameMixin:AddMessageAt(receivedAt, ...)
   if self.state.demo or (self.state.isCombatLog and isCombatLogHidden()) then
     return
   end
+  if suppressGuildNotice(select(1,...),select(2,...))then return end
   if TP:IsMessageBlacklisted(select(2, ...)) then
     return
   end
@@ -476,6 +484,7 @@ function SlidingMessageFrameMixin:BackFillMessageAt(receivedAt, ...)
   if self.state.demo or (self.state.isCombatLog and isCombatLogHidden()) then
     return
   end
+  if suppressGuildNotice(select(1,...),select(2,...))then return end
   if TP:IsMessageBlacklisted(select(2, ...)) then
     return
   end

@@ -1,6 +1,31 @@
 local Core, Constants = unpack(select(2, ...))
 local W = Core:GetModule("Whispers")
 
+-- Room structure stays legible even where the shared chat edge fade reaches zero.
+-- These are passive textures: native links, scrolling and editor ownership stay intact.
+function W:ApplyRoomStructure(sidebarWidth)
+  if not self.hub then return end
+  local cfg=self:Settings();local unified=self:UsesChatAppearance()
+  local top=self:HeaderHeight()+self:HeaderGap()
+  self.roomStructure=Core.Components.WindowManager:ApplySurface(self.hub,{
+    color=not unified and cfg.hubBackgroundColor or nil,
+    opacity=not unified and cfg.hubBackgroundOpacity or nil,
+    headerColor=not unified and cfg.hubBackgroundColor or nil,
+    headerOpacity=not unified and cfg.hubHeaderOpacity or nil,
+    borderOpacity=not unified and cfg.hubBorderOpacity or nil,
+    headerHeight=self:HeaderHeight(),bodyTop=top,
+    sidebarWidth=sidebarWidth,listTop=top+(self.UsesUnifiedPeople and self:UsesUnifiedPeople() and 32 or 0),
+    bodyVisible=not not (not self.minimized or self.collapseAnimation or self.transitionBody),
+    fade=unified or cfg.hubUseChatFade,
+  })
+  self.whisperSurface=self.roomStructure.bodyFrame
+  if self.roomResize then self.roomResize:SetShown(not self.minimized and not Core.sunderMoverUnlocked)end
+end
+
+function W:UpdatePeopleScrollIndicator(scroll,child)
+  Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,not self.minimized)
+end
+
 local function button(parent, text, width, action)
   local b = CreateFrame("Button", nil, parent)
   b:SetSize(width, 22)
@@ -14,19 +39,8 @@ local function button(parent, text, width, action)
   return b
 end
 
-function W:EnsureHub()
-  if self.hub then return end
-  W:EnsureWorkspaces()
-  local cfg = self:HubSettings()
-  local hub = CreateFrame("Frame", "SunderMessagesFrame_"..self.hostId, UIParent)
-  self.hub, self.hubTabs, self.hubOrder = hub, {}, {}
-  hub:SetSize(cfg.hubWidth, cfg.hubHeight)
-  hub:SetPoint(cfg.hubPoint, UIParent, cfg.hubPoint, cfg.hubX, cfg.hubY)
-  hub:SetFrameStrata("MEDIUM")
-  hub:SetToplevel(true)
-  hub:SetClampedToScreen(true)
-  hub:SetMovable(true)
-  hub:EnableMouse(true)
+-- Shared room chrome: Guild and Whispers use the same header primitives.
+Core.Components.CreateRoomChrome=function(self,hub)
   local bg = hub:CreateTexture(nil, "BACKGROUND")
   bg:SetAllPoints(); bg:SetColorTexture(0.035, 0.04, 0.05, 0.96)
   self.hubBackground = bg
@@ -50,11 +64,31 @@ function W:EnsureHub()
   rule:SetColorTexture(0.84, 0.66, 0.38, 0.35)
   self.hubHeaderFill, self.hubRule = headerFill, rule
   self.hubTitle = title
+  chrome:EnableMouse(true);chrome:RegisterForDrag("LeftButton")
+  chrome:SetScript("OnDragStart",function()self:BeginHubMove(true)end)
+  chrome:SetScript("OnDragStop",function()self:UpdateHubMove();self:StopHubMove()end)
   self:CreateWindowControls(chrome)
+end
+
+function W:EnsureHub()
+  if self.hub then return end
+  W:EnsureWorkspaces()
+  local cfg = self:HubSettings()
+  local hub = CreateFrame("Frame", "SunderMessagesFrame_"..self.hostId, UIParent)
+  self.hub, self.hubTabs, self.hubOrder = hub, {}, {}
+  hub:SetSize(cfg.hubWidth, cfg.hubHeight)
+  hub:SetPoint(cfg.hubPoint, UIParent, cfg.hubPoint, cfg.hubX, cfg.hubY)
+  hub:SetFrameStrata("MEDIUM")
+  hub:SetToplevel(true)
+  hub:SetClampedToScreen(true)
+  hub:SetMovable(true)
+  hub:EnableMouse(true)
+  Core.Components.CreateRoomChrome(self,hub)
+  local chrome=self.hubChrome
   local actions = {
     {"Close", "close", "Close this window", function () self:CloseMessages() end},
     {"Settings", "settings", "Whisper settings", function () Core:GetModule("Config"):OpenSettings("whispers") end},
-    {"Windows", "windows", "Windows and conversation destinations", function (owner) self:WorkspaceMenu(owner, not self.previewActive and self.selected or nil) end},
+    {"Windows", "window-menu", "Windows and conversation destinations", function (owner) self:WorkspaceMenu(owner, not self.previewActive and self.selected or nil) end},
     {"Detach", "detach", "Detach selected conversation", function () if self.previewActive then self:PreviewAction("Detach") elseif self.selected then W:Place(self.selected, "detached", true) end end},
     {"Favorite", "favorite", "Favorite / unfavorite this person", function () if self.previewActive then self:PreviewAction("Favorite") else W:ToggleFavorite(self.selected) end end},
     {"Pin", "pin", "Keep this conversation visible", function ()
@@ -67,13 +101,22 @@ function W:EnsureHub()
   }
   local right = -8
   self.hubActionButtons = {}
+  self.maximized=not not cfg.maximized
   for _, info in ipairs(actions) do
-    local b = self:IconButton(chrome, info[2], info[3], info[4])
+    local wm=Core.Components.WindowManager
+    local b = wm.windowActions[info[1]] and wm:CreateWindowAction(chrome,info[1],self,info[4],function(button)self:StyleWindowIcon(button)end) or self:IconButton(chrome, info[2], info[3], info[4])
     b:SetPoint("TOPRIGHT", hub, "TOPRIGHT", right, -7)
     right = right - 29
     self.hubActionButtons[info[1]] = b
     if info[1] == "Pin" then self.pinButton = b end
   end
+  local wm=Core.Components.WindowManager
+  for _,entry in ipairs({{"CollapseTop","TOP"},{"CollapseBottom","BOTTOM"}})do
+    local edge=entry[2]
+    self.hubActionButtons[entry[1]]=wm:CreateWindowAction(chrome,entry[1],self,function()wm:CollapseToward(self,edge)end,function(b)self:StyleWindowIcon(b)end)
+  end
+  self.hubActionButtons.Maximize=wm:CreateWindowAction(chrome,"Maximize",self,function()wm:ToggleMaximized(self)end,function(b)self:StyleWindowIcon(b)end)
+  self.minimizeButton=self.hubActionButtons.CollapseTop -- compatibility alias; no duplicate hidden control
   local scroll = CreateFrame("ScrollFrame", nil, hub)
   self.tabScroll = scroll
   scroll:SetFrameLevel(chrome:GetFrameLevel() + 1)
@@ -97,14 +140,8 @@ function W:EnsureHub()
   content:SetPoint("BOTTOMRIGHT", hub, "BOTTOMRIGHT")
   self.parking = CreateFrame("Frame", nil, UIParent)
   self.parking:Hide()
-  local empty = content:CreateFontString(nil, "OVERLAY", "SunderChatDockFont")
-  empty:SetPoint("CENTER", 0, -20); empty:SetText("ROOM FOR A CONVERSATION\n\nNew whispers can arrive here automatically.\nMove a conversation here from its tab menu.")
-  local emptyIcon = content:CreateTexture(nil, "ARTWORK")
-  emptyIcon:SetSize(48, 48); emptyIcon:SetPoint("CENTER", 0, 48)
-  emptyIcon:SetTexture("Interface\\AddOns\\Sunder\\Media\\Icons\\".."inbox"..".tga")
-  emptyIcon:SetVertexColor(0.84, 0.66, 0.38, 0.55)
-  self.hubEmptyIcon = emptyIcon
-  empty:SetTextColor(0.65, 0.68, 0.72)
+  local empty,emptyIcon=Core.Components.WindowManager:CreateEmptyConversation(content,"No conversation selected.\n\nSelect a conversation to view its messages.")
+  self.hubEmptyIcon=emptyIcon
   self.hubEmpty = empty
   self:CreateHubOverlay()
   hub:SetScript("OnSizeChanged", function () if self.hubReady then self:ApplyHubAppearance() end; self:ScheduleHubLayout() end)
@@ -157,17 +194,24 @@ function W:CreateHubOverlay()
   overlay:SetScript("OnDragStop", function () self:UpdateHubMove(); self:StopHubMove() end)
   overlay:SetScript("OnHide", function () self:StopHubMove() end)
   self.hubResize = Core.Components.CreateResizeHandle(overlay, {
-    minWidth = 480, minHeight = 220,
+    minWidth = 480, minHeight = 220,settings=function()return self:HubSettings()end,
     allowed = function () return Core.sunderMoverUnlocked and self.hub:IsShown() end,
-    begin = function () self:StopHubMove(); return self.hub, self.hub:GetWidth(), self.hub:GetHeight() end,
+    begin = function () self:StopHubMove(); Core.Components.WindowManager:ClearMaximized(self); return self.hub, self.hub:GetWidth(), self.hub:GetHeight() end,
     apply = function (width, height) self.hub:SetSize(math.max(width, self.minimumWorkspaceWidth or 480), height); self:LayoutHub() end,
     finish = function () self:SaveHubGeometry() end,
+  })
+  self.roomResize=Core.Components.WindowManager:CreateWindowResizer(self.hub,{
+    minWidth=480,minHeight=220,settings=function()return self:HubSettings()end,
+    allowed=function()return self.hub:IsShown() and not self.minimized and not self.collapseAnimation end,
+    begin=function()self:StopHubMove();Core.Components.WindowManager:ClearMaximized(self);return self.hub,self.hub:GetWidth(),self.hub:GetHeight()end,
+    apply=function(width,height)self.hub:SetSize(math.max(width,self.minimumWorkspaceWidth or 480),height);self:LayoutHub()end,
+    finish=function()self:SaveHubGeometry();self:SaveMessageWindowState()end,
   })
   overlay:SetShown(not not Core.sunderMoverUnlocked)
 end
 
 function W:BeginHubMove(always)
-  if (not always and not Core.sunderMoverUnlocked) or self.hubMoving then return end
+  if not Core.Components.WindowManager:CanMove(self:HubSettings()) or (not always and not Core.sunderMoverUnlocked) or self.hubMoving then return end
   if self.finishCollapse then self.finishCollapse() end
   self.hub:SetClipsChildren(false)
   self.hub:SetAlpha(1)
@@ -179,13 +223,15 @@ function W:BeginHubMove(always)
   -- Reanchoring the root every tick leaves stale child scissors on this client.
   if self.hub.StartMoving and self.hub.StopMovingOrSizing then
     self.hubMoving.native=true
-    self.hub:StartMoving()
+    Core.Components.WindowManager:StartNativeMove(self,self.hub,function()self:UpdateHubMove()end,function()self:StopHubMove()end)
+    self.hubMoveDriver=self.windowMoveDriver
+    return
   end
-  local driver = always and self.hubGrip or self.hubOverlay
-  self.hubMoveDriver = driver
-  driver:SetScript("OnUpdate", function ()
+  local driver=Core.Components.WindowManager:MoveDriver(self)
+  self.hubMoveDriver=driver
+  driver:SetScript("OnUpdate",function()
     self:UpdateHubMove()
-    if not IsMouseButtonDown("LeftButton") then self:StopHubMove() end
+    if not IsMouseButtonDown("LeftButton")then self:StopHubMove()end
   end)
 end
 
@@ -209,9 +255,9 @@ end
 
 function W:StopHubMove()
   if not self.hubMoving then return end
-  if self.hubMoving.native then self.hub:StopMovingOrSizing() end
+  if self.hubMoving.native then Core.Components.WindowManager:StopNativeMove(self,self.hub)end
   self.hubMoving = nil
-  if self.hubMoveDriver then self.hubMoveDriver:SetScript("OnUpdate", nil); self.hubMoveDriver = nil end
+  if self.hubMoveDriver then self.hubMoveDriver:SetScript("OnUpdate", nil);self.hubMoveDriver:Hide(); self.hubMoveDriver = nil end
   self.hubOpenedAt=GetTime();self.lastUserInteraction=GetTime()
   self:SaveHubGeometry()
   self:SyncWorkspacePresentation()
@@ -289,7 +335,8 @@ function W:AddHubTab(frame)
     tab.favoriteButton = self:IconButton(tab, "favorite", "Favorite / unfavorite this person", function () W:ToggleFavorite(frame) end)
     tab.favoriteButton:SetSize(20, 22); tab.favoriteButton.icon:SetSize(15, 15); tab.favoriteButton:SetPoint("LEFT", 3, 0)
   end
-  tab.favoriteButton:SetScript("OnLeave", function () W:UpdateBadges(); GameTooltip:Hide() end)
+  tab.favoriteButton:SetScript("OnClick",function()W:ToggleFavorite(frame)end)
+  tab.favoriteButton:SetScript("OnLeave", function () tab.favoriteButton.hovered=nil;Core.Components.WindowManager:RefreshAction(tab.favoriteButton);W:UpdateBadges(); GameTooltip:Hide() end)
   self:ConfigureTabPin(tab, W.records[frame], function () W:ToggleConversationPin(frame) end)
   local nativeTab = _G[frame:GetName().."Tab"]
   label:SetText(W:ConversationName(frame))
@@ -336,6 +383,8 @@ end
 function W:ConversationMenu(frame, owner)
   if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
   MenuUtil.CreateContextMenu(owner, function (_, menu)
+    local record=W.records and W.records[frame]
+    if record then Core.Components.WindowManager:AddInspectAction(menu,record.target or record.key)end
     menu:CreateButton(W:IsFavorite(frame) and "Remove from Favorites" or "Add to Favorites", function () W:ToggleFavorite(frame) end)
     menu:CreateButton("Move to another whisper group", function () self:WorkspaceMenu(owner, frame) end)
     menu:CreateButton("New group for this conversation", function () local host = W:CreateWorkspace(); if host then W:MoveToWorkspace(frame, host.hostId) end end)
@@ -346,10 +395,27 @@ function W:ConversationMenu(frame, owner)
     menu:CreateButton("Search / copy messages", function () Core:GetModule("ChatCopy"):ShowSearch(frame) end)
     menu:CreateButton("Mark as read", function () self:MarkRead(frame); self:UpdateBadges() end)
     menu:CreateButton("Close conversation", function () FCF_Close(frame) end)
+    local history=Core:GetModule("WhisperTabs",true)
+    if history and history.ArchiveKey then
+      menu:CreateButton("Browse / search saved history",function()
+        history:Save();local key=history:ArchiveKey(frame);if key then history:ShowArchive(key) end
+      end)
+      menu:CreateButton("Delete saved history…",function()
+        history:Save();local key=history:ArchiveKey(frame);if key then history:RequestDelete(key) end
+      end)
+    end
     self:AddConversationSortMenu(menu)
   end)
 end
 
+function W:RefreshConversationEmptyState()
+  if not self.hubEmpty then return end
+  local frame=self.selected
+  local empty=not frame or not W:HasConversationHistory(frame)
+  self.hubEmpty:SetText(frame and "No messages yet.\n\nPress Enter to start a conversation." or "No conversation selected.\n\nSelect a conversation to view its messages.")
+  self.hubEmpty:SetShown(empty and not self.previewActive)
+  self.hubEmptyIcon:SetShown(empty and not self.previewActive)
+end
 function W:LayoutHubTabs()
   if not self.hub then return end
   self:KeepPinnedFirst(false)
@@ -365,8 +431,7 @@ function W:LayoutHubTabs()
   end
   self.tabChild:SetWidth(math.max(1, x))
   self.tabScroll:SetHorizontalScroll(math.max(0, math.min(self.tabScroll:GetHorizontalScroll(), x - self.tabScroll:GetWidth())))
-  self.hubEmpty:SetShown(#self.hubOrder == 0)
-  self.hubEmptyIcon:SetShown(#self.hubOrder == 0)
+  self:RefreshConversationEmptyState()
   self:RefreshConversationNavigation(false)
 end
 
@@ -405,7 +470,7 @@ function W:LayoutWindow(window)
   local smf, editBox = window.slidingMessageFrame, Core:GetModule("UIManager"):GetLayoutEditBox(window)
   window.tab:SetParent(host.parking)
   if editBox then editBox:SetSunderParent(host.hubContent, true) end
-  smf.whisperFullSurface = host.IsConversationList and host:IsConversationList() or nil
+  smf.whisperFullSurface = true
   smf.whisperDock = host.IsConversationList and host:IsConversationList() and host.hubChrome or host.tabScroll
   local width, height = host.hubContent:GetWidth(), host.hubContent:GetHeight()
   if smf:GetParent() ~= host.hubContent or smf.layoutWidth ~= width or smf.layoutHeight ~= height
@@ -469,7 +534,7 @@ function W:UpdateBadges()
         and (r.unread > 99 and "99+" or tostring(r.unread)) or "")
       if tab.lastBadge ~= badge then tab.unread:SetText(badge); tab.lastBadge = badge end
       tab.unread:SetShown(self:Settings().unreadBadges and r.unread > 0)
-      tab.favoriteButton.icon:SetVertexColor(W:IsFavorite(frame) and 1 or 0.45, W:IsFavorite(frame) and 0.76 or 0.5, W:IsFavorite(frame) and 0.28 or 0.6)
+      Core.Components.WindowManager:SetActionSelected(tab.favoriteButton,W:IsFavorite(frame),"favorite")
       host:SetTabAppearance(tab, host.selected == frame, r.unread > 0)
       host:StyleConversationTab(tab)
     end
