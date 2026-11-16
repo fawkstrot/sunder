@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fixed garbled punctuation in the Whispers contact tooltip, saved-history menu and update notification.
+
 - Window headers start with Close, Settings and Lock from right to left. Locking hides Close until you unlock the window.
 - Removed the previous and next buttons from Whispers. Scroll through people or click the unread counter to find a conversation.
 

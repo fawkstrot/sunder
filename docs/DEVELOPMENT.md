@@ -418,3 +418,5 @@ For a dead header, compare WoW mouse focus at the visible icon and grip. Frame S
 For header changes, exercise both collapse edges, the single opposite-facing restore control, tab clearance after repacking, and the expanded anchor after restore. WindowManager creates and formats the unread indicator. Each room supplies its unread total and click action.
 
 For locked-header regressions, click the real lock, assert Close disappears and Settings moves into its position, refresh the header, and unlock. For Whispers overflow, exercise wheel scrolling, unread counts, searchable selection and reveal with more people than fit.
+
+The standard check also reads packaged Lua, XML, TOC, Markdown and text files as UTF-8. It reports the file and line for damaged punctuation signatures, replacement characters or unexpected C1 control characters. Translated accents and valid Unicode punctuation are supported.

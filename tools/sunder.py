@@ -43,6 +43,15 @@ def check():
         with Image.open(p) as im:
             assert im.size==(size,size) and im.mode=='RGBA'
         assert p.read_bytes()[2]==2,'WoW textures must be uncompressed true-color TGA'
+    # UTF-8 smart punctuation misread as Windows-1252 starts with these pairs.
+    # Lua accepts the resulting text, so compilation alone cannot catch it.
+    damaged_text = re.compile(r'[\u0080-\u009f\ufffd]|\u00e2[\u20ac\u201a]')
+    for path in files(ADDON):
+        if path.suffix.lower() not in {'.lua', '.toc', '.xml', '.md', '.txt'}:
+            continue
+        for number, line in enumerate(path.read_text(encoding='utf-8-sig').split('\n'), 1):
+            if damaged_text.search(line):
+                raise ValueError(f'Damaged text encoding in {path.relative_to(ADDON)}:{number}')
     allowed={'Migration.lua','Config.lua','ItemProtection.lua','ProfileTransfer.lua','Bindings.xml','Sunder.toc'}
     for p in (ADDON/'Sunder').rglob('*.lua'):
         if p.name not in allowed:assert not re.search(r'rotbot|runestone',p.read_text(encoding='utf-8'),re.I),f'Unexpected legacy branding: {p}'

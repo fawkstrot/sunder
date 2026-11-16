@@ -528,7 +528,7 @@ function UIManager:ConfigureNativeChat()
   -- New version alert
   --@non-debug@
   if Core.db.global.version == nil or Utils.versionGreaterThan(Core.Version, Core.db.global.version) then
-    Utils.notify('Sunder has just been updated. |cFFFFFF00|Hgarrmission:Sunder:opennews|h[See whatÃ¢â‚¬â„¢s new]|h|r')
+    Utils.notify("Sunder has just been updated. |cFFFFFF00|Hgarrmission:Sunder:opennews|h[See what's new]|h|r")
     Core.db.global.version = Core.Version
   end
   --@end-non-debug@--

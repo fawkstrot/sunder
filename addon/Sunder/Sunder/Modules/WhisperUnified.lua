@@ -187,7 +187,7 @@ function W:RenderSavedPersonRow(contact,child,y,savedRowIndex,isFavorite)
             Core.Components.WindowManager:AddInspectAction(menu,button.contact.target or button.contact.key)
             if history and button.contact.archiveKey then
             menu:CreateButton("Browse / search saved history",function() history:ShowArchive(button.contact.archiveKey) end)
-            menu:CreateButton("Delete saved historyâ€¦",function() history:RequestDelete(button.contact.archiveKey) end)
+            menu:CreateButton("Delete saved history…",function() history:RequestDelete(button.contact.archiveKey) end)
             end
           end)
         end
@@ -195,7 +195,7 @@ function W:RenderSavedPersonRow(contact,child,y,savedRowIndex,isFavorite)
     end)
     b:SetScript("OnEnter",function(button)
       GameTooltip:SetOwner(button,"ANCHOR_RIGHT");GameTooltip:AddLine(button.contact.target,1,1,1)
-      GameTooltip:AddLine("Open conversation â€” no message is sent",.7,.75,.8)
+      GameTooltip:AddLine("Click to open this conversation without sending a message.",.7,.75,.8)
       if button.contact.archiveKey then GameTooltip:AddLine("Right-click for saved history, search or confirmed deletion.",.7,.75,.8) end
       GameTooltip:Show()
     end)

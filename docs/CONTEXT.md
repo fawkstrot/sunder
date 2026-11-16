@@ -693,3 +693,8 @@ Common right-edge actions are Close, Settings, Lock. Locking hides Close, reclai
 
 Automated: all ten regression entry points, migration, workflow and release checks passed. Coverage includes both lock states, action anchors on refresh, header hit-space reclamation, and navigation through 30 conversations. In game: pending a safe reload and visual check of the new order, close visibility and counter placement.
 Installed preview: dry run and backed-up deploy succeeded. All installed files verified, backup 20261116T225341234941Z. SavedVariables preserved. Both local ZIPs rebuilt at the existing version. No reload or CurseForge upload.
+
+## 2026-11-16 Whispers tooltip and packaged text encoding
+
+The user supplied an in-game screenshot of damaged punctuation in a saved-contact hover tooltip. A scan of packaged text found two other affected strings: the saved-history deletion menu and the clickable update-news label. Repaired all three at their source. The tooltip explains that opening a conversation sends no message. The existing news link target and history confirmation remain intact. The standard check now catches common misdecoded punctuation, replacement characters and C1 controls in package text. A temporary copy with the original Whispers and update-news files reproduced validation errors in each, and the repaired tree passed. Post-fix in-game rendering awaits a safe reload.
+Validation and install: the full suite and deployment dry run passed. The WoW Forever install was backed up (20261116T230738062284Z) and hash-verified. SavedVariables were untouched. Both local packages were rebuilt. No reload or publication.
