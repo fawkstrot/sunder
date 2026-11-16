@@ -437,6 +437,8 @@ function C:OnSlashCommand(input)
     Core:GetModule("ItemProtection"):ToggleHovered()
   elseif input == "messages" then
     Core:GetModule("Whispers"):OpenMessages()
+  elseif input == "practice" then
+    Core.Components.ChatPractice:Toggle()
   elseif input == "preview" then
     Core:GetModule("Whispers"):StartPreview()
   elseif input == "favorites" then

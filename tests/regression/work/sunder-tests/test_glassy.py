@@ -106,6 +106,17 @@ assert(nativeStops == 0, 'Alt drag called native docking stop')
 dock.tabDrag = {tab = self}
 self.scripts.OnDragStop(self, "LeftButton")
 assert(reordered == 1 and nativeStops == 0)
+dock.tabDrag=nil
+frame.isDocked=true
+local prefs=Core.Components.WindowManager:Settings("main")
+prefs.movementLocked=true
+self.scripts.OnDragStart(self,"LeftButton");self.scripts.OnDragStop(self,"LeftButton")
+assert(nativeStarts==0 and nativeStops==0 and reordered==1,"locked docked tab fell through to native drag")
+prefs.movementLocked=false
+self.scripts.OnDragStart(self,"LeftButton");self.scripts.OnDragStop(self,"LeftButton")
+assert(nativeStarts==1 and nativeStops==1)
+nativeStarts,nativeStops=0,0
+frame.isDocked=false
 ''')
 lua.execute('''
 -- Lock while the mouse is still held: stop, save, and remove the overlay.
@@ -130,9 +141,12 @@ function MakeFrame(_, _, parent)
     if key == "GetFrameLevel" then return function() return 2 end end
     if key == "GetHighlightTexture" then return function()return setmetatable({}, {__index=function()return noop end})end end
     if key == "CreateTexture" then return function() return setmetatable({}, {__index = function() return noop end}) end end
-    return noop
+    if key:match("^[A-Z]") then return noop end
   end})
   function o:SetScript(k,v) self.scripts[k] = v end
+  function o:IsShown() return self.shown ~= false end
+  function o:SetSize(w,h) self.width,self.height=w,h end
+  function o:GetWidth() return self.width or 0 end
   function o:Hide() self.shown = false end
   function o:SetShown(v) self.shown = v end
   return o

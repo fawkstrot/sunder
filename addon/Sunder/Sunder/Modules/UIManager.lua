@@ -177,41 +177,19 @@ function UIManager:CreateDetachedLayout(window)
     dock = CreateDetachedChatDock(container, window.tab),
   }
   window.detachedLayout = layout
-  Core.Components.WindowManager:RegisterNativeSurface(container,layout.dock)
   self.container:AddHoverRegion(container)
 
   container:SetScript("OnSizeChanged", function ()
-    if chatFrame.isDocked or layout.resizeScheduled then
-      return
-    end
+    local renderer = window.slidingMessageFrame
+    if chatFrame.isDocked or not renderer or renderer.chatFrame ~= chatFrame
+      or renderer.detachedContainer ~= container then return end
 
-    layout.resizeScheduled = true
-    C_Timer.After(0, function ()
-      layout.resizeScheduled = nil
-      if (
-        not chatFrame.isDocked and
-        window.slidingMessageFrame and
-        window.slidingMessageFrame.chatFrame == chatFrame
-      ) then
-        local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
-        if room then self:RefreshChatFrameLayout(chatFrame);return end
-        local editBox = self:GetLayoutEditBox(window)
-        if editBox then
-          editBox:SetSunderParent(container, true)
-        end
-        window.slidingMessageFrame:SetLayout(
-          container,
-          container:GetWidth(),
-          container:GetHeight(),
-          editBox or false,
-          container
-        )
-        if self.combatLogBar and self.combatLogBar.slidingMessageFrame == window.slidingMessageFrame then
-          self.combatLogBar:UpdateLayout()
-        end
-      end
-    end)
+    renderer:SetLayoutSize(container:GetWidth(), container:GetHeight())
+    if self.combatLogBar and self.combatLogBar.slidingMessageFrame == renderer then
+      self.combatLogBar:UpdateLayout()
+    end
   end)
+  Core.Components.WindowManager:RegisterNativeSurface(container,layout.dock)
   return layout
 end
 
@@ -309,6 +287,90 @@ function UIManager:ProcessPendingFrames()
   end
 end
 
+-- The native dock owns selection and filters. Only its presentation changes.
+function UIManager:RefreshMainResizeGrips()
+  local movable = Core.Components.WindowManager:CanMove(self.mainControls:HubSettings())
+  local visible = movable and not self.container.mainBodyClipped
+  self.mainResize:SetShown(visible)
+  self.moverFrame.resizeHandle:SetShown(visible)
+end
+
+function UIManager:SetMainMinimized(minimized, instant, edge)
+  local root, dock, host = self.container, self.dock, self.mainControls
+  local wm = Core.Components.WindowManager
+  local expandedHeight = Core.db.profile.frameHeight
+  local target = minimized and dock:GetHeight() or expandedHeight
+  local from = root:GetHeight()
+  root:SetScript("OnUpdate", nil)
+  self.mainResize:FinishResize()
+  self.moverFrame.resizeHandle:FinishResize()
+  self.moverFrame:StopDragging()
+  local settings=host:HubSettings()
+  if minimized and edge then settings.minimizeEdge=edge end
+  root.mainBottomAnchored=(minimized or root.mainBodyClipped) and settings.minimizeEdge=="BOTTOM"
+  wm:AnchorMainContainer(root,self.moverFrame)
+  if host.minimized~=minimized then dock:ScheduleTabOrder() end
+  host.minimized = minimized
+  host:HubSettings().minimized = minimized
+  if minimized then
+    local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+    if focus and focus.sunderParent == root and focus.ClearFocus then focus:ClearFocus() end
+  end
+  dock.mainMinimized = minimized
+  dock:QuickShow()
+  root.mainBodyHidden = false
+  root.mainBodyClipped = true
+  root:SetClipsChildren(true)
+  self:RefreshMainResizeGrips()
+  if self.combatLogBar then self.combatLogBar:UpdateVisibility() end
+  wm:ApplyNativeSurface(root, dock)
+  wm:RefreshRoomActions(host)
+  local function finish()
+    root.mainBodyClipped = minimized
+    root.mainBodyHidden = minimized
+    root:SetHeight(minimized and dock:GetHeight() or Core.db.profile.frameHeight)
+    if not minimized and root.mainBottomAnchored then
+      root.mainBottomAnchored=false
+      wm:AnchorMainContainer(root,self.moverFrame)
+    end
+    root:SetClipsChildren(minimized)
+    self:RefreshMainResizeGrips()
+    if self.combatLogBar then self.combatLogBar:UpdateVisibility() end
+    wm:ApplyNativeSurface(root, dock)
+    if not minimized then dock:UpdateAutomaticVisibility() end
+  end
+  if instant or from == target then finish(); return end
+  wm:AnimateHeight(root, from, target, function(height) root:SetHeight(height) end, finish)
+end
+
+function UIManager:ToggleMainMaximized()
+  local wm, profile = Core.Components.WindowManager, Core.db.profile
+  local host = self.mainControls
+  if InCombatLockdown() or not wm:CanMove(host:HubSettings()) then return end
+  self:SetMainMinimized(false, true)
+  local restore = profile.mainChatRestore
+  if restore then
+    profile.frameWidth, profile.frameHeight = restore.width, restore.height
+    profile.positionAnchor = restore.anchor
+    profile.mainChatRestore = nil
+  else
+    local width, height = wm:MaximizedSize(100)
+    local anchor = profile.positionAnchor
+    profile.mainChatRestore = {width=profile.frameWidth, height=profile.frameHeight,
+      anchor={point=anchor.point,xOfs=anchor.xOfs,yOfs=anchor.yOfs},
+      maximizedWidth=width, maximizedHeight=height}
+    profile.frameWidth, profile.frameHeight = width, height
+    profile.positionAnchor = {point="CENTER", xOfs=0, yOfs=0}
+  end
+  for _,key in ipairs({"frameWidth","frameHeight","framePosition"}) do
+    Core:Dispatch(Constants.ACTIONS.UpdateConfig(key))
+  end
+  self.moverFrame:UpdateLayoutBounds()
+  self.dock:UpdateTabOrder()
+  host.maximized = profile.mainChatRestore ~= nil
+  wm:RefreshRoomActions(host)
+end
+
 function UIManager:CreateRootFrames()
   self.renderFrame = CreateFrame("Frame", "SunderUpdaterFrame", UIParent)
   self.renderOnUpdate = function ()
@@ -322,15 +384,56 @@ function UIManager:CreateRootFrames()
   self.dock = CreateChatDock(self.container)
   local wm=Core.Components.WindowManager
   wm:RegisterNativeSurface(self.container,self.dock)
+  self.container:AddHoverRegion(self.dock.overflowButton.list)
+  self.slidingMessageFramePool = CreateSlidingMessageFramePool(self.container)
+end
+
+function UIManager:InstallMainControls()
+  local wm=Core.Components.WindowManager
+  self.mainResize=self.moverFrame:CreateStandardResizer(self.container)
+  local host = {maximized=Core.db.profile.mainChatRestore ~= nil}
+  function host:HubSettings() return wm:Settings("main") end
+  self.mainControls = host
   wm:CreateNativeHeader(self.dock,{
+    host=host,
+    collapse=function(edge)if not InCombatLockdown() then self:SetMainMinimized(not host.minimized,false,edge) end end,
+    maximize=function()self:ToggleMainMaximized()end,
+    onLockChanged=function()
+      self.moverFrame:StopDragging()
+      self.moverFrame.resizeHandle:FinishResize()
+      self.mainResize:FinishResize()
+      self:RefreshMainResizeGrips()
+      wm:RefreshRoomActions(host)
+    end,
     settings=function()return wm:Settings("main")end,
     settingsAction=function()Core:GetModule("Config"):OpenSettings("windows")end,
     start=function()if wm:CanMove(wm:Settings("main"))then self.moverFrame:StartDragging()end end,
     stop=function()self.moverFrame:StopDragging()end,
   })
-  self.mainResize=self.moverFrame:CreateStandardResizer(self.container)
-  self.container:AddHoverRegion(self.dock.overflowButton.list)
-  self.slidingMessageFramePool = CreateSlidingMessageFramePool(self.container)
+  self:RefreshMainResizeGrips()
+  host.hubActionButtons.Maximize.windowEnabled=function()return not InCombatLockdown() and wm:CanMove(host:HubSettings())end
+  host.hubActionButtons.CollapseTop.windowEnabled=function()return not InCombatLockdown()end
+  host.hubActionButtons.CollapseBottom.windowEnabled=host.hubActionButtons.CollapseTop.windowEnabled
+  self.container:RegisterEvent("PLAYER_REGEN_DISABLED")
+  self.container:RegisterEvent("PLAYER_REGEN_ENABLED")
+  self.container:SetScript("OnEvent",function()wm:RefreshRoomActions(host)end)
+  wm:RefreshRoomActions(host)
+  Core:Subscribe(Constants.EVENTS.UPDATE_CONFIG,function(key)
+    if key ~= "frameWidth" and key ~= "frameHeight" then return end
+    local profile=Core.db.profile
+    local restore=profile.mainChatRestore
+    if restore and (restore.maximizedWidth~=profile.frameWidth or restore.maximizedHeight~=profile.frameHeight) then
+      profile.mainChatRestore=nil
+    end
+    host.maximized=profile.mainChatRestore~=nil
+    wm:RefreshRoomActions(host)
+  end)
+  Core:Subscribe(Constants.EVENTS.EDIT_BOX_VISIBILITY_CHANGED,function(visible,box)
+    if visible and box and box.sunderParent==self.container and box:HasFocus() and host.minimized then
+      self:SetMainMinimized(false,true)
+    end
+  end)
+  self.dock:ScheduleTabOrder()
 end
 
 function UIManager:InitializeChatWindows()
@@ -425,7 +528,7 @@ function UIManager:ConfigureNativeChat()
   -- New version alert
   --@non-debug@
   if Core.db.global.version == nil or Utils.versionGreaterThan(Core.Version, Core.db.global.version) then
-    Utils.notify('Sunder has just been updated. |cFFFFFF00|Hgarrmission:Sunder:opennews|h[See what’s new]|h|r')
+    Utils.notify('Sunder has just been updated. |cFFFFFF00|Hgarrmission:Sunder:opennews|h[See whatÃ¢â‚¬â„¢s new]|h|r')
     Core.db.global.version = Core.Version
   end
   --@end-non-debug@--
@@ -525,6 +628,8 @@ function UIManager:OnEnable()
       end
     end
   end)
+  self:InstallMainControls()
+  if self.mainControls:HubSettings().minimized then self:SetMainMinimized(true,true) end
 end
 
 function UIManager:GetLayoutEditBox(window)

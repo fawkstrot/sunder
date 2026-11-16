@@ -243,6 +243,8 @@ Core:RegisterFeature("whispers", {name = "Whispers", order = 20,
         name = "Pins keep conversations visible until you unpin or close them. Read state does not clear while you are scrolled back. Saved history is local to this character and capped per conversation. Battle.net history uses stable BattleTags and waits for the friend list before restoring. Session-only name tokens are replaced before saving. Protected message content is left to native chat rendering. Closing a pane keeps its transcript in the per-character archive. Favorites remain in Favorites; other closed people appear under Archived. Browse/search saved history includes older archived lines beyond the recent native pane. Archive settings and the 8 MiB text budget bound storage, prioritizing favorites and reporting trimming. Forget disables future saving and clears both the checkpoint and archive; currently open session messages remain available until closed."},
     }},
     preview = {name = "Samples & testing", type = "group", order = 5, args = {
+      practice = {type = "execute", name = "Toggle chat practice", order = 0,
+        func = function () Core.Components.ChatPractice:Toggle() end},
       simulation = {type = "execute", name = "Run five-minute message test", order = 0.1,
         func = function () W:StartMessageSimulation() end},
       simulationStatus = {type = "description", order = 0.2,

@@ -10,7 +10,7 @@ assert(not favorite.previewBody:IsShown() and not favorite.hubContent:IsShown())
 local sum=0;for _,c in ipairs(favorite.previewConversations) do sum=sum+c.unread end
 assert(favorite.previewNavigation.unreadTotal==sum)
 assert(favorite.previewNavigation.all:GetText()~=nil)
-assert(favorite.hubActionButtons.Settings:IsShown() and favorite.hubActionButtons.CollapseTop:IsShown() and favorite.hubActionButtons.CollapseBottom:IsShown())
+assert(favorite.hubActionButtons.Settings:IsShown() and (favorite.hubActionButtons.CollapseTop:IsShown() ~= favorite.hubActionButtons.CollapseBottom:IsShown()))
 favorite:SetMinimized(false,true)
 -- Header stays interactive; opaque body is clipped as size interpolates.
 W:SetMinimized(true)

@@ -1,6 +1,6 @@
 # Shared window management
 
-WindowManager owns surfaces, action feedback, semantic window commands, room action placement, movement drivers, normal resize affordances, collapse/restore and room maximize/restore. Adapters retain native chat frames, editor ownership and persistence hooks.
+WindowManager owns surfaces, action feedback, semantic window commands, native and room header action placement, movement drivers, normal resize affordances, collapse/restore and room maximize/restore. Adapters retain native chat frames, editor ownership and persistence hooks.
 
 | Capability | Main native chat | Detached native chat | Whispers/groups | Guild / Party room |
 | --- | --- | --- | --- | --- |
@@ -9,23 +9,23 @@ WindowManager owns surfaces, action feedback, semantic window commands, room act
 | Shared backing, fade and outline | Yes | Yes | Yes | Yes |
 | Settings | Chat windows | Only when mapped | Whispers | Matching room settings |
 | Return to main | Already docked | Yes | Conversation destination menu | Own room |
-| Collapse up/down | Omitted intentionally | Omitted | Yes | Yes |
-| Maximize/restore size | Native size controls | Native size controls | Yes | Yes |
+| Collapse up/down | Both directions to native tabs | Omitted | Yes | Yes |
+| Maximize/restore size | Yes | Native size controls | Yes | Yes |
 | Window menu | Native tabs | Native tabs | Yes | Yes |
 
 ## Commands and visual meanings
 
-Semantic IDs choose a stable icon and default tooltip through `windowActions` and `CreateWindowAction`. Callbacks supply behavior. `LayoutRoomActions` places supported controls in the same order from the right: close, settings, maximize, collapse up, collapse down, lock, menu, then type-specific controls. Guild and Party add roster; Party also provides Previous groups; Whispers people-list conversation actions stay in person menus rather than a redundant header toolbar.
+Semantic IDs choose a stable icon and default tooltip through `windowActions` and `CreateWindowAction`. Callbacks supply behavior. `LayoutHeaderActions` places supported controls in the same order from the right: close, settings, maximize, collapse up, collapse down, lock, menu, then type-specific controls. Guild and Party add roster; Party also provides Previous groups; Whispers people-list conversation actions stay in person menus rather than a redundant header toolbar.
 
 - Square: maximize; overlapping squares: restore size.
 - Three lines: window/conversation menu.
 - Member/list symbol: roster visibility, with selected plate and state-specific tooltip.
 - Arrow into tabbed frame: return native chat to General/main.
-- Chevron up/down: collapse toward that edge; while collapsed, both restore in the actual opening direction.
+- Chevron up/down: collapse toward that edge; while collapsed, only one chevron remains and it points in the opening direction.
 - Filled padlock: position locked; outline open padlock: movable.
 - Chat bubble/count: unread messages. Zero is neutral blue-gray; unread uses the shared accent.
 
-The legacy `minimizeButton` field aliases the upward capability; no extra hidden button is created. Main native chat intentionally omits collapse. Font/appearance overrides remain adapter inputs.
+The legacy `minimizeButton` field aliases the upward capability; no extra hidden button is created. General and its docked Combat Log share both directions. The main mover holds the chosen edge fixed during collapse and restore, including when the editor sits above chat. Font/appearance overrides remain adapter inputs.
 
 ## Interaction and work bounds
 
@@ -40,13 +40,13 @@ PresentRoomSurface and UpdateRoomSurfaceGeometry own background height/visibilit
 
 Collapse presentation is geometric, with alpha fixed at 1 until completion. WindowManager clips native content and preview bodies only during transitions; the active people ScrollFrame retains its changing viewport (including filter-row inset), and preview parents remain shown. Completion hides collapsed bodies, removes temporary clipping and stops OnUpdate. Do not fade backing out ahead of the moving border.
 
-Shared ownership update (2026-11-13): PresentRoomBody owns backing and active body visibility/alpha; Whispers delegates and Guild inherits the same delegate. SidebarWidth bounds desired widths against transcript reserve for both people lists. Guild supplies cached name measurements, with its saved roster width acting as a maximum. Feature-specific rendering and roster scans remain adapters; main chat intentionally has no collapse capability.
+Shared ownership update (2026-11-13): PresentRoomBody owns backing and active body visibility/alpha; Whispers delegates and Guild inherits the same delegate. SidebarWidth bounds desired widths against transcript reserve for both people lists. Guild supplies cached name measurements, with its saved roster width acting as a maximum. Feature-specific rendering and roster scans remain adapters.
 
 List scroll feedback: WindowManager:UpdateListScrollIndicator owns passive track/thumb geometry used by Whispers and Guild. Guild uses its draggable rail when overflowing, above the roster row layer; fitting lists retain the passive track without a false thumb. Compacted lists hide both treatments.
 
 List-rail geometry correction (2026-11-13): LayoutListScrollRail supplies the same 10 px hit width, right-edge inset, vertical insets and raised layer to Whispers and Guild. Guild viewport reaches its sidebar boundary; row content reserves rail clearance internally. Passive indicators now share the same viewport boundary instead of inheriting an extra padded gutter.
 
-Header count capability (2026-11-13): windowCount supplies optional inline metadata beside an action icon. LayoutRoomActions reserves measured label width; icon press/release/hide retains its offset. Guild roster supplies online/total. Shared MessageLine uses slider owner GetLayoutWidth for row/background width and measures wrapped text within body insets and a minimum 6 px room-scrollbar clearance.
+Header count capability (2026-11-13): windowCount supplies optional inline metadata beside an action icon. LayoutHeaderActions reserves measured label width; icon press/release/hide retains its offset. Guild roster supplies online/total. Shared MessageLine uses slider owner GetLayoutWidth for row/background width and measures wrapped text within body insets and a minimum 6 px room-scrollbar clearance.
 
 Person detail component (2026-11-13): PersonDetailSize, ApplyPersonDetailFont and StylePersonDetail supply compact level/class formatting, inherited font face with explicitly smaller size, muted class tint and offline dimming. Whispers aligns detail width to the name label; Guild exposes rank/public notes in its member card and tooltip. Metadata clears on recycled rows and never pushes into action or scrollbar space.
 
@@ -108,3 +108,40 @@ When a renderer binds to a registered room after native history has already rend
 
 
 Forever native retained lines can have no structured player link. Compact-prefix tests include colored/plain headers in addition to hyperlink forms. Native PushBack/backfill forwards type/access/line metadata from GetMessageInfo; direction styling depends on it. An actual adapter regression prevents RGB-only replay from silently dropping semantic metadata.
+
+## Window ownership matrix — 2026-11-16
+
+| Window | Creation and layout | Held resize and later refresh | Intentional behavior |
+| --- | --- | --- | --- |
+| Main chat | UIManager creates the main container, native dock and pooled SlidingMessageFrame. RefreshChatFrameLayout binds docked tabs to that container. | The main mover changes the saved dimensions. The renderer's config subscriber updates visible geometry immediately and queues width reflow. RegisterNativeSurface updates the backing. | Native tabs, filters and Enter ownership remain active when collapsed. |
+| Native detached, including Combat Log and individually detached whispers | UIManager:CreateDetachedLayout anchors a container to the native frame and attaches DetachedChatDock. RefreshChatFrameLayout binds the renderer and editor. | The grip sizes the native frame. The container's size callback calls SetLayoutSize only while it owns that renderer. Combat Log also updates its filter bar. | Native docking, Combat Log filters and per-window settings remain available. |
+| Whispers and custom workspaces | EnsureHub creates the room. LayoutHub allocates the sidebar, toolbar and editor extent. LayoutWindow binds each conversation to hubContent. | The room grip calls LayoutHub. Size changes reach the shared renderer, while selection and style refresh reuse the existing people, preview and surface layout. | Each real conversation retains its history, native links and reply editor. |
+| Whispers previews, including detached samples | EnsurePreviewFrame creates a session-only native ScrollingMessageFrame. RenderPreview fills it with samples. | Workspace metrics position the sample body. PositionConversationBody and the list viewport use the same filter height as the surface fade. | Native sample scrolling and its 200-line cap. Samples have no real recipients or production message pool. |
+| Guild | InstallRosterRoom registers the controller. EnsureRoom and CreatePanel build the shell. LayoutWindow assigns the caption, sidebar, optional drawer, editor and transcript column. | The room's size callback lays out chrome and the shared column. Roster refresh recycles visible rows. First ownership binding refreshes retained labels. | Dedicated GUILD receiver, rank/public notes and Guild Info. |
+| Party and Raid | The Party descriptor installs the same RosterRoom implementation. PartyChat supplies the channel, current roster, send capability and caption. | Same shell and renderer path as Guild. Raid search and roster visibility affect the available column width. | One receiver across group channel changes. Solo or ended sessions are read-only. |
+| Previous groups | PartyHistory:EnsureHistory creates a panel inside the Party body and a separate ReadOnlyTranscript. LayoutHistory supplies the transcript's full column bounds. | Width changes schedule one archive row pass per frame. Height-only changes clamp the offset and refresh its indicator. Back to live chat restores the receiving column. | Archive wheel scrolling uses pixel offsets. Rows retain hyperlinks and cannot select an editor. |
+
+### Where to change shared behavior
+
+- **Wrapping and readback.** Change MessageLine's wrapping policy for both the visible and detached measurement FontStrings. Live rows get an explicit owner from InitializeScrollFrame's slider pool. ReadOnlyTranscript supplies its own viewport width to the same pool. MessageLine reserves the greater of right padding and scrollbar clearance. RefreshLayout preserves the native message index and pixel offset, including unread state while scrolled back. Archive reflow keeps the first visible message and clamps the offset within it.
+- **Insets.** Appearance exposes the existing bodyPadding preference. WindowManager:BodyPadding resolves it for message rows, viewports, native editors and the Whispers theme delegate used by rooms, samples and toasters. The enclosing transcript column supplies its full width. Header and filter dimensions are independent.
+- **Rails and surfaces.** Change interactive list rail anchors in LayoutListScrollRail and passive thumb/track geometry in UpdateListScrollIndicator. A fitting people list keeps the passive track. An overflowing list with a draggable rail uses that rail alone. SlidingMessageFrameLayout owns live transcript feedback and its return-to-latest reserve. WindowManager:ApplySurface owns the continuous backing, fade and perimeter. PeopleFilterHeight reserves the unified filter row across the fade, list and preview.
+- **Resize and collapse.** CreateWindowResizer and ResizeHandle own the grip and held-mouse lifecycle. SetLayoutSize and RefreshLayoutGeometry update the live viewport, slider and overlay. ScheduleLayoutRefresh coalesces row measurement. WindowManager owns geometric collapse and body presentation. RosterRoom lays out Guild and Party content inside that shell. Feature controllers only add their own content or capabilities.
+
+### Names-pane visibility during expansion
+
+The shared body frame gates the visibility of its backing, sidebar and divider. The sidebar and divider depend only on the presence of a sidebar. This lets the existing clipped height animation reveal those textures on its first visible frame, even after an appearance refresh while collapsed. The square maximize/restore-size control changes dimensions immediately. Restoring a collapsed room uses the animated path.
+
+### General and Combat Log header controls
+
+The shared native dock has a lock, two directional collapse chevrons, and a maximize/restore-size square. Locking stops active movement and resizing, disables maximize, and consumes docked-tab drag events before native dragging or reordering begins. Tab clicks, native filters, overflow selection and context menus remain available. Unlock to move, resize or rearrange the tabs again.
+
+UIManager owns the main window's native geometry adapter. Collapse clips the existing container to its header through WindowManager:AnimateHeight and keeps the dock available even with automatic fading enabled. Both tabs keep their receiver, history and selected state. A focused native chat entry can expand the dock. Maximize saves the profile's original dimensions and anchor, applies the shared room size target, and restores the saved values on the next click. Manually changing the size exits maximize. The minimize state and lock live with the per-character main-window controls. Both collapse directions and maximize disable in combat.
+
+GeneralDockManager is a shared Blizzard frame. ChatDock keeps its AceHook registrations on a private owner so the native frame retains its two-argument HookScript method. Fit actions during dock tab layout. UIManager creates the renderer pool and binds native chat windows before installing main header controls. Its lock refresh updates both the normal and Edit UI corner grips.
+
+WhisperWorkspace restores the saved open and collapsed state directly. A temporary hide keeps the open checkpoint. WhisperUnified can reveal that remembered shell beneath an incoming toaster without selecting the sender. An explicit close keeps the standalone notification stack available.
+
+The isolated chat practice room uses the RosterRoom shell, roster rows, geometry controls and WindowManager surfaces. Its message source and input belong to the practice session. ReadOnlyTranscript shares MessageLine with archives; an append follows the bottom or preserves the observer’s scrolled-back position. The practice Group archive uses the ordinary Party archive browser with a session-local HistoryRecords provider. See DEVELOPMENT.md for controls and how to extend the timelines.
+
+SlidingMessageFrameLayout:UpdateViewportHeight owns both the visible transcript clip and the mouse-wheel bounds. The renderer has extra height for incoming-line animation. Inset the bottom of its wheel target and clipped mouse-enabled viewport by that overflow on every height or readback change. Neighboring windows must receive input immediately beyond the visible transcript.

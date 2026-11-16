@@ -600,15 +600,14 @@ function W:CreateConversationNavigation(scroll, child, preview)
   nav.left:SetSize(28, 22); nav.left:SetPoint("LEFT", 8, 0); nav.left.icon:SetSize(16, 16)
   nav.right = self:IconButton(nav, "right", "Next conversation tabs", function () self:PageConversationTabs(preview, 1) end)
   nav.right:SetSize(28, 22); nav.right:SetPoint("LEFT", 42, 0); nav.right.icon:SetSize(16, 16)
-  local all = CreateFrame("Button", nil, nav)
+  local all = Core.Components.WindowManager:CreateUnreadIndicator(nav)
   all:SetSize(64, 22); all:SetPoint("LEFT", 76, 0)
-  all:SetNormalFontObject("SunderChatDockFont"); all:SetText("0")
   local label = all:GetFontString()
   label:ClearAllPoints(); label:SetPoint("LEFT", 30, 0); label:SetPoint("RIGHT", -8, 0); label:SetJustifyH("CENTER")
   local plate = all:CreateTexture(nil, "BACKGROUND")
   plate:SetAllPoints(); plate:SetColorTexture(1, 1, 1, 0.035)
-  local icon = all:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(16, 16); icon:SetPoint("LEFT", 8, 0); icon:SetTexture(ICONS.."inbox.tga")
+  local icon = all.icon
+  icon:SetSize(16, 16); icon:SetPoint("LEFT", 8, 0)
   all.icon, all.plate = icon, plate
   local divider = nav:CreateTexture(nil, "BORDER")
   divider:SetSize(1, 18); divider:SetPoint("LEFT", 0, 0); divider:SetColorTexture(1, 1, 1, 0.1)
@@ -676,10 +675,7 @@ function W:RefreshConversationNavigation(preview)
   end
   nav.total, nav.hiddenUnread = count, hidden
   nav.unreadTotal = unreadTotal
-  local label = unreadTotal > 99 and "99+" or tostring(unreadTotal)
-  if label ~= nav.lastLabel then nav.all:SetText(label); nav.lastLabel = label end
-  nav.all:GetFontString():SetTextColor(hidden > 0 and 1 or 0.74, hidden > 0 and 0.76 or 0.8, hidden > 0 and 0.28 or 0.88)
-  nav.all.icon:SetVertexColor(hidden > 0 and 1 or 0.74, hidden > 0 and 0.76 or 0.8, hidden > 0 and 0.28 or 0.88)
+  Core.Components.WindowManager:StyleUnreadIndicator(nav.all,unreadTotal,self:InterfaceAccent())
   nav.all:SetEnabled(count > 0)
 end
 
@@ -780,7 +776,7 @@ function W:SaveMessageWindowState()
     or W.startingSimulation or W.previewSimulation or self.previewActive or not W:Settings().enabled or not UIParent:IsShown() then return end
   Core.db.char.messageWindowStates = Core.db.char.messageWindowStates or {}
   Core.db.char.messageWindowStates[self.hostId or "messages"] = {
-    open = self.hub:IsShown(), minimized = not not self.minimized,
+    open = self.hub:IsShown() or self.windowManuallyClosed == false, minimized = not not self.minimized,
   }
 end
 
@@ -799,6 +795,16 @@ function W:BeginMessageWindowRestore()
   end
 end
 
+-- Present the shell without invoking the user's Open/Select command.
+function W:ShowRememberedWindow(minimized)
+  self:EnsureHub()
+  self.hubOpenedAt = GetTime()
+  self.hub:Show()
+  self.hub:SetAlpha(1)
+  self:SetMinimized(not not minimized, true)
+  self:LayoutHub()
+end
+
 function W:RestoreMessageWindows()
   local states = W.pendingWindowStates or Core.db.char.messageWindowStates or {}
   if W:Settings().enabled then
@@ -810,9 +816,7 @@ function W:RestoreMessageWindows()
         local host = W:GetWorkspace(id)
         host.windowManuallyClosed = not state.open
         if state.open then
-          host:OpenMessages()
-          host:SetMinimized(not not state.minimized, true)
-          host.hubOpenedAt = GetTime()
+          host:ShowRememberedWindow(state.minimized)
         elseif host.hub then host.hub:Hide() end
       end
     end
@@ -826,7 +830,7 @@ local function metric(key, default, low, high)
   return math.max(low, math.min(high, tonumber(W:Settings()[key]) or default))
 end
 function W:BodyPadding()
-  return math.max(0,math.min(32,tonumber(Core.db.profile.bodyPadding) or 8))
+  return Core.Components.WindowManager:BodyPadding()
 end
 function W:UsesChatAppearance() return self:Settings().hubMatchChat ~= false end
 function W:InterfaceTextSize()
@@ -964,19 +968,23 @@ function W:StyleConversationTab(tab)
   end
 end
 
-function W:ApplyWorkspaceMetrics()
-  if not self.hubChrome then return end
-  local pad, icon = self:HeaderPadding(), self:ToolbarIconSize()
-  local size = icon + (self:UsesChatAppearance() and 6 or 7)
-  local gap, height = self:UsesChatAppearance() and 2 or metric("toolbarSpacing", 3, 2, 8), self:HeaderHeight()
-  self.hubChrome:SetHeight(height)
+function W:LayoutHeaderStrip()
+  local pad,icon=self:HeaderPadding(),self:ToolbarIconSize()
+  local size=icon+(self:UsesChatAppearance() and 6 or 7)
+  local gap=self:UsesChatAppearance() and 2 or metric("toolbarSpacing",3,2,8)
   local right = pad
   self.hubActionButtons.Favorite:Hide(); self.hubActionButtons.Pin:Hide()
   local conversationActions=not self:SingleRowHeader() and not (self.IsConversationList and self:IsConversationList())
-  local actions = {"Close", "Settings", "Maximize", "CollapseTop", "CollapseBottom", "Lock", "Windows"}
-  if conversationActions then for _,id in ipairs({"Detach","Search","Reply"})do actions[#actions+1]=id end end
   for _, name in ipairs({"Detach", "Search", "Reply"}) do self.hubActionButtons[name]:SetShown(conversationActions) end
-  right=Core.Components.WindowManager:LayoutRoomActions(self,actions,right,size,icon,gap)
+  self.headerActionWidth=Core.Components.WindowManager:LayoutHeaderActions(self,self.hubChrome,right,size,icon,gap)+pad
+end
+function W:ApplyWorkspaceMetrics()
+  if not self.hubChrome then return end
+  local pad, icon = self:HeaderPadding(), self:ToolbarIconSize()
+  local height = self:HeaderHeight()
+  self.hubChrome:SetHeight(height)
+  self:LayoutHeaderStrip()
+  local right=self.headerActionWidth
   for _, nav in pairs({self.conversationNavigation, self.previewNavigation}) do
     local controlHeight = math.min(22, self:ConversationTabHeight())
     for _, control in ipairs({nav.left, nav.right, nav.all}) do control:SetHeight(controlHeight); self:StyleWindowIcon(control) end
@@ -987,14 +995,12 @@ function W:ApplyWorkspaceMetrics()
   if self.conversationPicker then
     for _, row in ipairs(self.conversationPicker.rows) do self:WorkspaceFont(row:GetFontString(), metric("tabFontSize", 12, 10, 18)) end
   end
-  right=right+pad
   self.hubGrip:ClearAllPoints(); self.hubGrip:SetPoint("LEFT", self.hubChrome, "LEFT", pad, 0)
   self.hubMark:ClearAllPoints(); self.hubMark:SetPoint("LEFT", self.hubGrip, "RIGHT", pad, 0)
   self.hubGrip:SetHeight(height)
   self.hubMark:SetSize(icon, icon)
   self.hubMark:SetShown(not self:UsesChatAppearance() or Core.db.profile.chatTitleIcons ~= false)
   self.hubTitle:ClearAllPoints(); self.hubTitle:SetPoint("LEFT", self.hubMark, "RIGHT", pad, 0)
-  self.headerActionWidth = right
   if self:SingleRowHeader() then
     local titleWidth = math.max(52, math.min(100, self:InterfaceTextSize() * 7))
     self.hubTitle:SetWidth(titleWidth)
@@ -1030,9 +1036,8 @@ function W:ApplyWorkspaceMetrics()
       local window = Core:GetModule("UIManager"):GetChatWindow(frame)
       if window then
         local smf = window.slidingMessageFrame
-        local index, offset = smf.state.scrollIndex or 1, smf.state.messageOffset or 0
         smf:RefreshLayout(true)
-        if index > 1 or offset ~= 0 then smf:SetScrollPosition(index, offset) end
+
       end
     end
   end

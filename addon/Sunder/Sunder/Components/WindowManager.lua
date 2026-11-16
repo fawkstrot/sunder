@@ -2,6 +2,10 @@ local Core, Constants = unpack(select(2,...))
 -- Shared chrome policy; adapters keep native input, rendering and geometry ownership.
 local Manager={}
 Core.Components.WindowManager=Manager
+
+function Manager:BodyPadding()
+  return math.max(0, math.min(32, tonumber(Core.db.profile.bodyPadding) or 8))
+end
 local ICONS="Interface\\AddOns\\Sunder\\Media\\Icons\\"
 -- One surface implementation for every chat type. Adapters supply geometry only.
 function Manager:ApplySurface(root,options)
@@ -44,7 +48,8 @@ function Manager:ApplySurface(root,options)
   t.frame:SetFrameLevel(root:GetFrameLevel());t.bodyFrame:SetFrameLevel(t.frame:GetFrameLevel())
   t.bodyFrame:ClearAllPoints();t.bodyFrame:SetPoint("TOPLEFT",root,"TOPLEFT",0,-top);t.bodyFrame:SetPoint("TOPRIGHT",root,"TOPRIGHT",0,-top)
   t.bodyFrame:SetHeight(math.max(1,root:GetHeight()-top+extent));t.bodyFrame:SetShown(visible)
-  t.body:SetColorTexture(color.r,color.g,color.b,alpha*.85);t.body:SetShown(visible)
+  -- The animated body frame gates all its paints, including on the first restore tick.
+  t.body:SetColorTexture(color.r,color.g,color.b,alpha*.85)
   -- The fade always overlays the backing, never a second independent column paint.
   local paint=Core.Components.PaintGradientTexture or function(texture,c,a)texture:SetColorTexture(c.r,c.g,c.b,a)end
   -- Keep people columns neutral and uniform; transcript edge fades must not
@@ -52,9 +57,9 @@ function Manager:ApplySurface(root,options)
   t.fade:ClearAllPoints();t.fade:SetPoint("TOPLEFT",t.bodyFrame,"TOPLEFT",sidebar,-math.max(0,listTop-top));t.fade:SetPoint("BOTTOMRIGHT",t.bodyFrame,"BOTTOMRIGHT")
   paint(t.fade,color,alpha,options.fade~=false)
   t.sidebar:ClearAllPoints();t.sidebar:SetPoint("TOPLEFT",root,"TOPLEFT",1,-listTop);t.sidebar:SetPoint("BOTTOMLEFT",root,"BOTTOMLEFT",1,1);t.sidebar:SetWidth(math.max(1,sidebar-1))
-  t.sidebar:SetColorTexture(.025,.03,.04,alpha+(1-alpha)*math.min(.4,alpha*.7));t.sidebar:SetShown(visible and sidebar>0)
+  t.sidebar:SetColorTexture(.025,.03,.04,alpha+(1-alpha)*math.min(.4,alpha*.7));t.sidebar:SetShown(sidebar>0)
   t.divider:ClearAllPoints();t.divider:SetPoint("TOPLEFT",root,"TOPLEFT",sidebar,-listTop-6);t.divider:SetPoint("BOTTOMLEFT",root,"BOTTOMLEFT",sidebar,7);t.divider:SetWidth(1)
-  t.divider:SetColorTexture(.64,.69,.76,alpha>0 and .18 or 0);t.divider:SetShown(visible and sidebar>0)
+  t.divider:SetColorTexture(.64,.69,.76,alpha>0 and .18 or 0);t.divider:SetShown(sidebar>0)
   t.header:ClearAllPoints();t.header:SetPoint("TOPLEFT");t.header:SetPoint("TOPRIGHT");t.header:SetHeight(height)
   t.header:SetColorTexture(header.r,header.g,header.b,headerAlpha)
   t.headerRule:ClearAllPoints();t.headerRule:SetPoint("TOPLEFT",root,"TOPLEFT",1,-height);t.headerRule:SetPoint("TOPRIGHT",root,"TOPRIGHT",-1,-height);t.headerRule:SetHeight(1)
@@ -74,7 +79,7 @@ function Manager:ApplyNativeSurface(root,header)
   header:SetFrameStrata(root:GetFrameStrata());header:SetFrameLevel(root:GetFrameLevel()+3)
   if header.scrollFrame then header.scrollFrame:SetFrameStrata(header:GetFrameStrata());header.scrollFrame:SetFrameLevel(header:GetFrameLevel()+1)end
   if header.windowControls then
-    header.windowControls:SetFrameLevel(header:GetFrameLevel()+5)
+    self:RaiseNativeActions(header)
     header.windowControls.move:SetFrameLevel(math.max(header:GetFrameLevel(),header.scrollFrame and header.scrollFrame:GetFrameLevel() or 0)+10)
   end
   if header.tab then header.tab:SetFrameStrata(header:GetFrameStrata());header.tab:SetFrameLevel(header:GetFrameLevel()+2)end
@@ -82,17 +87,27 @@ function Manager:ApplyNativeSurface(root,header)
   self:RetirePaint(header.messageSeparator)
   if header.messageSeparator then header.messageSeparator:SetAlpha(0)end
   if header.windowControls then
-    header.windowControls.style(header.windowControls.lock);if header.windowControls.settings then header.windowControls.style(header.windowControls.settings)end
-    if header.windowControls.dock then header.windowControls.style(header.windowControls.dock)end
+    for _,button in ipairs(header.windowControls.buttons) do
+      header.windowControls.style(button)
+    end
+    if header.windowControls.fitMainActions then header.windowControls.fitMainActions() end
     header.windowControls.lock:Refresh()
   end
-  return self:ApplySurface(root,{headerHeight=header:GetHeight(),bottomExtent=root.windowContentExtent})
+  return self:ApplySurface(root,{headerHeight=header:GetHeight(),bottomExtent=not root.mainBodyClipped and root.windowContentExtent,bodyVisible=not root.mainBodyHidden})
 end
 function Manager:RegisterNativeSurface(root,header)
   if root.windowSurfaceRegistered then return end
   root.windowSurfaceRegistered=true;root.windowHeader=header
   local update=function()self:ApplyNativeSurface(root,header)end
-  update();root:HookScript("OnSizeChanged",update)
+  update()
+  root:HookScript("OnSizeChanged",function()
+    if root.mainBodyClipped then
+      local surface=root.windowSurface
+      surface.bodyFrame:SetHeight(math.max(1,root:GetHeight()-surface.bodyTop))
+    else
+      update()
+    end
+  end)
   local relevant={chatBackgroundColor=true,headerBackgroundColor=true,backgroundFade=true,
     backgroundFadeLeftPercent=true,backgroundFadeRightPercent=true,frameWidth=true,frameHeight=true,
     chatHeaderStyle=true,font=true,tabFontSize=true,chatTitleIconSize=true,chatTitleIconOpacity=true,
@@ -100,7 +115,7 @@ function Manager:RegisterNativeSurface(root,header)
   Core:Subscribe(Constants.EVENTS.UPDATE_CONFIG,function(key)if relevant[key]then update()end end)
 end
 function Manager:UpdateContentExtent(root,height,top)
-  if not root or not root.windowSurfaceRegistered then return end
+  if not root or not root.windowSurfaceRegistered or root.mainBodyClipped then return end
   local extent=math.max(0,height+top-root:GetHeight())
   if root.windowContentExtent==extent then return end
   root.windowContentExtent=extent
@@ -221,10 +236,24 @@ function Manager:CreateLock(parent,settings,stop,style)
   local b
   b=self:CreateAction(parent,"unlock",function()return settings().movementLocked and "Unlock window size and position" or "Lock window size and position"end,function()
     local cfg=settings();cfg.movementLocked=not cfg.movementLocked;stop();b:Refresh()
+    if b.hovered == true then b:ShowActionTooltip() end
   end,style)
   function b:Refresh()self.actionKey=settings().movementLocked and "lock" or "unlock";Manager:SetActionSelected(self,settings().movementLocked,"lock")end
   b:Refresh();return b
 end
+function Manager:RaiseNativeActions(header)
+  local controls = header.windowControls
+  local child = header.scrollFrame and header.scrollFrame.child
+  local level = math.max(header:GetFrameLevel(), child and child:GetFrameLevel() or 0,
+    header.scrollFrame and header.scrollFrame:GetFrameLevel() or 0)
+  controls:SetFrameStrata(header:GetFrameStrata())
+  controls:SetFrameLevel(level + 5)
+  for _, button in ipairs(controls.buttons or {}) do
+    button:SetFrameStrata(header:GetFrameStrata())
+    button:SetFrameLevel(level + 6)
+  end
+end
+
 function Manager:CreateNativeHeader(header,options)
   if header.windowControls then return header.windowControls end
   local controls=CreateFrame("Frame",nil,header);header.windowControls=controls
@@ -234,23 +263,65 @@ function Manager:CreateNativeHeader(header,options)
   local style=function(b)
     local w=Core:GetModule("Whispers",true)
     if w and w.StyleWindowIcon then w:StyleWindowIcon(b)end
-    b:SetSize(22,22);b.icon:SetSize(14,14)
   end
   controls.style=style
-  controls.lock=self:CreateLock(controls,settings,options.stop,style)
-  if options.settingsAction then controls.settings=self:CreateWindowAction(controls,"Settings",{},options.settingsAction,style)end
-  if options.dockAction then controls.dock=self:CreateWindowAction(controls,"Dock",{},options.dockAction,style)end
+  controls.lock=self:CreateLock(controls,settings,options.onLockChanged or options.stop,style)
+  local host=options.host or {}
+  host.hubActionButtons={}
+  host.movementLockButton=controls.lock
+  if options.host then
+    self:CreateCollapseActions(controls,host,options.collapse,style)
+    host.hubActionButtons.Maximize=self:CreateWindowAction(controls,"Maximize",host,options.maximize,style)
+  end
+  for _,entry in ipairs({{"Settings","settings",options.settingsAction},{"Dock","dock",options.dockAction}}) do
+    if entry[3] then
+      local button=self:CreateWindowAction(controls,entry[1],host,entry[3],style)
+      controls[entry[2]]=button
+      host.hubActionButtons[entry[1]]=button
+    end
+  end
   controls.move=self:CreateGrip(header,options.start,options.stop)
-  controls.move:SetPoint("LEFT",header,"LEFT",4,0)
   controls.move:SetFrameLevel(math.max(header:GetFrameLevel(),header.scrollFrame and header.scrollFrame:GetFrameLevel() or 0)+10)
-  header.windowTitleInset=30
-  local right=2
-  for _,button in ipairs({controls.lock})do button:SetPoint("RIGHT",controls,"RIGHT",-right,0);right=right+24 end
-  if controls.settings then controls.settings:SetPoint("RIGHT",controls,"RIGHT",-right,0);right=right+24 end
-  if controls.dock then controls.dock:SetPoint("RIGHT",controls,"RIGHT",-right,0);right=right+24 end
-  controls:SetWidth(right);header.windowActionWidth=right+6
+  controls.buttons={controls.lock}
+  for _,button in pairs(host.hubActionButtons) do table.insert(controls.buttons,button) end
+  self:RaiseNativeActions(header)
+  local lastStep,lastMinimized
+  local function fitActions()
+    local count=#controls.buttons-(host.minimized and 1 or 0)
+    local step=options.host and math.max(10,math.min(24,math.floor((header:GetWidth()-50)/count))) or 24
+    if step==lastStep and host.minimized==lastMinimized then return end
+    lastStep,lastMinimized=step,host.minimized
+    header.windowTitleInset=step==24 and 30 or 18
+    controls.move:SetPoint("LEFT",header,"LEFT",step==24 and 4 or 0,0)
+    local width=self:LayoutHeaderActions(host,controls,2,step-2,math.min(14,step-3),2,22)
+    controls:SetWidth(width)
+    header.windowActionWidth=width+6
+  end
+  if options.host then controls.fitMainActions=fitActions end
+  fitActions()
   self:BindDrag(header,options.start,options.stop)
   return controls
+end
+
+function Manager:AnchorMainContainer(root,mover)
+  local offset=root.mainTopOffset or 0
+  root:ClearAllPoints()
+  if root.mainBottomAnchored then
+    root:SetPoint("BOTTOMLEFT",mover,"TOPLEFT",0,offset-Core.db.profile.frameHeight)
+  else
+    root:SetPoint("TOPLEFT",mover,"TOPLEFT",0,offset)
+  end
+end
+
+function Manager:AnimateHeight(frame, from, target, update, finish)
+  local elapsed = 0
+  frame:SetScript("OnUpdate", function(_, delta)
+    elapsed = elapsed + delta
+    local t = math.min(1, elapsed / 0.24)
+    local eased = t * t * (3 - 2 * t)
+    update(math.max(1, from + (target - from) * eased))
+    if t == 1 then frame:SetScript("OnUpdate", nil); finish() end
+  end)
 end
 
 -- Shared, cancelable room transition; adapters supply layout and persistence only.
@@ -268,6 +339,7 @@ function Manager:SetRoomMinimized(host, minimized, instant)
   if self.previewBody then self.previewBody:SetClipsChildren(true)end
   self:PresentWindowBody(true,1)
   self.minimized = minimized
+  if self.LayoutHeaderStrip then self:LayoutHeaderStrip() end
   -- The header must never enter a transient root clipping rectangle.
   self.hub:SetClipsChildren(false)
   self:PresentCollapsedHeader()
@@ -281,7 +353,6 @@ function Manager:SetRoomMinimized(host, minimized, instant)
   local target = minimized and self:HeaderHeight() or self:HubSettings().hubHeight
   local from = self.hub:GetHeight()
   -- Animate only while transitioning; no idle per-frame handler or new frames.
-  local elapsed = 0
   local function resize(height)
     self.hub:SetHeight(height)
     if edge == "BOTTOM" then
@@ -312,21 +383,28 @@ function Manager:SetRoomMinimized(host, minimized, instant)
   self.collapseAnimation = true
   self.finishCollapse = finish
   if instant then finish(); return end
-  self.hub:SetScript("OnUpdate", function (_, delta)
-    elapsed = elapsed + delta
-    local t = math.min(1, elapsed / 0.24)
-    local eased = t * t * (3 - 2 * t)
-    resize(math.max(1,from + (target - from) * eased))
+  Manager:AnimateHeight(self.hub, from, target, function(height)
+    resize(height)
     Manager:UpdateRoomSurfaceGeometry(self)
     self:UpdateTransitionBounds()
     -- Reveal/collapse with geometry, not an early fade that leaves only chrome.
     self:PresentWindowBody(true, 1)
-    if t == 1 then finish() end
-  end)
+  end, finish)
 end
 
 
+function Manager:CreateUnreadIndicator(parent)
+  local button=CreateFrame("Button",nil,parent)
+  button:SetNormalFontObject("SunderChatDockFont")
+  button:SetText("0")
+  button.icon=button:CreateTexture(nil,"ARTWORK")
+  button.icon:SetTexture(ICONS.."inbox.tga")
+  return button
+end
+
 function Manager:StyleUnreadIndicator(button,count,r,g,b)
+  local label=count>99 and "99+" or tostring(count)
+  if button:GetText()~=label then button:SetText(label) end
   r,g,b=count>0 and r or .74,count>0 and g or .8,count>0 and b or .88
   button:GetFontString():SetTextColor(r,g,b,1)
   if button.icon then
@@ -358,6 +436,14 @@ function Manager:CreateWindowAction(parent,id,host,action,style)
   button.windowAction=id;button.windowHost=host
   return button
 end
+function Manager:CreateCollapseActions(parent,host,collapse,style)
+  for _,edge in ipairs({"TOP","BOTTOM"}) do
+    local direction=edge
+    local id=edge=="TOP" and "CollapseTop" or "CollapseBottom"
+    host.hubActionButtons[id]=self:CreateWindowAction(parent,id,host,function()collapse(direction)end,style)
+  end
+end
+
 function Manager:RefreshRoomActions(host)
   for _,button in pairs(host.hubActionButtons or {})do
     local id=button.windowAction
@@ -367,6 +453,8 @@ function Manager:RefreshRoomActions(host)
       if button.windowEnabled then button:SetEnabled(button.windowEnabled())elseif spec.enabled then button:SetEnabled(spec.enabled(host))end
       if id=="Maximize" and host.maximized then button.actionKey="restore-size";button.windowTooltip="Restore window size" end
       if id=="CollapseTop" or id=="CollapseBottom" then
+        local bottom=host.minimized and host:HubSettings().minimizeEdge=="BOTTOM"
+        button:SetShown(not host.minimized or (id=="CollapseBottom")==bottom)
         if host.minimized then
           button.actionKey=host:HubSettings().minimizeEdge=="BOTTOM" and "collapse-up" or "collapse-down"
           button.windowTooltip="Restore window"
@@ -382,11 +470,14 @@ function Manager:RefreshRoomActions(host)
     end
   end
 end
-function Manager:LayoutRoomActions(host,ids,right,size,icon,gap)
-  for _,id in ipairs(ids)do
+-- Rightmost first. Missing capabilities and hidden controls reserve no space.
+local headerOrder={"Close","Settings","Maximize","CollapseTop","CollapseBottom","Lock","Windows","Dock","Info","Roster","Detach","Search","Reply"}
+function Manager:LayoutHeaderActions(host,parent,right,size,icon,gap,height)
+  self:RefreshRoomActions(host)
+  for _,id in ipairs(headerOrder)do
     local button=id=="Lock" and host.movementLockButton or host.hubActionButtons[id]
-    if button then
-      button:ClearAllPoints();button:SetPoint("RIGHT",host.hubChrome,"RIGHT",-right,0)
+    if button and button:IsShown() then
+      button:ClearAllPoints();button:SetPoint("RIGHT",parent,"RIGHT",-right,0)
       local label=button.windowCount and button.windowCount() or nil
       local extra=0
       if label then
@@ -396,18 +487,21 @@ function Manager:LayoutRoomActions(host,ids,right,size,icon,gap)
         button.countLabel:ClearAllPoints();button.countLabel:SetPoint("LEFT",button,"LEFT",size,0)
       end
       button.iconOffsetX=-extra/2
-      button:SetSize(size+extra,size);button.icon:SetSize(icon,icon);host:StyleWindowIcon(button)
+      button:SetSize(size+extra,height or size);button.icon:SetSize(icon,icon)
+      if host.StyleWindowIcon then host:StyleWindowIcon(button) end
       if label then button.icon:ClearAllPoints();button.icon:SetPoint("LEFT",button,"LEFT",(size-icon)/2,0)end
       right=right+button:GetWidth()+gap
     end
   end
-  self:RefreshRoomActions(host)
   return right
 end
 function Manager:CollapseToward(host,edge)
   if host.finishCollapse then host.finishCollapse()end
   if host.minimized then host:SetMinimized(false);return end
   host:HubSettings().minimizeEdge=edge;host:SetMinimized(true)
+end
+function Manager:MaximizedSize(minWidth)
+  return math.max(minWidth,math.min(1100,UIParent:GetWidth()-32)), math.max(220,math.min(720,UIParent:GetHeight()-64))
 end
 function Manager:ToggleMaximized(host,storage)
   if not self:CanMove(host:HubSettings())then return end
@@ -420,7 +514,7 @@ function Manager:ToggleMaximized(host,storage)
     storage.roomRestore={hubPoint=cfg.hubPoint,hubX=cfg.hubX,hubY=cfg.hubY,hubWidth=cfg.hubWidth,hubHeight=cfg.hubHeight}
     host.maximized=true
     host.hub:ClearAllPoints();host.hub:SetPoint("CENTER",UIParent,"CENTER",0,0)
-    host.hub:SetSize(math.max(host.minimumWorkspaceWidth or 480,math.min(1100,UIParent:GetWidth()-32)),math.max(220,math.min(720,UIParent:GetHeight()-64)))
+    host.hub:SetSize(self:MaximizedSize(host.minimumWorkspaceWidth or 480))
   else
     local previous=storage.roomRestore;host.maximized=false
     if previous then

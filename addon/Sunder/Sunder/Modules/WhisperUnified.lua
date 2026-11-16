@@ -5,6 +5,10 @@ Core.defaults.profile.whispers.singleToasterStack=true
 function W:UsesUnifiedPeople()
   return self.hostId=="messages" and self:IsConversationList()
 end
+local FILTER_HEIGHT = 32
+function W:PeopleFilterHeight()
+  return self:UsesUnifiedPeople() and FILTER_HEIGHT or 0
+end
 local function data(host,preview)
   if preview then return host.previewConversations or {},host.previewTabs or {},host.previewTabScroll,host.previewTabChild end
   return host.hubOrder or {},host.hubTabs or {},host.tabScroll,host.tabChild
@@ -45,7 +49,7 @@ end
 function W:EnsurePeopleFilters()
   if self.peopleFilters then return end
   local bar=CreateFrame("Frame",nil,self.hub);self.peopleFilters=bar
-  bar:SetHeight(32)
+  bar:SetHeight(FILTER_HEIGHT)
   bar.rule=bar:CreateTexture(nil,"BORDER");bar.rule:SetPoint("BOTTOMLEFT",1,0);bar.rule:SetPoint("BOTTOMRIGHT",-1,0);bar.rule:SetHeight(1);bar.rule:SetColorTexture(.64,.69,.76,.14)
   local track=bar:CreateTexture(nil,"BACKGROUND");track:SetAllPoints();track:SetColorTexture(0,0,0,0)
   bar.buttons={}
@@ -88,17 +92,7 @@ function W:RefreshPeopleFilterCounts()
   end
 end
 local contentTop=W.ContentTop
-function W:ContentTop() return contentTop(self)+(self:UsesUnifiedPeople() and 32 or 0) end
-local positionBody=W.PositionConversationBody
-function W:PositionConversationBody()
-  positionBody(self)
-  if not self:UsesUnifiedPeople() or not self.previewBody or self.minimized then return end
-  local top=self:HeaderHeight()+self:HeaderGap()+32
-  self.previewBody:ClearAllPoints()
-  self.previewBody:SetPoint("TOPLEFT",self.hub,"TOPLEFT",self:ConversationBodyLeft()+self:BodyPadding(),-top-self:BodyPadding())
-  self.previewBody:SetPoint("TOPRIGHT",self.hub,"TOPRIGHT",-self:BodyPadding(),-top-self:BodyPadding())
-  self.previewBody:SetHeight(math.max(1,self.hub:GetHeight()-top-self:BodyPadding()*2))
-end
+function W:ContentTop() return contentTop(self)+self:PeopleFilterHeight() end
 local strip=W.LayoutConversationStrip
 function W:LayoutConversationStrip(preview)
   strip(self,preview)
@@ -130,11 +124,6 @@ function W:LayoutConversationStrip(preview)
     text:ClearAllPoints();text:SetPoint("LEFT",b.icon,"RIGHT",5,0);text:SetWidth(labelWidth+1);text:SetHeight(size+2);text:SetJustifyH("LEFT");text:SetJustifyV("MIDDLE")
     if b.counter then b.counter:ClearAllPoints();b.counter:SetPoint("LEFT",text,"RIGHT",5,0) end
     self:StylePeopleFilter(b)
-  end
-  local _,_,scroll=data(self,preview)
-  if scroll then
-    scroll:ClearAllPoints();scroll:SetPoint("TOPLEFT",self.hub,"TOPLEFT",0,-top-32)
-    scroll:SetHeight(math.max(1,self.hub:GetHeight()-top-32))
   end
 end
 function W:SavedPersonPinned(contact)
@@ -198,7 +187,7 @@ function W:RenderSavedPersonRow(contact,child,y,savedRowIndex,isFavorite)
             Core.Components.WindowManager:AddInspectAction(menu,button.contact.target or button.contact.key)
             if history and button.contact.archiveKey then
             menu:CreateButton("Browse / search saved history",function() history:ShowArchive(button.contact.archiveKey) end)
-            menu:CreateButton("Delete saved history…",function() history:RequestDelete(button.contact.archiveKey) end)
+            menu:CreateButton("Delete saved historyâ€¦",function() history:RequestDelete(button.contact.archiveKey) end)
             end
           end)
         end
@@ -206,7 +195,7 @@ function W:RenderSavedPersonRow(contact,child,y,savedRowIndex,isFavorite)
     end)
     b:SetScript("OnEnter",function(button)
       GameTooltip:SetOwner(button,"ANCHOR_RIGHT");GameTooltip:AddLine(button.contact.target,1,1,1)
-      GameTooltip:AddLine("Open conversation — no message is sent",.7,.75,.8)
+      GameTooltip:AddLine("Open conversation â€” no message is sent",.7,.75,.8)
       if button.contact.archiveKey then GameTooltip:AddLine("Right-click for saved history, search or confirmed deletion.",.7,.75,.8) end
       GameTooltip:Show()
     end)
@@ -367,13 +356,20 @@ end
 
 -- One notification owner; entries still point to their actual conversation/window.
 local queue=W.QueueMinimizedWhisper
-function W:QueueMinimizedWhisper(person,sample,...)
+function W:QueueMinimizedWhisper(person,sample,text,seed,nativeArgs)
   if sample then
     local host=person.host
     if host and not host.minimized and host.hub and host.hub:IsShown() and host.previewConversations and host.previewConversations[host.previewSelected or 1]==person then return end
   elseif W:IsConversationDisplayed(person) then return end
   W:EnsureHub()
-  return queue(W,person,sample,...)
+  if not sample and not seed and not W.hub:IsShown() and not W.windowManuallyClosed then
+    local states=W.pendingWindowStates or Core.db.char.messageWindowStates
+    local state=states and states.messages
+    if state and state.open and (W:Settings().keepMessagesOpen or W:Settings().showOnIncoming) then
+      W:ShowRememberedWindow(state.minimized)
+    end
+  end
+  return queue(W,person,sample,text,seed,nativeArgs)
 end
 local updateToasts=W.UpdateMinimizedWhispers
 function W:UpdateMinimizedWhispers()

@@ -57,7 +57,7 @@ function CombatLogBarMixin:IsCombatLogVisible()
 end
 
 function CombatLogBarMixin:UpdateVisibility()
-  if Core.db.profile.combatLogHidden or getPosition() == "HIDDEN" or not self:IsCombatLogVisible() then
+  if (self.sunderParent and self.sunderParent.mainBodyClipped) or Core.db.profile.combatLogHidden or getPosition() == "HIDDEN" or not self:IsCombatLogVisible() then
     self:Hide()
   else
     self:Show()
@@ -212,7 +212,7 @@ function CombatLogBarMixin:Init(parent, slidingMessageFrame)
 
   if not self.sunderHooks:IsHooked(self, "Show") then
     Utils.hookPresentation(self.sunderHooks, self, "Show", function (frame)
-      if Core.db.profile.combatLogHidden or getPosition() == "HIDDEN" or not self:IsCombatLogVisible() then
+      if (self.sunderParent and self.sunderParent.mainBodyClipped) or Core.db.profile.combatLogHidden or getPosition() == "HIDDEN" or not self:IsCombatLogVisible() then
         frame:Hide()
       else
         self.sunderHooks.hooks[frame].Show(frame)

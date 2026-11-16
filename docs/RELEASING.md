@@ -1,6 +1,6 @@
 # Releasing Sunder
 
-CurseForge project: **1798860** (approval/visibility last reported pending). Current alpha candidate: **0.10.0-alpha.1**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
+CurseForge project: **1798860** (approval/visibility last reported pending). Current alpha: **0.10.0-alpha.2**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
 
 The user confirmed green CI, a draft GitHub release and a successful CurseForge upload on 2026-11-11. Do not upload 0.9.11 again. See [session context](CONTEXT.md) for remaining launch checks.
 
@@ -31,7 +31,7 @@ The user confirmed green CI, a draft GitHub release and a successful CurseForge 
 
 The release command uploads only from a clean working tree at the matching committed tag. Version tags such as `0.10.0-alpha.1` or `0.10.0-beta.1` are classified appropriately; ordinary versions are releases. Unknown prerelease suffixes are rejected. `-alpha.N` maps to CurseForge Alpha, `-beta.N`/`-rc.N` to Beta; a bare version maps to Release. GitHub draft/prerelease flags do not control CurseForge classification.
 
-The prior 0.9.11 was a full release because it had no prerelease suffix. For this iteration use **v0.10.0-alpha.1**, **release_type=alpha**, **publish_curseforge=true**, and Forever **1.60.1**. Keep the GitHub draft unpublished as requested. Do not relabel or re-upload the previous file as part of this release.
+The prior 0.9.11 was a full release because it had no prerelease suffix. Use a fresh numbered alpha tag for each upload. Keep the GitHub draft unpublished unless requested.
 
 ## Artifacts and migration
 

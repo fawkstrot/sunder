@@ -63,7 +63,7 @@ Room title bars and grips both drag the owning window. A per-window title-bar lo
 
 
 
-WindowManager.lua owns shared window action construction, position-lock policy and native header adapters; extend it rather than inventing controls for each type. Native undocked tabs (including Combat Log) drag from the header outside edit mode and retain native filters/docking. Main chat has no minimize action. Guild unread is incoming-event/session-only, suppressed while its expanded conversation is visible, acknowledged on restore, bounded, and never produces toasters.
+WindowManager.lua owns shared window action construction, position-lock policy and native header adapters; extend it rather than inventing controls for each type. Native undocked tabs (including Combat Log) drag from the header outside edit mode and retain native filters/docking. Main chat can collapse to its native tab bar and maximize/restore through the shared header. Its lock covers the grip, tab dragging, maximize and resizing. Keep native selection, filters, drafts and receiving active while collapsed. Guild unread is incoming-event/session-only, suppressed while its expanded conversation is visible, acknowledged on restore, bounded, and never produces toasters.
 
 
 Normal header movement must use a visible drag driver under UIParent, never the hidden edit-mode overlay. Move the visible main chat root with the same native engine path as Guild/Whispers, then transfer its final position to the saved anchor. All window headers use the shared left six-dot grip; reserve tab space on both sides. Validate intermediate held-mouse movement, not only release position.
@@ -149,3 +149,7 @@ A favorite is a contact, not proof of conversation history. Contact-only favorit
 - Party/Raid native subscriptions must include ordinary and leader categories, and repair existing saved windows. Archive previous group logs before resetting live sessions; never use the live receiving frame as an archive viewer. Read-only transcripts use the shared MessageLine renderer with explicit ownership, wrapping, timestamps and native links. Disabling recording must preserve existing archives. Keep per-character archive limits documented and tested.
 
 - Release channel must be explicit and agree with the version suffix: alpha.N -> Alpha, beta.N/rc.N -> Beta, bare version -> Release. Reject mismatches/unknown suffixes before upload. GitHub draft/prerelease status does not set the CurseForge file type. Preserve published tags and check for an existing file before retrying an uncertain upload.
+
+- Renderer reflow owns readback preservation. Keep the current message and offset through layout, including unread state. An adapter must never jump to the latest message and reconstruct readback afterward. A detached size notification may update only the renderer currently bound to its container.
+
+- In-game practice uses private session owners for samples, input, geometry and history. Keep them outside native chat registration and saved stores. New practice scenarios share their timeline with the regression harness and must leave the live editor, rooms and real data intact, including real events received during playback.

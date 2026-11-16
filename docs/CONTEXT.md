@@ -607,3 +607,80 @@ All accumulated work was committed as `f3332a986a40dbfa08a2efefa5a1a3b471f3516e`
 CurseForge accepted **file 9652042**, version **0.10.0-alpha.1**, type **Alpha**, resolved game version **1.60.1**. Upload was dispatched exactly once; do not retry it. Approval/public download visibility has not been independently confirmed. GitHub release **447389399** was inspected through the API: **draft=true**, **prerelease=true**, with both ZIPs and release-manifest.json attached; it remains unpublished as requested.
 
 Downloaded draft assets were checked in memory: manifest releaseType is alpha, archive SHA-256 is **30d037767f41aa4556ed6831f643147f189733cc7cb430ce9a8d4b1a63ee1d92**, and its 227 entries match tagged addon contents (LICENSE differs only in platform line endings). CI ZIP checksum supersedes the local Windows package checksum for the uploaded artifact; checkout line endings/ZIP platform metadata can differ. Documentation relative links and staged whitespace checks passed. No account files, credentials, screenshots, deployment backups or generated ZIPs were committed. No new live-game deployment or native behavior validation was performed for this release operation; installed preview and remaining alpha limits are unchanged. This follow-up documentation commit records remote results without moving the release tag.
+
+## Shared window behavior audit — 2026-11-16
+
+The creation, layout, resize and refresh matrix is in [WINDOW_MANAGEMENT.md](WINDOW_MANAGEMENT.md). Native reflow now preserves the current message/offset and unread state centrally, removing local scroll restoration in Guild, Party and Whispers. Detached resize applies visible geometry synchronously and ignores parked containers. Width changes use the existing renderer queue. Body padding resolution and glyph wrapping each have one shared implementation. Whispers uses the same filter metric for its list, preview and fade, suppresses duplicate scroll tracks and refreshes existing toaster text when padding changes. Previous groups gives MessageLine the full transcript width, preserves the visible archive message on width reflow, and refreshes the indicator on height-only changes. Its group list observes the shared inset. Saved settings and the current version are unchanged.
+
+Automated validation passed with the standard CLI. All ten behavior entry points, Lua 5.1, 127 manifest resources, migration, temporary-target deployment/rollback, deterministic package checks and eight release checks passed. New assertions exercise the production detached size callback and native slider/pool, archive resizing and row reuse, a long unbroken string, stale owner rejection, rail fit/overflow and padding changes on a visible toaster. The WoW Forever dry run passed and resolved the existing target and metadata-only companion.
+
+No in-game observations were made for this build. At a safe reload, check narrow linked text and long tokens at a large font, intermediate grip/rail alignment, readback and unread retention, opaque collapse/restore and incoming group traffic while browsing an archive.
+
+Installed preview and packaging completed. The deploy-time suite passed, both affected addon folders were backed up under .local/backups/20261116T184130957772Z, all installed files were hash-verified, and SavedVariables were untouched. The explicit package command produced the clean ZIP (SHA-256 6cc4f8ca2a8b70e5fdac3b9e32aa8f228aecb1ca932160eb037b8f90ce33caf6) and manual-upgrade ZIP (993794ebcad6eef97d2d285ed53cff4771b749bf9fd8cafdb97eebf7822bb126). These local preview packages use the existing version. No release or upload was performed.
+
+## Names-pane blink during expansion — 2026-11-16
+
+The user observed the left background appear only at the end of expansion while the clip looked correct. A regression reproduced hidden child textures after styling a collapsed room. WindowManager:ApplySurface was hiding the fill, sidebar and divider independently, while the transition showed only their parent. The body frame now owns visibility throughout expansion. Sidebar availability still controls whether the sidebar and divider are painted. Geometry, transparency preferences and animation timing are unchanged.
+
+Automated results: the added fixture failed before the fix and the standard suite passed afterward, including ten behavior entry points, Lua 5.1, 127 manifest resources and workflow checks. The fixture checks actual fill/sidebar/divider visibility through top- and bottom-edge transitions in Whispers and Guild. The reported blink was observed by the user on the earlier preview. Post-fix native visual observation is pending.
+The WoW Forever dry run and deploy passed. All installed files were hash-verified, backup 20261116T185525083584Z was created, and SavedVariables were untouched. Both local packages were rebuilt. No reload was issued.
+
+## General / Combat Log window controls — 2026-11-16
+
+The user confirmed the preceding names-pane expansion fix in game. They then reported the main native header lock appeared ineffective and requested minimize and maximize for this window. The main dock now consumes locked tab drag start/stop before native fallback and keeps clickable actions above native tab content. Locking stops both grip drivers and the main mover immediately and refreshes maximize availability. Actions reserve tab/overflow space down to the configured 100 px minimum.
+
+The General and Combat Log tabs share one upward collapse/expand and maximize/restore-size control. Collapse uses the same cancelable height interpolation as rooms, retains the expanded dimensions, and keeps the native header accessible. The Combat Log toolbar follows the dock's collapsed state. Maximize uses the shared size target and a profile-local size/anchor snapshot. Both size actions are unavailable during combat. No changes to filters, history or native sending routes.
+
+Automated validation: standard suite passed with all ten behavior entry points, migration, temporary-target deploy/rollback, deterministic packaging, eight release checks, Lua 5.1 and 127 manifest resources. Regressions exercise real header callbacks and tab drag handlers, including intermediate collapse geometry, native selection, size and anchor restoration, lock cancellation and combat gating. Native input hit-testing, Combat Log filter visibility and live mouse tracking for the new controls await in-game review.
+WoW Forever dry run and deployment passed. All installed files were hash-verified, backup 20261116T190700861325Z was created, and SavedVariables were untouched. Both local ZIPs were rebuilt at the existing version. No in-game reload was issued for this change.
+
+## Main dock live regression and rollback — 2026-11-16
+
+Live observation after the main-header deployment: the Sunder General / Combat Log shell was empty, messages rendered separately at the native lower-left position, and Guild and Party appeared as detached native tabs. No Lua traceback was visible. The earlier fixture pass missed this client failure. The exact cause is unconfirmed.
+
+Restored WoW Forever with the repository rollback command using backup 20261116T190700861325Z. Compared relative paths and SHA-256 for all 231 Sunder files and the one companion file against the backup. This is the previous build containing the user-confirmed names-pane fix. SavedVariables were untouched. No game input or reload was issued. Visual recovery after the user reloads is pending.
+
+The working tree and the most recent local packages still contain the failed main-header changes. The installed rollback is the current known-good baseline. Avoid reinstalling those artifacts until the startup failure is diagnosed and verified in the client.
+User confirmed in-game that things are working correctly again after the rollback. This confirms recovery of the installed preview. The cause of the failed main-header build remains undiagnosed.
+
+## General dock startup and Whispers visibility repair — 2026-11-16
+
+The user confirmed that the previous main-header preview failed immediately after reload and identified the normal corner resize grip as the original lock problem. Reproduced the initialization error with the bundled AceHook library. Embedding AceHook on GeneralDockManager replaced its native HookScript method. New header code then passed native-frame arguments to AceHook, aborting startup before the renderer pool and room adapters were ready. The earlier fixture only supplied a plain frame. Reviewed the installed, disabled Glassy dock implementation and the Ellesmere chat layout paths. Sunder now keeps dock hook registrations on a private owner, fits controls from tab layout and installs them after native window initialization. Both main resize grips follow the same lock. The main dock retains collapse and maximize.
+
+Before this deployment, observed a toaster and no visible Whispers header below it. The exact live event that hid the window was unavailable. Reproduced two problems in the workspace lifecycle: temporary hides could record the room as closed, and startup used the explicit Open command, which could select a conversation and change the active editor. The restored shell now uses the saved expanded or minimized state directly. Incoming feedback can recover an open shell underneath the shared tray without selecting the sender. Explicitly closed windows retain their closed state.
+
+Automated results: all ten regression entry points, Lua 5.1 syntax and 127 manifest resources, migration, eight release workflow tests, temporary deploy/rollback and deterministic packaging passed. Added coverage with real AceHook, locked normal/edit grips, temporary hide followed by a toaster, both open geometries, editor and unread retention, and explicit close.
+
+Installed preview: dry run and backed-up WoW Forever deployment succeeded at the existing 0.10.0-alpha.1 version. All installed files were hash-verified. Backup 20261116T195741711278Z. SavedVariables untouched. Built clean and manual-upgrade ZIPs locally.
+
+In-game status: the user confirmed the earlier names-pane fix and recovery after rollback. The replacement preview awaits a safe user reload. Check startup on both native tabs, locked and unlocked corner-grip tracking, collapse/restore and Combat Log filters, then a whisper from an unselected person above the remembered window. Native glyph wrapping and live input behavior remain visual checks.
+
+## Isolated chat practice — 2026-11-16
+
+Added a session-only, toggleable practice room for solo observation. The same bounded event tables drive timed playback and regression steps. All, Whispers, Groups and Windows cover two-way whispers, quiet intervals, private drafts, toasters, collapse/restore, detachment, guild chat, successive groups, archive browsing during new arrivals, party/raid/instance transitions, roster overflow/offline, General bursts and long-word wrapping. General and Combat Log use sample transcripts; Check live UI separately inspects actual dock readiness and window visibility. The existing five-minute Whispers stress test remains available.
+
+Practice owns its room, people, logs, group archive, draft box and timer. RosterRoom, the sample whisper delivery and toaster presentation, Party history browser, shared surface, resizer and MessageLine transcript are reused. The private room never registers a native slot or outgoing chat recipient. Its local editor accepts at most 100 replies per run. The timer cancels on pause, replay, exit and completion. Completed runs remain visible for inspection.
+
+Automated: all ten regression entry points passed with 128 manifest resources, Lua 5.1, migration and eight release checks. Regressions run the shipped timelines, including timed and single-step events, mid-delay pause/resume, stale callback rejection, draft retention, toaster click, archived versus current group traffic, roster count, burst append/readback, native editor ownership and a real-controller event during practice. Full fixture character and profile tables compared equal after exit. Temporary deployment, rollback and deterministic packaging checks passed.
+
+In game: visual acceptance of the new mode is pending a safe reload. Check native glyphs while resizing, pause at a background toaster, inspect a detached conversation and switch out of group history after another sample message arrives. Native server delivery, secure actions and actual Combat Log filters require their usual live checks.
+Installed preview: WoW Forever dry run and backed-up deployment passed. All installed files were hash-verified, backup 20261116T204211081867Z was created and SavedVariables were untouched. Rebuilt both local ZIPs at 0.10.0-alpha.1. The running client was left for the user to reload.
+
+## Party transcript intercepted General header input — 2026-11-16
+
+Live pre-fix observation on WoW Forever: with Party immediately above General, WoW reported the Party renderer viewport as mouse focus at the center of General’s lock icon. At the left six-dot grip it reported a GeneralDockManager child and displayed the drag tooltip. No window was moved and no chat message was sent. The right-side icon was at its drawn position in Frame Stack.
+
+The shared live renderer added a 60 px animation buffer to its height at latest and anchored its mouse-enabled, clipping viewport to that extended bottom. UpdateViewportHeight now bounds the viewport and the wheel receiver at the visible transcript bottom while preserving the renderer buffer, slider position and actual reusable editor space. Regression coverage exercises the production viewport initializer at latest, during readback and back at latest. After a safe user reload, confirm hover, header drag and scroll ownership with Party above General. Post-fix in-game verification is pending.
+Validation and installation: the full suite and WoW Forever dry run passed. The CLI backed up and hash-verified the installation (backup 20261116T221507643738Z), preserved SavedVariables, and rebuilt both local packages at the existing version. No reload issued.
+
+## Shared header ordering and directional restore — 2026-11-16
+
+General and docked Combat Log now collapse toward either edge. WindowManager lays out the visible commands in one order across native docks, Whispers and roster rooms. A collapsed header has one chevron pointing back toward its expanded position. The native mover preserves the bottom edge for downward collapse and restores the normal editor-aware anchor on expansion. Unread counters share construction, number formatting and accent state while keeping their own data and click actions.
+
+Automated checks passed for the native header and room order, downward collapse and restore midpoints, both combat-disabled directions, preview visibility, room restore selection and existing native tab state. The full test run passed. Live animation, native hover targets and reload of a downward-collapsed General are pending a safe user reload.
+Installed preview passed dry run and hash verification. Backup 20261116T222822322397Z covers both addon folders. SavedVariables were untouched. Both local packages were rebuilt at 0.10.0-alpha.1. No reload or publication.
+
+## 2026-11-16 alpha.2 release
+
+The user confirmed the updated window behavior works in game on WoW Forever. This confirms the preview as used. No separate live result was reported for combat gating, saved downward collapse after reload, or every practice scenario. Release metadata and in-game news now identify 0.10.0-alpha.2.
+Release validation passed the full suite, dry run and backed-up deployment on WoW Forever. Installed files were hash-verified against the release workspace. Backup 20261116T224150197107Z preserves the previous install. SavedVariables were untouched. The clean and manual-upgrade packages were prepared with the alpha channel.

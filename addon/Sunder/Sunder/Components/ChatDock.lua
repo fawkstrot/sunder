@@ -164,7 +164,7 @@ function ChatDockMixin:UpdateFadeSettings()
 end
 
 function ChatDockMixin:UpdateAutomaticVisibility()
-  if Core.db.profile.chatAlwaysVisible or self.state.typing then
+  if self.mainMinimized or Core.db.profile.chatAlwaysVisible or self.state.typing then
     self:QuickShow()
   else
     self:HideDelay(Core.db.profile.chatHoldTime)
@@ -216,8 +216,8 @@ function ChatDockMixin:Init(parent)
     end
   end
 
-  if not self:IsHooked(self.scrollFrame, "SetPoint") then
-    Utils.hookPresentation(self, self.scrollFrame, "SetPoint", function (frame, point, relativeTo, relativePoint, xOffset, yOffset)
+  if not self.sunderHooks:IsHooked(self.scrollFrame, "SetPoint") then
+    Utils.hookPresentation(self.sunderHooks, self.scrollFrame, "SetPoint", function (frame, point, relativeTo, relativePoint, xOffset, yOffset)
       -- Sunder moves static tabs into the scroll child, so Blizzard anchors to them would loop.
       -- UpdateTabOrder re-anchors the scroll frame after every tab update.
       if Constants.ENV == "retail" then
@@ -235,26 +235,26 @@ function ChatDockMixin:Init(parent)
         end
       end
 
-      self.hooks[self.scrollFrame].SetPoint(frame, point, relativeTo, relativePoint, xOffset, yOffset)
+      self.sunderHooks.hooks[self.scrollFrame].SetPoint(frame, point, relativeTo, relativePoint, xOffset, yOffset)
     end, true)
   end
 
-  if not self:IsHooked("FCFDock_UpdateTabs") then
-    self:SecureHook("FCFDock_UpdateTabs", function (dock)
+  if not self.sunderHooks:IsHooked("FCFDock_UpdateTabs") then
+    self.sunderHooks:SecureHook("FCFDock_UpdateTabs", function (dock)
       if dock == GENERAL_CHAT_DOCK then
         self:UpdateTabOrder()
       end
     end)
   end
 
-  if Constants.ENV ~= "retail" and type(_G.FCFDock_GetInsertIndex) == "function" and not self:IsHooked("FCFDock_GetInsertIndex") then
-    self:RawHook("FCFDock_GetInsertIndex", function (dock, chatFrame, mouseX, mouseY)
-      return getSafeDockInsertIndex(self.hooks.FCFDock_GetInsertIndex, dock, chatFrame, mouseX, mouseY)
+  if Constants.ENV ~= "retail" and type(_G.FCFDock_GetInsertIndex) == "function" and not self.sunderHooks:IsHooked("FCFDock_GetInsertIndex") then
+    self.sunderHooks:RawHook("FCFDock_GetInsertIndex", function (dock, chatFrame, mouseX, mouseY)
+      return getSafeDockInsertIndex(self.sunderHooks.hooks.FCFDock_GetInsertIndex, dock, chatFrame, mouseX, mouseY)
     end, true)
   end
 
-  if not self:IsHooked("FCFDock_SelectWindow") then
-    self:SecureHook("FCFDock_SelectWindow", function (dock, chatFrame)
+  if not self.sunderHooks:IsHooked("FCFDock_SelectWindow") then
+    self.sunderHooks:SecureHook("FCFDock_SelectWindow", function (dock, chatFrame)
       if dock == GENERAL_CHAT_DOCK then
         if Core.db.profile.combatLogHidden and chatFrame == _G.ChatFrame2 then
           self:SelectVisibleFallback()
@@ -266,8 +266,8 @@ function ChatDockMixin:Init(parent)
     end)
   end
 
-  if type(_G.FCFDockOverflowList_Update) == "function" and not self:IsHooked("FCFDockOverflowList_Update") then
-    self:SecureHook("FCFDockOverflowList_Update", function (list, dock)
+  if type(_G.FCFDockOverflowList_Update) == "function" and not self.sunderHooks:IsHooked("FCFDockOverflowList_Update") then
+    self.sunderHooks:SecureHook("FCFDockOverflowList_Update", function (list, dock)
       if dock == GENERAL_CHAT_DOCK then
         self:FilterOverflowList(list)
         self:StyleOverflowList()
@@ -323,6 +323,7 @@ function ChatDockMixin:Init(parent)
 
         if key == "frameWidth" or key == "headerBackgroundColor" or key == "backgroundFade" then
           self:SetWidth(Core.db.profile.frameWidth)
+          if key == "frameWidth" then self:ScheduleTabOrder() end
 
           backgroundColor = Core.db.profile.headerBackgroundColor
           if parent.windowSurfaceRegistered then Core.Components.WindowManager:ApplyNativeSurface(parent,self)else self:SetGradientBackground(backgroundColor,backgroundColor.a)end
@@ -368,7 +369,8 @@ Core.Components.CreateChatDock = function (parent)
 
   isCreated = true
   local object = Mixin(GeneralDockManager, FadingFrameMixin, GradientBackgroundMixin, ChatDockMixin)
-  AceHook:Embed(object)
+  -- Keep Blizzard's frame methods callable by the dock and other consumers.
+  object.sunderHooks = AceHook:Embed({})
   FadingFrameMixin.Init(object)
   GradientBackgroundMixin.Init(object)
   ChatDockMixin.Init(object, parent)

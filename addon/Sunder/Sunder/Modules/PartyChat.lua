@@ -39,7 +39,6 @@ function P:Report(message)Core:GetModule("Config"):Print(message)end
 function P:CollapseToward(edge)Core.Components.WindowManager:CollapseToward(self:EnsureRoom(),edge)end
 function P:UpdateUnread()
   local h=self.room;if not h or not h.unreadBadge then return end
-  h.unreadBadge:SetText((self.unread or 0)>99 and "99+" or tostring(self.unread or 0))
   Core.Components.WindowManager:StyleUnreadIndicator(h.unreadBadge,self.unread or 0,h:InterfaceAccent())
 end
 function P:AcknowledgeMessages()self.unread=0;self:UpdateUnread()end

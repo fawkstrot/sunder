@@ -31,10 +31,11 @@ function W:LayoutConversationStrip(preview)
   local scroll = scrollFor(self, preview)
   if not scroll then return end
   scroll:ClearAllPoints()
-  scroll:SetPoint("TOPLEFT", self.hub, "TOPLEFT", 0, -self:HeaderHeight() - self:HeaderGap())
+  local top = self:HeaderHeight() + self:HeaderGap() + (self.PeopleFilterHeight and self:PeopleFilterHeight() or 0)
+  scroll:SetPoint("TOPLEFT", self.hub, "TOPLEFT", 0, -top)
   -- A collapsed root is shorter than these insets. Never anchor a ScrollFrame
   -- across that inverted rectangle, including the first frames of restoration.
-  scroll:SetHeight(self.minimized and not self.collapseAnimation and 1 or math.max(1,self.hub:GetHeight()-self:HeaderHeight()-self:HeaderGap()))
+  scroll:SetHeight(self.minimized and not self.collapseAnimation and 1 or math.max(1,self.hub:GetHeight()-top))
   scroll:SetWidth(self:ConversationListWidth())
   scroll:SetShown((not self.minimized or self.collapseAnimation) and (preview and self.previewActive or not preview and not self.previewActive))
   -- Paging/search stays in the title bar, never adds a second row above the body.
@@ -128,8 +129,6 @@ function W:RefreshConversationNavigation(preview)
     if n>0 and (self.minimized or top<pos or top+self:ConversationRowHeight()>pos+scroll:GetHeight()) then hidden=hidden+1 end
   end
   nav.total,nav.unreadTotal,nav.hiddenUnread=count,unread,hidden
-  local label = unread>99 and "99+" or tostring(unread)
-  if nav.lastLabel~=label then nav.all:SetText(label);nav.lastLabel=label end
   local r,g,b=self:InterfaceAccent()
   Core.Components.WindowManager:StyleUnreadIndicator(nav.all,unread,r,g,b)
   nav.all:SetEnabled(count>0)
@@ -215,9 +214,10 @@ function W:PositionConversationBody()
     return
   end
   self.previewFrame:ClearAllPoints();self.previewFrame:SetPoint("TOPLEFT",self.hub,"TOPLEFT");self.previewFrame:SetPoint("BOTTOMRIGHT",self.hub,"BOTTOMRIGHT")
-  self.previewBody:ClearAllPoints();self.previewBody:SetPoint("TOPLEFT",self.hub,"TOPLEFT",self:ConversationBodyLeft()+self:BodyPadding(),-self:HeaderHeight()-self:HeaderGap()-self:BodyPadding())
-  self.previewBody:SetPoint("TOPRIGHT",self.hub,"TOPRIGHT",-self:BodyPadding(),-self:HeaderHeight()-self:HeaderGap()-self:BodyPadding())
-  self.previewBody:SetHeight(math.max(1,self.hub:GetHeight()-self:HeaderHeight()-self:HeaderGap()-self:BodyPadding()*2))
+  local top=self:HeaderHeight()+self:HeaderGap()+(self.PeopleFilterHeight and self:PeopleFilterHeight() or 0)
+  self.previewBody:ClearAllPoints();self.previewBody:SetPoint("TOPLEFT",self.hub,"TOPLEFT",self:ConversationBodyLeft()+self:BodyPadding(),-top-self:BodyPadding())
+  self.previewBody:SetPoint("TOPRIGHT",self.hub,"TOPRIGHT",-self:BodyPadding(),-top-self:BodyPadding())
+  self.previewBody:SetHeight(math.max(1,self.hub:GetHeight()-top-self:BodyPadding()*2))
 end
 function W:ApplyWorkspaceMetrics()
   metrics(self)

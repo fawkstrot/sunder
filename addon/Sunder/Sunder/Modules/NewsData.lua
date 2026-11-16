@@ -43,3 +43,10 @@ table.insert(Core.NewsEntries,1,{name="Sunder 0.10.0-alpha.1 (2026-11-16)",items
 - Strict item protection remains; experimental protection controls have been removed.
 - WoW Forever 1.60.1 only. Back up account data; some native behaviors still need live validation.
 ]]}})
+
+table.insert(Core.NewsEntries,1,{name="Sunder 0.10.0-alpha.2 (2026-11-16)",items={[[
+- Collapse General or a room in either direction. A single restore arrow points back the way it opens.
+- Header controls share an order. General's lock protects its position and size.
+- Improved transcript wrapping, restored sidebar backgrounds and clicks between adjacent chat windows.
+- Try /sunder practice for timed sample conversations and groups. Pause or step through them without using real chat.
+]]}})

@@ -2,6 +2,16 @@
 
 Record player-facing changes here while developing; move them into a versioned section before releasing. Include related issue/PR numbers once GitHub is connected.
 
+# 0.10.0-alpha.2 (2026-11-16)
+
+For WoW Forever 1.60.1.
+
+- General and docked Combat Log can collapse upward or downward. Collapsed windows show one arrow pointing toward their expanded position. Common header actions now appear in the same order across windows.
+- General's lock covers dragging and resizing. Fixed an adjacent Party transcript intercepting clicks on General's controls, and kept the people-list background visible through restore.
+- Chat text wraps to its own window width as you resize. Shared padding and scrollbar clearance also apply to read-only group history.
+- Whispers keeps its workspace state when a background conversation triggers a notification.
+- Type `/sunder practice` to try sample whispers, groups and window behavior solo. Pause, step or replay the timed scenarios. Practice uses session-only conversations and leaves real recipients, drafts and history alone.
+
 # 0.10.0-alpha.1 (2026-11-16)
 
 This is an early-access alpha for WoW Forever 1.60.1. Back up your account data before updating. Other WoW clients have not been validated.

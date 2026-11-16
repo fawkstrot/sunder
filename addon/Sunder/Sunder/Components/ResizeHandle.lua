@@ -17,7 +17,7 @@ Core.Components.CreateResizeHandle = function (overlay, options)
     if not self.resizeState then return end
     self.resizeState = nil
     self:SetScript("OnUpdate", nil)
-    options.finish()
+    if options.finish then options.finish() end
   end
 
   function handle:UpdateResize(finishing)

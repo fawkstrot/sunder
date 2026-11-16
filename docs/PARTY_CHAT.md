@@ -66,3 +66,7 @@ Native follow-up confirmed archive selection/log rendering and all seven native 
 
 
 Native review on 2026-11-15 confirmed archive persistence after reload, corrected separation from the hidden live roster/caption, and return to the retained live transcript. Leader subscription is registered; new grouped leader-message delivery still needs observation. Legacy logs can lack member snapshots and arrival timestamps; missing timestamps use archive save time, not a recovered original arrival time.
+
+Previous groups uses the full transcript column and the same horizontal inset and wrap rules as live group chat. Changing width keeps the visible archive message in view where possible. Changing height updates the scroll track and clamps its offset without rebuilding the log. The archive list uses the configured body inset for its labels.
+
+The Groups chapter of `/sunder practice` runs solo. It includes a previous group, a second group receiving a message while its archive is displayed, conversion to a 40-person raid, an offline member and instance chat. Practice uses a private archive provider and never opens a native group slot.

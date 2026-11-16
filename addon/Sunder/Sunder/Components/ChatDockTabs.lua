@@ -139,7 +139,7 @@ function ChatDockMixin:StyleOverflowButton()
     button.sunderHovered = false
     setTextColor(button.sunderText, false)
   end)
-  self:HookScript(button.list, "OnShow", function ()
+  self.sunderHooks:HookScript(button.list, "OnShow", function ()
     self:FilterOverflowList(button.list)
     self:StyleOverflowList()
   end)
@@ -156,6 +156,7 @@ function ChatDockMixin:UpdateCombatLogVisibility()
 end
 
 function ChatDockMixin:LayoutDockedTabs(orderedFrames, keepSelectedVisible, gap)
+  if self.windowControls and self.windowControls.fitMainActions then self.windowControls.fitMainActions() end
   local child = self.scrollFrame.child
   local totalWidth = 0
   local offsets = {}

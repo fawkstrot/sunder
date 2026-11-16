@@ -521,6 +521,14 @@ function W:UpdateSimulationStatus(elapsed)
   bar:Show()
 end
 
+function Core.Components.DeliverSampleWhisper(host,person,text,displayed)
+  if not displayed then
+    person.unread=person.unread+1
+    if host.QueueMinimizedWhisper then host:QueueMinimizedWhisper(person,true,text) end
+  end
+  if not host.windowManuallyClosed then host.hub:Show();host.hub:SetAlpha(1) end
+end
+
 function W:PlaySimulationEvent(event)
   local sim, c = W.previewSimulation, event.person
   if not sim then return end
@@ -537,9 +545,8 @@ function W:PlaySimulationEvent(event)
   if event.outgoing then sim.outgoing = sim.outgoing + 1
   else
     sim.incoming = sim.incoming + 1
-    if host.minimized or not host.hub:IsShown() or host.previewConversations[host.previewSelected] ~= c then c.unread = c.unread + 1 end
-    if host.QueueMinimizedWhisper then host:QueueMinimizedWhisper(c, true, event.text) end
-    if not host.windowManuallyClosed then host.hub:Show(); host.hub:SetAlpha(1) end
+    local displayed=not host.minimized and host.hub:IsShown() and host.previewConversations[host.previewSelected]==c
+    Core.Components.DeliverSampleWhisper(host,c,event.text,displayed)
     if W:Settings().previewSound and GetTime() - c.lastActivity < 2 then W:PlayNotification(true, true) end
   end
   host:RenderPreview()

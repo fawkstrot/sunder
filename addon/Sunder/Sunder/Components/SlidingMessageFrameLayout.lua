@@ -122,15 +122,17 @@ function SlidingMessageFrameMixin:UpdateViewportHeight(unreadRowHeight)
 
   local overflow = self.state.scrollAtBottom and not self.state.jumpingToBottom and self.config.overflowHeight or 0
   self:SetHeight(viewHeight + overflow)
+  -- Animation space below the transcript must pass the wheel to neighboring windows.
+  if self.SetHitRectInsets then self:SetHitRectInsets(0,0,0,overflow) end
   if self.windowSurface and self:IsShown()then
     local dockInset=self.whisperDock and math.max(0,self.whisperDock:GetHeight()-Constants.DOCK_HEIGHT)or 0
     Core.Components.WindowManager:UpdateContentExtent(self:GetParent(),self.config.height,getMessageTopInset(self.state.isCombatLog)+dockInset)
   end
   if self.slider then
-    local padding=math.max(0,math.min(32,tonumber(Core.db.profile.bodyPadding) or 8))
+    local padding=Core.Components.WindowManager:BodyPadding()
     self.viewport:ClearAllPoints()
-    self.viewport:SetPoint("TOPLEFT",self,"TOPLEFT",0,-padding)
-    self.viewport:SetPoint("BOTTOMRIGHT",self,"BOTTOMRIGHT")
+    self.viewport:SetPoint("TOPLEFT",self,"TOPLEFT",0,-math.min(padding,viewHeight-1))
+    self.viewport:SetPoint("BOTTOMRIGHT",self,"BOTTOMRIGHT",0,overflow)
     self.slider:SetHeight(math.max(1,viewHeight-padding*2))
   end
   local room=self.windowSurface or self.whisperFullSurface or self.sharedFullSurface
@@ -257,14 +259,23 @@ function SlidingMessageFrameMixin:RefreshLayout(reprocessText)
 
   self.slider:SetWidth(self.config.width)
   self.overlay:UpdateFrame()
-  self:SetScrollPosition(1, 0)
+  self:SetScrollPosition(self.state.scrollIndex, self.state.messageOffset)
+end
+
+function SlidingMessageFrameMixin:SetLayoutSize(width, height, ownerChanged)
+  local previousWidth = self.config.width
+  self.layoutWidth, self.layoutHeight = width, height
+  self:RefreshLayoutGeometry()
+  if ownerChanged or previousWidth ~= self.config.width then
+    self:ScheduleLayoutRefresh(false)
+  end
 end
 
 function SlidingMessageFrameMixin:SetLayout(parent, width, height, editBox, detachedContainer)
+  local previousParent = self:GetParent()
+  local previousSurface = self.windowSurface
   self.windowSurface=parent and parent.windowSurfaceRegistered or nil
   local previousDetachedContainer = self.detachedContainer
-  self.layoutWidth = width
-  self.layoutHeight = height
   self.layoutEditBox = editBox
   self.detachedContainer = detachedContainer
 
@@ -274,7 +285,7 @@ function SlidingMessageFrameMixin:SetLayout(parent, width, height, editBox, deta
     self.gapBackground:SetFrameStrata(self:GetFrameStrata())
     self.gapBackground:SetFrameLevel(math.max(0, self:GetFrameLevel() - 1))
   end
-  self:RefreshLayout(false)
+  self:SetLayoutSize(width, height, previousParent ~= parent or previousSurface ~= self.windowSurface)
 
   if Constants.ENV ~= "retail" and not self.state.isCombatLog then
     if detachedContainer and self:IsShown() then

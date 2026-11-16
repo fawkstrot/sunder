@@ -143,5 +143,12 @@ handle.scripts.OnMouseDown(handle,"LeftButton")
 assert(handle.resizeState,"main resize still requires edit mode")
 cursorX=120;cursorY=80;handle:UpdateResize()
 assert(Core.db.profile.frameWidth>700 and Core.db.profile.frameHeight>300,"standard resize did not update main dimensions")
-handle:FinishResize();Core.sunderMoverUnlocked=true
+local locked=Core.Components.WindowManager:Settings("main")
+local width,height=Core.db.profile.frameWidth,Core.db.profile.frameHeight
+locked.movementLocked=true;cursorX=240;handle:UpdateResize()
+assert(not handle.resizeState and not handle.scripts.OnUpdate and Core.db.profile.frameWidth==width)
+handle.scripts.OnMouseDown(handle,"LeftButton");assert(not handle.resizeState and Core.db.profile.frameHeight==height)
+locked.movementLocked=false
+handle.scripts.OnMouseDown(handle,"LeftButton");assert(handle.resizeState);handle:FinishResize()
+Core.sunderMoverUnlocked=true
 """)

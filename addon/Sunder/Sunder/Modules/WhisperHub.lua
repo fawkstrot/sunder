@@ -14,7 +14,7 @@ function W:ApplyRoomStructure(sidebarWidth)
     headerOpacity=not unified and cfg.hubHeaderOpacity or nil,
     borderOpacity=not unified and cfg.hubBorderOpacity or nil,
     headerHeight=self:HeaderHeight(),bodyTop=top,
-    sidebarWidth=sidebarWidth,listTop=top+(self.UsesUnifiedPeople and self:UsesUnifiedPeople() and 32 or 0),
+    sidebarWidth=sidebarWidth,listTop=top+(self.PeopleFilterHeight and self:PeopleFilterHeight() or 0),
     bodyVisible=not not (not self.minimized or self.collapseAnimation or self.transitionBody),
     fade=unified or cfg.hubUseChatFade,
   })
@@ -23,7 +23,7 @@ function W:ApplyRoomStructure(sidebarWidth)
 end
 
 function W:UpdatePeopleScrollIndicator(scroll,child)
-  Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,not self.minimized)
+  Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,not self.minimized and not (scroll.peopleScrollbar and scroll.peopleScrollbar:IsShown()))
 end
 
 local function button(parent, text, width, action)
@@ -99,22 +99,16 @@ function W:EnsureHub()
     {"Search", "search", "Search or copy this conversation", function () if not self.previewActive and self.selected then Core:GetModule("ChatCopy"):ShowSearch(self.selected) end end},
     {"Reply", "reply", "Reply to this person", function () if not self.previewActive and self.selected then W:SelectConversation(self.selected, true) end end},
   }
-  local right = -8
   self.hubActionButtons = {}
   self.maximized=not not cfg.maximized
   for _, info in ipairs(actions) do
     local wm=Core.Components.WindowManager
     local b = wm.windowActions[info[1]] and wm:CreateWindowAction(chrome,info[1],self,info[4],function(button)self:StyleWindowIcon(button)end) or self:IconButton(chrome, info[2], info[3], info[4])
-    b:SetPoint("TOPRIGHT", hub, "TOPRIGHT", right, -7)
-    right = right - 29
     self.hubActionButtons[info[1]] = b
     if info[1] == "Pin" then self.pinButton = b end
   end
   local wm=Core.Components.WindowManager
-  for _,entry in ipairs({{"CollapseTop","TOP"},{"CollapseBottom","BOTTOM"}})do
-    local edge=entry[2]
-    self.hubActionButtons[entry[1]]=wm:CreateWindowAction(chrome,entry[1],self,function()wm:CollapseToward(self,edge)end,function(b)self:StyleWindowIcon(b)end)
-  end
+  wm:CreateCollapseActions(chrome,self,function(edge)wm:CollapseToward(self,edge)end,function(b)self:StyleWindowIcon(b)end)
   self.hubActionButtons.Maximize=wm:CreateWindowAction(chrome,"Maximize",self,function()wm:ToggleMaximized(self)end,function(b)self:StyleWindowIcon(b)end)
   self.minimizeButton=self.hubActionButtons.CollapseTop -- compatibility alias; no duplicate hidden control
   local scroll = CreateFrame("ScrollFrame", nil, hub)
@@ -475,9 +469,8 @@ function W:LayoutWindow(window)
   local width, height = host.hubContent:GetWidth(), host.hubContent:GetHeight()
   if smf:GetParent() ~= host.hubContent or smf.layoutWidth ~= width or smf.layoutHeight ~= height
     or smf.layoutEditBox ~= (editBox or false) then
-    local index, offset = smf.state.scrollIndex or 1, smf.state.messageOffset or 0
     smf:SetLayout(host.hubContent, width, height, editBox or false, nil)
-    if index > 1 or offset ~= 0 then smf:SetScrollPosition(index, offset) end
+
   end
   if window.detachedLayout then window.detachedLayout.container:Hide() end
   smf:SetShown(host.selected == frame)

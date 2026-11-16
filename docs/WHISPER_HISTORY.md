@@ -69,7 +69,7 @@ Saved/archived people now have a real star button beside the name. Favorite acti
 Whispers header numbers now consistently show unread messages; open-person counts remain available in the navigation tooltip. Each unread open-person row has a dedicated numeric badge with reserved width and dark amber backing. Read rows hide it. Favorites and pins use shared filled selected artwork and remain highlighted after hover. Name row spacing is slightly tighter; durable history/archive behavior is unchanged.
 
 
-Whispers header window controls use shared WindowManager command definitions: separate window menu, maximize/restore size, collapse upward/downward and position lock. Double-clicking the title maximizes/restores; Rename remains in the window menu. The main native chat intentionally has no minimize control. Favorite/pin and unread behavior remain unchanged.
+Whispers header window controls use shared WindowManager command definitions: separate window menu, maximize/restore size, collapse upward/downward and position lock. Double-clicking the title maximizes/restores; Rename remains in the window menu. The General / Combat Log dock has its own collapse and maximize actions. Favorite/pin and unread behavior remain unchanged.
 
 ## People-list presentation — 2026-11-13
 
@@ -98,3 +98,7 @@ All-chat timestamps are enabled by default, including existing profiles through 
 
 
 Rendered Whispers use Name: message for incoming lines and message-only dim styling for outgoing lines. Shared TextProcessing owns this presentation; original native/history strings and identity/link payloads remain unchanged. Localized native templates and recorded directions determine labels, never body substring guesses.
+
+WhisperWorkspace owns the open/minimized checkpoint for each workspace. Startup shows the remembered shell before applying collapse geometry and leaves the active native editor and conversation acknowledgement alone. Explicit Close records a closed window. A temporary hide of an open shell retains its checkpoint so a notification can show it in the same state when incoming visibility or keep-open is enabled. The shared tray still supports notifications above a closed workspace and acknowledges the sender when clicked.
+
+Use `/sunder practice` and choose Whispers for a short, repeatable two-person exchange with quiet intervals, a background toaster, collapse and detachment. Use the labeled practice reply field for local drafts. The separate five-minute Whispers stress test remains in Samples & testing.

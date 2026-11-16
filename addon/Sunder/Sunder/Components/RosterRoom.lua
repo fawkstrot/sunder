@@ -15,7 +15,7 @@ function Core.Components.InstallRosterRoom(G,options)
   end
   local ROOM_FIELDS={"panel","rows","column","surface","toggle","guildLabel","countLabel","search","searchIcon","scroll","child","rail","empty","conversationLabel","motdLabel","captionHelp"}
   G.roomId=options.id;G.roomSettings=options.settings;G.roomLabel=options.title(G);G.editKey=options.editKey
-  Core.Components.WindowManager:RegisterChatRoom(options.id,G)
+  if not options.isolated then Core.Components.WindowManager:RegisterChatRoom(options.id,G) end
 function G:RenderRoster()
   if self.renderingRoster then return end
   if not self.panel or not self.panel:IsVisible() then return end
@@ -60,7 +60,7 @@ function G:RenderRoster()
             local person=button.member
             MenuUtil.CreateContextMenu(button,function(_,menu)
               menu:CreateTitle(person.name)
-              Core.Components.WindowManager:AddInspectAction(menu,person.name)
+              if not options.isolated then Core.Components.WindowManager:AddInspectAction(menu,person.name) end
               if person.online then menu:CreateButton("Open whisper",function()self:OpenWhisper(person)end)end
               menu:CreateButton("Copy player name",function()Core:GetModule("ChatCopy"):ShowText("Player name",person.name)end)
             end)
@@ -107,7 +107,6 @@ function G:RenderRoster()
   self.empty:SetShown(#list==0)
   self.syncingRail=true;self.rail:SetMinMaxValues(0,math.max(1,maximum));self.rail:SetValue(offset);self.syncingRail=nil
   self.rail:GetThumbTexture():SetHeight(math.max(14,(height-4)*height/math.max(height,#list*rowHeight)))
-  self.rail:SetFrameLevel(self.scroll:GetFrameLevel()+6)
   self.rail:SetShown(maximum>0)
   Core.Components.WindowManager:UpdateListScrollIndicator(self.scroll,self.child,maximum<=0)
   self.renderingRoster=nil
@@ -216,19 +215,15 @@ function G:EnsureRoom()
     {"Roster","roster","Show / hide members",function()self:ToggleRoster()end},
   }
   for _,action in ipairs(actions)do if action[1]~="Info" or options.info then h.hubActionButtons[action[1]]=Core.Components.WindowManager:CreateWindowAction(h.hubChrome,action[1],h,action[4],function(b)h:StyleWindowIcon(b)end)end end
-  for _,entry in ipairs({{"CollapseTop","TOP"},{"CollapseBottom","BOTTOM"}})do
-    local edge=entry[2]
-    h.hubActionButtons[entry[1]]=Core.Components.WindowManager:CreateWindowAction(h.hubChrome,entry[1],h,function()G:CollapseToward(edge)end,function(b)h:StyleWindowIcon(b)end)
-  end
+  Core.Components.WindowManager:CreateCollapseActions(h.hubChrome,h,function(edge)G:CollapseToward(edge)end,function(b)h:StyleWindowIcon(b)end)
+  function h:LayoutHeaderStrip()G:LayoutRoomChrome()end
   if h.hubActionButtons.Info and options.infoTooltip then h.hubActionButtons.Info.windowTooltipOverride=options.infoTooltip end
   if h.hubActionButtons.Info then h.hubActionButtons.Info.windowSelected=function()return options.infoSelected(G) and not h.minimized end end
   h.hubActionButtons.Roster.windowCount=function()return tostring(self.onlineCount or 0).."/"..tostring(self.totalCount or 0)end
   h.hubActionButtons.Roster.windowEnabled=function()return not options.hasRoster or options.hasRoster(G)end
   h.hubActionButtons.Roster.windowSelected=function()return (not options.hasRoster or options.hasRoster(G)) and profile().rosterShown and not h.minimized and not self.autoCompact end
   h.minimizeButton=h.hubActionButtons.CollapseTop -- compatibility alias; no duplicate hidden control
-  local badge=CreateFrame("Button",nil,h.hubChrome);h.unreadBadge=badge
-  badge:SetNormalFontObject("SunderChatDockFont");badge:SetText("0")
-  badge.icon=badge:CreateTexture(nil,"ARTWORK");badge.icon:SetTexture("Interface\\AddOns\\Sunder\\Media\\Icons\\inbox.tga")
+  local badge=Core.Components.WindowManager:CreateUnreadIndicator(h.hubChrome);h.unreadBadge=badge
   badge:SetScript("OnClick",function()if h.minimized then h:SetMinimized(false)else G:AcknowledgeMessages()end end)
   badge:SetScript("OnEnter",function()
     GameTooltip:SetOwner(badge,"ANCHOR_TOP");GameTooltip:AddLine(tostring(G.unread or 0).." unread messages",1,.8,.4)
@@ -261,7 +256,7 @@ function G:LayoutRoomChrome()
   local height,pad,icon=h:HeaderHeight(),h:HeaderPadding(),h:ToolbarIconSize()
   local size=icon+6;local right=pad
   h.hubChrome:SetHeight(height)
-  right=Core.Components.WindowManager:LayoutRoomActions(h,{"Close","Settings","Maximize","CollapseTop","CollapseBottom","Lock","Windows","Info","Roster"},right,size,icon,2)
+  right=Core.Components.WindowManager:LayoutHeaderActions(h,h.hubChrome,right,size,icon,2)
   h.unreadBadge:ClearAllPoints();h.unreadBadge:SetPoint("RIGHT",h.hubChrome,"RIGHT",-right,0);Core.Components.WindowManager:LayoutUnreadIndicator(h.unreadBadge,50,height,math.min(14,icon))
   h:WorkspaceFont(h.unreadBadge:GetFontString(),h:InterfaceTextSize());right=right+54
   self:UpdateUnread()
@@ -423,7 +418,7 @@ function G:LayoutWindow(window)
   window.tab:SetParent(h.parking)
   if input then input:SetSunderParent(self.column,true)end
   local smf=window.slidingMessageFrame
-  smf.sharedFullSurface=true;smf.keepRoomMessages=true
+  if smf then smf.sharedFullSurface=true;smf.keepRoomMessages=true end
   local drawerWidth,replaceChat=0,false
   if self.LayoutGuildInfo then drawerWidth,replaceChat=self:LayoutGuildInfo(panelWidth,header,height)end
   self.column:SetPoint("BOTTOMRIGHT",h.hubContent,"BOTTOMRIGHT",-drawerWidth,anchor.position=="BELOW" and extent or 0)
@@ -433,22 +428,28 @@ function G:LayoutWindow(window)
     self.motdLabel:SetPoint("TOPRIGHT",h.hubContent,"TOPRIGHT",-drawerWidth-pad,-header-pad-titleSize-6)
     self.captionHelp:SetWidth(math.max(1,width-panelWidth-drawerWidth))
   end
-  local index,offset=smf.state.scrollIndex or 1,smf.state.messageOffset or 0
-  smf:SetLayout(self.column,math.max(1,width-panelWidth-drawerWidth),math.max(1,height-top-extent*(anchor.position=="BELOW" and 1 or 0)),input or false,nil)
-  -- Native slots may have rendered retained history before room registration.
-  -- Invalidate presentation once on ownership binding, never on every resize.
-  if smf.roomLabelOwner~=self then
-    smf.roomLabelOwner=self
-    smf:RefreshLayout(true)
+  if window.readOnlyTranscript then
+    local transcript=window.readOnlyTranscript
+    transcript:SetParent(self.column)
+    transcript:ClearAllPoints()
+    transcript:SetPoint("TOPLEFT",self.column,"TOPLEFT",0,-Constants.DOCK_HEIGHT)
+    transcript:SetPoint("BOTTOMRIGHT",self.column,"BOTTOMRIGHT")
+  else
+    smf:SetLayout(self.column,math.max(1,width-panelWidth-drawerWidth),math.max(1,height-top-extent*(anchor.position=="BELOW" and 1 or 0)),input or false,nil)
+    -- Native slots may have rendered retained history before room registration.
+    -- Invalidate presentation once on ownership binding, never on every resize.
+    if smf.roomLabelOwner~=self then
+      smf.roomLabelOwner=self
+      smf:RefreshLayout(true)
+    end
+    smf:UpdateAlwaysVisible()
+    if smf.gapBackground then
+      smf:UpdateGapBackground()
+      if not smf.roomGapUpdate then smf.roomGapUpdate=smf.gapBackground:GetScript("OnUpdate")end
+      smf.gapBackground:SetScript("OnUpdate",nil)
+    end
   end
-  if index>1 or offset~=0 then smf:SetScrollPosition(index,offset)end
   self.column:SetShown(not replaceChat)
-  smf:UpdateAlwaysVisible()
-  if smf.gapBackground then
-    smf:UpdateGapBackground()
-    if not smf.roomGapUpdate then smf.roomGapUpdate=smf.gapBackground:GetScript("OnUpdate")end
-    smf.gapBackground:SetScript("OnUpdate",nil)
-  end
   if window.detachedLayout then window.detachedLayout.container:Hide()end
   h:ApplyHubAppearance();h.hubBackground:Show()
   self.layingOut=nil;self:RenderRoster()

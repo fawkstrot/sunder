@@ -184,7 +184,7 @@ function W:OnNativeMessage(frame, typeID, messageArgs)
   if incoming then
     if not self:IsReading(frame) then r.unread = r.unread + 1 end
     if not self:Settings().soundOnlyUnfocused or not self:IsReading(frame) then self:PlayNotification(false) end
-    if self:Settings().showOnIncoming then self:Reveal(frame) end
+    if self:Settings().showOnIncoming then self:Reveal(frame, true) end
     if not displayed and self.QueueMinimizedWhisper then self:HubFor(frame):QueueMinimizedWhisper(frame, false, messageArgs and messageArgs[2], nil, messageArgs) end
     if self:Settings().autoSelect and not (GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()) then
       self:SelectConversation(frame, false)
@@ -327,11 +327,13 @@ function W:SelectConversation(frame, reply)
   self:UpdateBadges()
 end
 
-function W:Reveal(frame)
+function W:Reveal(frame, incoming)
   local r = self.records and self.records[frame]
   if not r then return end
   if self:Settings().resetOnInteraction then r.lastActivity = GetTime() end
-  if r.placement == "hub" then local host = self:HubFor(frame); if host.hub then host.hub:SetAlpha(1); host.hub:Show() end
+  if r.placement == "hub" then
+    local host = self:HubFor(frame)
+    if host.hub and not (incoming and host.windowManuallyClosed) then host.hub:SetAlpha(1); host.hub:Show() end
   elseif r.placement == "detached" then
     local window = Core:GetModule("UIManager"):GetChatWindow(frame)
     if window and window.detachedLayout then
@@ -452,10 +454,8 @@ function W:ApplySettings(relocate, changedKey)
     local window = Core:GetModule("UIManager"):GetChatWindow(frame)
     if window then
       if not changedKey or changedKey == "timestamps" or changedKey == "timestampFormat" or changedKey == "distinguishReplies" or changedKey == "replyColor" or changedKey == "replyMarker" then
-        local state = window.slidingMessageFrame.state
-        local index, offset = state.scrollIndex or 1, state.messageOffset or 0
         window.slidingMessageFrame:RefreshLayout(true)
-        if index > 1 or offset ~= 0 then window.slidingMessageFrame:SetScrollPosition(index, offset) end
+
       end
       window.slidingMessageFrame:UpdateAlwaysVisible()
     end

@@ -44,6 +44,12 @@ assert(f.roomScrollTrack:GetHeight()==200,"rail waited for deferred history layo
 assert(f.state.scrollIndex==7 and f.state.layoutRefreshPending,"geometry update disturbed readback or pending reflow")
 nextWidth,nextHeight=720,310;f:RefreshLayoutGeometry()
 assert(f:GetWidth()==720 and f.roomScrollTrack:GetHeight()==270 and f.overlay.updated)
+f.state.messageOffset=9;f.state.unreadMessages=true
+function f:SetScrollPosition(index,offset)
+ assert(index==7 and offset==9,"full reflow jumped to newest and acknowledged unread")
+end
+f.state.messages[1].UpdateFrame=function()end
+f:RefreshLayout(false)
 f.windowSurface=nil
 
 ''')
@@ -113,11 +119,20 @@ renderer.widthNow=220;renderer.sharedFullSurface=true
 function renderer:GetLayoutWidth()return self.widthNow end
 function renderer:GetFrameLevel()return 3 end
 function renderer:GetFrameStrata()return "MEDIUM"end
+function renderer:SetHitRectInsets(_,_,_,bottom)self.hitBottom=bottom end
 function renderer:SetSlideOffset()end
 renderer.gapBackground=CreateFrame("Frame",nil,renderer)
 renderer.overlay=CreateFrame("Frame",nil,renderer);renderer.overlay.UpdateFrame=function()end
 renderer:InitializeScrollFrame()
 assert(renderer.slider:GetParent()==renderer.viewport and renderer.viewport:GetParent()==renderer)
+-- Party directly above General: neither clicks on blank space nor wheel events
+-- can extend below the visible transcript into the next window's title bar.
+for _,latest in ipairs({true,false,true}) do
+ renderer.state.scrollAtBottom=latest;renderer:UpdateViewportHeight(24)
+ local visible=latest and 180 or 156
+ assert(renderer:GetHeight()-renderer.viewport.points.BOTTOMRIGHT.y==visible,"viewport intercepts neighboring header")
+ assert(renderer:GetHeight()-renderer.hitBottom==visible,"wheel target overlaps neighboring header")
+end
 local row=renderer.messageFramePool:Acquire()
 assert(row.sunderRenderer==renderer,"native pool did not bind explicit owner")
 row:SetDisplayText("[Party] Player: "..string.rep("A long linked quest message ",15))
@@ -127,7 +142,40 @@ assert(row.text.wordWrap and row.text.nonSpaceWrap and row.text.maxLines==0)
 renderer.widthNow=140;row:UpdateFrame();assert(row.text:GetWidth()==124 and row.sunderHeight>24)
 renderer.messageFramePool:Release(row)
 local recycled=renderer.messageFramePool:Acquire();assert(recycled==row and recycled.sunderRenderer==renderer)
+renderer.widthNow=126;Core.db.profile.bodyPadding=0
+recycled:SetDisplayText(string.rep("X",180));recycled:UpdateFrame()
+assert(recycled.text:GetWidth()==120 and recycled.sunderHeight>24)
+assert(not pcall(Core.Components.CreateMessageLine,renderer.slider),"row accepted a missing owner")
 assert(not pcall(Core.Components.CreateMessageLinePool,renderer.slider),"ownerless pool silently falls back to General")
+""")
+# Use the installed detached-container resize callback with the actual renderer geometry.
+lua.execute("""
+Core.Components.CreateDetachedChatDock=function(parent)local dock=CreateFrame("Frame",nil,parent);dock:SetHeight(22);return dock end
+function ui.container:AddHoverRegion()end
+getmetatable(UIParent).__index.GetFrameStrata=function()return "MEDIUM"end
+""")
+lua.execute(root.joinpath('Modules/UIManager.lua').read_text(encoding='utf-8'),'Sunder',lua.globals().vars)
+lua.execute("""
+local native=CreateFrame("Frame",nil,UIParent)
+local renderer=CreateFrame("Frame",nil,UIParent)
+for k,v in pairs(Core.Components.SlidingMessageFrameMixin)do renderer[k]=v end
+renderer.chatFrame=native;renderer.config={width=190,height=120,overflowHeight=0}
+renderer.state={messages={},scrollAtBottom=false,scrollIndex=1,messageOffset=8}
+renderer.windowSurface=true
+function renderer:GetMessageFrameHeight()return self.layoutHeight-20 end
+function renderer:CancelDynamicEditBoxLayout()end
+function renderer:ScheduleLayoutRefresh()self.widthChanges=(self.widthChanges or 0)+1 end
+renderer.viewport=CreateFrame("Frame",nil,renderer);renderer.slider=CreateFrame("Frame",nil,renderer.viewport)
+renderer.overlay=CreateFrame("Frame",nil,renderer);renderer.overlay.UpdateFrame=function()end
+local layout=ui:CreateDetachedLayout({chatFrame=native,slidingMessageFrame=renderer})
+local root=layout.container;renderer.detachedContainer=root;renderer:SetParent(root)
+root:SetSize(190,170);root:SetSize(160,150)
+assert(renderer.slider:GetWidth()==160 and renderer.roomScrollTrack:GetHeight()==90)
+assert(root.windowSurface.bodyFrame:GetHeight()==root:GetHeight()-layout.dock:GetHeight())
+assert(renderer.widthChanges==1 and renderer.state.messageOffset==8)
+root:SetHeight(140);assert(renderer.widthChanges==1,"height-only drag queued a text pass")
+renderer.detachedContainer=nil
+root:SetWidth(340);assert(renderer.slider:GetWidth()==160,"parked detached shell reclaimed renderer")
 """)
 # Read-only archives use actual pooled MessageLine rows and preserve native link handlers.
 lua.execute(root.joinpath('Components/ReadOnlyTranscript.lua').read_text(encoding='utf-8'),'Sunder',lua.globals().vars)
@@ -146,8 +194,27 @@ local view=Core.Components.CreateReadOnlyTranscript(panel,ChatFrame1);view:SetSi
 view:SetLines({{string.rep("Long linked message ",20),1,1,1,typeID=3}})
 assert(#rows==1 and rows[1].text.wordWrap and rows[1].sunderHeight>24)
 assert(rows[1]:GetScript("OnHyperlinkClick") and not rows[1]:GetScript("OnMouseDown"),"archive stole live editor or lost links")
-local wide=rows[1].text:GetWidth();view:SetWidth(140);view:Render()
-assert(rows[1].text:GetWidth()<wide,"archive did not reflow on resize")
+assert(rows[1].text:GetWidth()==214,"archive applied extra horizontal clearance at zero padding")
+Core.db.profile.bodyPadding=20
+view:SetLines({{string.rep("A",240)}, {string.rep("B",320)}})
+local firstHeight=rows[1].sunderHeight
+view:SetVerticalScroll(20+firstHeight+3)
+view:SetSize(140,80);view:SetSize(130,75)
+assert(view:GetScript("OnUpdate") and rows[1].text:GetWidth()==180,"archive rebuilt during every resize event")
+view:GetScript("OnUpdate")(view)
+assert(rows[1].text:GetWidth()==90 and rows[1].text.points.TOPLEFT.x==20)
+assert(view:GetVerticalScroll()==20+rows[1].sunderHeight+3 and not view:GetScript("OnUpdate"))
+local first=rows[1];view:SetHeight(2000)
+assert(rows[1]==first and not view:GetScript("OnUpdate") and view:GetVerticalScroll()==0)
+assert(view.roomTrack:IsShown() and not view.roomThumb:IsShown())
+view:SetHeight(75);assert(view.roomThumb:IsShown())
+view:Hide();assert(not view.roomTrack:IsShown());view:Show();assert(view.roomThumb:IsShown())
+local log={{string.rep("Wrapped practice line ",35)}}
+view:ShowAppendedLines(log,ChatFrame1)
+assert(view:GetVerticalScroll()>0,"initial practice log did not follow the latest line")
+view:SetVerticalScroll(5);local retained=rows[1]
+log[2]={"Arrives during readback"};view:ShowAppendedLines(log,ChatFrame1)
+assert(rows[1]==retained and #rows==2 and view:GetVerticalScroll()==5,"arrival rebuilt or moved readback")
 Core.Components.CreateMessageLinePool=create;Core.GetModule=old
 """)
 print('Shared native spacing passed: equal side insets, top/bottom viewport spacing, bounded tiny layouts, live wrapping updates and no top-shade renderer.')
@@ -228,6 +295,22 @@ firstWindow.replyEditBox=source.editBox
 W:SelectConversation(first,false);assert(lastInput==source.editBox, "borrowed native reply editor was ignored")
 firstWindow.replyEditBox=nil
 GetCurrentKeyBoardFocus=nil
+cfg.showOnIncoming=true;cfg.keepMessagesOpen=true;cfg.singleToasterStack=true;cfg.autoSelect=false
+for _,collapsed in ipairs({false,true}) do
+ W:OpenMessages();W:SelectConversation(first,false);W:SetMinimized(collapsed,true)
+ W:BeginMessageWindowRestore();W.hub:Hide()
+ lastInput=source.editBox;W.records[first].unread=3
+ W:RestoreMessageWindows()
+ assert(W.hub:IsShown() and W.minimized==collapsed and W.selected==first)
+ assert(lastInput==source.editBox and W.records[first].unread==3,"startup invoked conversation selection")
+ W.hub:Hide();W:SaveMessageWindowState()
+ assert(Core.db.char.messageWindowStates.messages.open,"incidental hide erased the open checkpoint")
+ W:QueueMinimizedWhisper(second,false,"Background conversation")
+ assert(W.hub:IsShown() and W.minimized==collapsed and W.selected==first)
+ assert(W.minimizedWhisperTray:IsShown() and W.minimizedWhispers[1].person==second)
+end
+W:CloseMessages();W:OnNativeMessage(second,ChatTypeInfo.WHISPER.id,{nil,"Closed window"})
+assert(not W.hub:IsShown() and not Core.db.char.messageWindowStates.messages.open)
 """)
 print('Live-conversation regressions passed: selected/visible toast cleanup, other-person retention, localized body-only previews, native chat selection and unrelated input preservation.')
 

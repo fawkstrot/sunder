@@ -110,8 +110,10 @@ function MoverFrameMixin:StopDragging()
   if self.nativeDragTarget then
     local target=self.nativeDragTarget;self.nativeDragTarget=nil
     Core.Components.WindowManager:StopNativeMove(self,target)
-    self:SetDragPosition(target:GetLeft(),target:GetTop()-self:GetHeight())
-    target:ClearAllPoints();target:SetPoint("TOPLEFT",self,"TOPLEFT")
+    local topOffset=target.mainTopOffset or 0
+    if target.mainBottomAnchored then topOffset=topOffset+target:GetHeight()-Core.db.profile.frameHeight end
+    self:SetDragPosition(target:GetLeft(),target:GetTop()-topOffset-self:GetHeight())
+    Core.Components.WindowManager:AnchorMainContainer(target,self)
     local point,_,_,xOfs,yOfs=self:GetPoint(1)
     Core:Dispatch(SaveFramePosition({point=point,xOfs=xOfs,yOfs=yOfs}))
     return
@@ -153,12 +155,8 @@ function MoverFrameMixin:UpdateLayoutBounds()
   end
 
   self:SetHeight(Core.db.profile.frameHeight + attachedExtent)
-  self.layoutContainer:ClearAllPoints()
-  if editBoxPosition == "ABOVE" then
-    self.layoutContainer:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -attachedExtent)
-  else
-    self.layoutContainer:SetPoint("TOPLEFT", self, "TOPLEFT")
-  end
+  self.layoutContainer.mainTopOffset = editBoxPosition == "ABOVE" and -attachedExtent or 0
+  if not self.nativeDragTarget then Core.Components.WindowManager:AnchorMainContainer(self.layoutContainer,self) end
   self:ScheduleBoundsUpdate()
 end
 
@@ -279,7 +277,7 @@ function MoverFrameMixin:Init()
   self.resizeOptions = {
     settings=function()return Core.Components.WindowManager:Settings("main")end,
     minWidth = 100, minHeight = 100,
-    allowed = function () return Core.sunderMoverUnlocked and self:IsShown() end,
+    allowed = function () return Core.sunderMoverUnlocked and self:IsShown() and not (self.layoutContainer and self.layoutContainer.mainBodyClipped) end,
     begin = function ()
       self:StopDragging()
       return self, Core.db.profile.frameWidth, Core.db.profile.frameHeight

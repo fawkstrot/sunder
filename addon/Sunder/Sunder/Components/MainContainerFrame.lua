@@ -43,7 +43,7 @@ function MainContainerFrameMixin:Init()
       self:SetWidth(Core.db.profile.frameWidth)
     end
 
-    if key == "frameHeight" then
+    if key == "frameHeight" and not self.mainBodyClipped then
       self:SetHeight(Core.db.profile.frameHeight)
     end
   end)

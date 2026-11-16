@@ -91,7 +91,7 @@ G.frame.isDocked=false;ui:RefreshChatFrameLayout(G.frame)
 -- The room uses the Whispers header, drag grip and cancelable core collapse.
 local h=G.room
 assert(h.hubChrome and h.hubGrip and h.minimizeButton and h.hubActionButtons.Maximize)
-assert(h.roomStructure and h.roomStructure.divider:IsShown() and #h.roomStructure.edges==4)
+assert(h.roomStructure and h.roomStructure.divider:IsVisible() and #h.roomStructure.edges==4)
 assert(h.roomResize:GetFrameLevel()>h.hubChrome:GetFrameLevel(),"resize corner was covered by native content")
 assert(G.searchPlaceholder:GetText()~="" and G.conversationLabel:GetText()~="")
 assert(Core.Components.CreateRoomChrome and Core.Components.SetRoomMinimized)
@@ -99,9 +99,9 @@ local previousPreview,previousBody=W.previewActive,W.previewBody
 W.previewActive=true;W.previewBody=CreateFrame("Frame",nil,UIParent)
 local fullHeight=h.hub:GetHeight()
 h:SetMinimized(true,true);assert(h.hub:GetHeight()==h:HeaderHeight() and not h.hubContent:IsShown())
-assert(not h.roomStructure.body:IsShown() and not h.roomStructure.divider:IsShown(),"collapsed room left body structure visible")
+assert(not h.roomStructure.body:IsVisible() and not h.roomStructure.divider:IsVisible(),"collapsed room left body structure visible")
 h:SetMinimized(false,true);assert(h.hub:GetHeight()==fullHeight and h.hubContent:IsShown())
-assert(h.roomStructure.body:IsShown() and h.roomStructure.divider:IsShown())
+assert(h.roomStructure.body:IsVisible() and h.roomStructure.divider:IsVisible())
 assert(not h.previewActive and W.previewBody:IsShown(),"guild shell inherited or changed Whispers preview state")
 W.previewActive=previousPreview;W.previewBody=previousBody
 h:SetMinimized(true);local animate=h.hub:GetScript("OnUpdate");animate(h.hub,.08)
@@ -434,6 +434,8 @@ for _,host in ipairs({W,G.room})do
  wm:RefreshRoomActions(host)
  local actions=host.hubActionButtons
  assert(actions.Maximize.actionKey=="maximize" and actions.CollapseTop.actionKey=="collapse-up" and actions.CollapseBottom.actionKey=="collapse-down")
+ assert(actions.Settings.points.RIGHT.x>actions.Maximize.points.RIGHT.x and actions.Maximize.points.RIGHT.x>actions.CollapseTop.points.RIGHT.x)
+ assert(actions.CollapseTop.points.RIGHT.x>actions.CollapseBottom.points.RIGHT.x and actions.CollapseBottom.points.RIGHT.x>host.movementLockButton.points.RIGHT.x)
  assert(actions.Maximize.windowTooltip=="Maximize window")
  local width,height=host.hub:GetWidth(),host.hub:GetHeight()
  wm:ToggleMaximized(host)
@@ -443,7 +445,7 @@ for _,host in ipairs({W,G.room})do
  wm:CollapseToward(host,"BOTTOM")
  assert(host.hubContent:IsShown(),"collapse blinked body off before its fade")
  if host.finishCollapse then host.finishCollapse()end
- assert(actions.CollapseTop.windowTooltip=="Restore window" and actions.CollapseBottom.actionKey=="collapse-up")
+ assert(not actions.CollapseTop:IsShown() and actions.CollapseBottom:IsShown() and actions.CollapseBottom.windowTooltip=="Restore window" and actions.CollapseBottom.actionKey=="collapse-up")
  host:SetMinimized(false,true)
 end
 assert(W.hubActionButtons.Windows.actionKey=="window-menu")
@@ -501,12 +503,18 @@ for _,host in ipairs({W,G.room})do
  for _,edge in ipairs({"TOP","BOTTOM"})do
   host:HubSettings().minimizeEdge=edge
   for _,minimized in ipairs({true,false})do
+   if not minimized then
+    host:ApplyHubAppearance() -- style refresh while fully collapsed
+    assert(not host.hub.windowSurface.bodyFrame:IsVisible())
+   end
    host:SetMinimized(minimized)
    local step=host.hub:GetScript("OnUpdate")
    for tick=1,11 do
     step(host.hub,.02)
     local surface=host.hub.windowSurface
     assert(surface.bodyFrame:IsShown() and surface.bodyFrame:GetAlpha()==1,"body vanished before transition completed")
+    assert(surface.body:IsVisible(),"body fill stayed hidden during expansion")
+    assert(surface.sidebar:GetWidth()>1 and surface.sidebar:IsVisible() and surface.divider:IsVisible(),"names pane stayed blank during expansion")
     assert(surface.bodyFrame:GetHeight()==math.max(1,host.hub:GetHeight()-surface.bodyTop+(surface.bottomExtent or 0)),"backing escaped the moving bounds")
     assert(host.hubContent:IsShown() and host.hubContent:GetAlpha()==1 and host.hubContent.clipsChildren,"native content was hidden instead of clipped")
     if host==W and host:IsConversationList()then

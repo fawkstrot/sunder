@@ -18,7 +18,9 @@ local rail=W.previewTabScroll.peopleScrollbar
 assert(rail:IsShown() and rail.orientation=='VERTICAL' and rail:GetThumbTexture():GetHeight()>=18)
 rail:SetValue(120);assert(W.previewTabScroll:GetVerticalScroll()==120)
 assert(rail.above:IsShown() and rail.below:IsShown())
+assert(not W.previewTabScroll.roomTrack:IsShown(),"interactive scrollbar doubled the passive track")
 W.previewTabScroll:SetHeight(2000);W:RefreshConversationNavigation(true);assert(not rail:IsShown())
+assert(W.previewTabScroll.roomTrack:IsShown() and not W.previewTabScroll.roomThumb:IsShown())
 W.previewTabScroll:SetHeight(180);W:RefreshConversationNavigation(true);assert(rail:IsShown())
 -- One full-width surface, with no restarted column gradients.
 assert(W.whisperSurface and W.whisperSurface:IsShown())
@@ -35,6 +37,11 @@ assert(tray.rows[1].entry.person==fourth and tray.rows[3].entry.person==second)
 assert(not tray.rows[4] or not tray.rows[4]:IsShown())
 assert(tray:GetHeight()>100 and not tray:GetScript('OnUpdate'))
 fourth.favorite=true;W:UpdateMinimizedWhispers();assert(tray.rows[1].name:GetText():find('favorite-filled.tga',1,true),'favorite toaster used outline');fourth.favorite=false
+W:UpdateMinimizedWhispers()
+local oldPadding=Core.db.profile.bodyPadding
+Core.db.profile.bodyPadding=0;W:UpdateMinimizedWhispers();assert(tray.rows[1].name.points.TOPLEFT.x==0)
+Core.db.profile.bodyPadding=19;W:UpdateMinimizedWhispers();assert(tray.rows[1].snippet.points.TOPLEFT.x==19)
+Core.db.profile.bodyPadding=oldPadding
 local original=#W.minimizedWhispers
 W:QueueMinimizedWhisper(fourth,true,'Updated whisper');assert(#W.minimizedWhispers==original+1)
 assert(tray.rows[1].snippet:GetText()=='Updated whisper')

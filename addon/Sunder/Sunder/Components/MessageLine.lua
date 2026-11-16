@@ -15,8 +15,13 @@ local canaccessvalue = canaccessvalue
 
 local MessageLineMixin = {}
 
-local function getLeftTextPadding()
-  return math.max(0, math.min(32, tonumber(Core.db.profile.bodyPadding) or 8))
+local SCROLLBAR_CLEARANCE = 6
+
+local function applyWrap(text)
+  text:SetWordWrap(true)
+  if text.SetNonSpaceWrap then text:SetNonSpaceWrap(true) end
+  if text.SetMaxLines then text:SetMaxLines(0) end
+  text:SetIndentedWordWrap(Core.db.profile.indentWordWrap)
 end
 
 -- Every row is explicitly bound to its renderer. The clipping viewport is an
@@ -24,7 +29,7 @@ end
 local function layoutMetrics(row)
   local owner=assert(row.sunderRenderer,"Message row requires its owning renderer")
   local width=owner:GetLayoutWidth()
-  local clearance=(owner.windowSurface or owner.whisperFullSurface or owner.sharedFullSurface) and 6 or 0
+  local clearance=(owner.windowSurface or owner.whisperFullSurface or owner.sharedFullSurface) and SCROLLBAR_CLEARANCE or 0
   return width,clearance
 end
 
@@ -42,10 +47,7 @@ local function measureTextHeight(text, width)
   end
   measureText:SetFontObject("SunderMessageFont")
   measureText:SetWidth(width)
-  measureText:SetWordWrap(true)
-  if measureText.SetNonSpaceWrap then measureText:SetNonSpaceWrap(true)end
-  if measureText.SetMaxLines then measureText:SetMaxLines(0)end
-  measureText:SetIndentedWordWrap(Core.db.profile.indentWordWrap)
+  applyWrap(measureText)
   local lineHeight = measureText:GetLineHeight()
   if not isAccessible(text) then
     return nil, lineHeight
@@ -210,7 +212,7 @@ function MessageLineMixin:SetChainAnchor(relativeTo, relativePoint, point)
       point,
       relativeTo or self:GetParent(),
       relativeTo and relativePoint or "BOTTOMLEFT",
-      getLeftTextPadding(),
+      Core.Components.WindowManager:BodyPadding(),
       point == "BOTTOMLEFT" and padding or -padding
     )
   end)
@@ -220,16 +222,13 @@ end
 -- Update layout and the measured height used for slide animations
 function MessageLineMixin:UpdateFrame()
   local frameWidth,clearance = layoutMetrics(self)
-  local leftPadding = getLeftTextPadding()
-  local textWidth = math.max(1, frameWidth - leftPadding - math.max(getLeftTextPadding(),clearance))
+  local leftPadding = Core.Components.WindowManager:BodyPadding()
+  local textWidth = math.max(1, frameWidth - leftPadding - math.max(leftPadding,clearance))
   self.sunderLayoutWidth = frameWidth
   self:SetWidth(frameWidth)
   self:UpdateFadeSettings()
   self.text:SetWidth(textWidth)
-  self.text:SetIndentedWordWrap(Core.db.profile.indentWordWrap)
-  self.text:SetWordWrap(true)
-  if self.text.SetNonSpaceWrap then self.text:SetNonSpaceWrap(true)end
-  if self.text.SetMaxLines then self.text:SetMaxLines(0)end
+  applyWrap(self.text)
 
   local textHeight, lineHeight = measureTextHeight(self.sunderDisplayText, textWidth)
   local padding = lineHeight * Core.db.profile.messageLinePadding

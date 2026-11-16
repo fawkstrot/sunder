@@ -13,7 +13,6 @@ function W:UpdatePeopleScrollbar(preview)
     rail=CreateFrame("Slider",nil,self.hub)
     scroll.peopleScrollbar=rail
     rail:SetOrientation("VERTICAL");rail:SetValueStep(1);rail:SetObeyStepOnDrag(true)
-    rail:SetWidth(10);rail:SetFrameLevel(scroll:GetFrameLevel()+6)
     local track=rail:CreateTexture(nil,"BACKGROUND");track:SetPoint("TOP");track:SetPoint("BOTTOM");track:SetWidth(2);track:SetColorTexture(1,1,1,.08)
     rail:SetThumbTexture("Interface\\Buttons\\WHITE8X8")
     local thumb=rail:GetThumbTexture();thumb:SetWidth(3)
@@ -34,7 +33,9 @@ function W:UpdatePeopleScrollbar(preview)
     end)
     rail:SetScript("OnLeave",function() thumb:SetVertexColor(r,g,b,.55);GameTooltip:Hide() end)
     scroll:HookScript("OnVerticalScroll",function() if not rail.syncing then self:UpdatePeopleScrollbar(preview) end end)
-    scroll:HookScript("OnHide",function() rail:Hide() end)
+    scroll:HookScript("OnHide",function()
+      rail:Hide();Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,false)
+    end)
     rail.above=rail:CreateTexture(nil,"OVERLAY");rail.above:SetSize(4,2);rail.above:SetPoint("TOP",0,3);rail.above:SetColorTexture(r,g,b,.65)
     rail.below=rail:CreateTexture(nil,"OVERLAY");rail.below:SetSize(4,2);rail.below:SetPoint("BOTTOM",0,-3);rail.below:SetColorTexture(r,g,b,.65)
   end
@@ -48,7 +49,10 @@ function W:UpdatePeopleScrollbar(preview)
   rail:GetThumbTexture():SetHeight(clamp((height-8)*height/math.max(height,child:GetHeight()),18,math.max(18,height-8)))
   rail.syncing=nil
   rail.above:SetShown(scroll:GetVerticalScroll()>.5);rail.below:SetShown(scroll:GetVerticalScroll()<maximum-.5)
-  rail:SetShown(self:IsConversationList() and maximum>.5 and not self.minimized and height>26 and scroll:IsShown())
+  local visible=self:IsConversationList() and not self.minimized and scroll:IsShown()
+  local interactive=visible and maximum>.5 and height>26
+  rail:SetShown(interactive)
+  Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,visible and not interactive)
 end
 local refreshNavigation=W.RefreshConversationNavigation
 function W:RefreshConversationNavigation(preview)
@@ -240,7 +244,8 @@ function W:UpdateMinimizedWhispers()
   tray.navigation.previous:SetEnabled(offset>0);tray.navigation.next:SetEnabled(offset+limit<#queue)
   tray.navigation.label:SetText(string.format("%d–%d / %d",offset+1,offset+count,#queue))
   local bg=Core.db.profile.chatBackgroundColor or {}
-  local stamp=tostring(bg.r)..tostring(bg.g)..tostring(bg.b)..tostring(bg.a)..tostring(count)..":"..offset..":"..#queue..":"..self:InterfaceTextSize()..":"..self.hub:GetWidth()
+  local padding=self:BodyPadding()
+  local stamp=tostring(padding)..":"..tostring(bg.r)..tostring(bg.g)..tostring(bg.b)..tostring(bg.a)..tostring(count)..":"..offset..":"..#queue..":"..self:InterfaceTextSize()..":"..self.hub:GetWidth()
   for i=1,count do
     local entry=queue[i+offset]
     local starred=entry.sample and entry.person.favorite or not entry.sample and W:IsFavorite(entry.person)
@@ -248,7 +253,6 @@ function W:UpdateMinimizedWhispers()
   end
   if tray.stamp==stamp then return end
   tray.stamp=stamp
-  local padding=self:BodyPadding()
   local rowHeight=math.max(40,self:InterfaceTextSize()*2+padding*2+8)
   local spacing=4
   local r,g,b=self:InterfaceAccent()
@@ -360,3 +364,8 @@ function W:StopPreview()
     if host.minimizedWhisperTray then host:UpdateMinimizedWhispers() end
   end
 end
+
+
+-- A session-local sample owner can use the same tray without routing to the live stack.
+Core.Components.WhisperToastQueue = W.QueueMinimizedWhisper
+Core.Components.UpdateWhisperToastTray = W.UpdateMinimizedWhispers

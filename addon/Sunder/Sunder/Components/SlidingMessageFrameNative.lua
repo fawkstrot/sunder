@@ -427,7 +427,8 @@ function SlidingMessageFrameMixin:SubscribeToEvents()
 
         -- Main dimensions arrive through settings broadcasts, unlike detached
         -- SetLayout calls. Keep their visible viewport/rail equally immediate.
-        if (key == "frameWidth" or key == "frameHeight") and self:IsShown() then
+        local mainSizeChanged = (key == "frameWidth" and not self.layoutWidth) or (key == "frameHeight" and not self.layoutHeight)
+        if mainSizeChanged and self:IsShown() then
           self:RefreshLayoutGeometry()
         end
 
@@ -438,8 +439,7 @@ function SlidingMessageFrameMixin:SubscribeToEvents()
         if (
           key == "font" or
           key == "messageFontSize" or
-          key == "frameWidth" or
-          key == "frameHeight" or
+          (mainSizeChanged and (key == "frameWidth" or not self:IsShown())) or
           key == "tabMessageSpacing" or
           key == "textLeftPadding" or
           key == "bodyPadding" or

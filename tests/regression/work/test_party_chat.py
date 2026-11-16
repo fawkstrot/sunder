@@ -207,7 +207,7 @@ for _,room in ipairs({Party,G})do
  smf.state.scrollIndex=3;smf.state.messageOffset=7
  room:LayoutWindow(ui:GetChatWindow(room.frame))
  assert(reprocessed==1 and smf.roomLabelOwner==room,"late room binding retained General-formatted rows")
- assert(restoredIndex==3 and restoredOffset==7,"late binding lost readback position")
+ assert(smf.state.scrollIndex==3 and smf.state.messageOffset==7 and restoredIndex==nil,"late binding lost readback position")
  room:LayoutWindow(ui:GetChatWindow(room.frame));assert(reprocessed==1,"ordinary room layout reformatted all rows")
  smf.RefreshLayout=original;smf.SetScrollPosition=oldScroll;smf.state.scrollIndex,smf.state.messageOffset=oldIndex,oldOffset
 end
@@ -255,19 +255,95 @@ function m:GetFrameLevel()return self.frameLevel or 1 end
 Core.Components.CreateReadOnlyTranscript=function(parent)
  local f=CreateFrame("Frame",nil,parent)
  function f:SetLines(lines)self.lines=lines end
+ f.ShowAppendedLines=f.SetLines
  function f:Render()end
  return f
 end
 Party:ToggleHistory(true)
+assert(Party.historyPanel.transcript.points.BOTTOMRIGHT.x==0 and Party.historyPanel.transcript.points.BOTTOMRIGHT.y==0)
 assert(Party.historyPanel:IsShown() and not Party.column:IsShown() and not Party:CanSend())
 assert(not Party.panel:IsShown() and not Party.conversationLabel:IsShown() and not Party.motdLabel:IsShown(),"live labels bleed through archive")
 assert(Party.historyPanel.transcript.lines and #Party.historyPanel.transcript.lines==1)
 local show=Party.panel:GetScript("OnShow")
 Party.panel:SetScript("OnShow",function()error("archive refresh flashed live roster and rescheduled work")end)
 Party:LayoutWindow(ui:GetChatWindow(Party.frame));Party.panel:SetScript("OnShow",show)
+local oldPad=Core.db.profile.bodyPadding
+for _,pad in ipairs({0,19})do
+ Core.db.profile.bodyPadding=pad
+ Party:LayoutWindow(ui:GetChatWindow(Party.frame))
+ assert(Party.historyPanel.list.points.TOPLEFT.x==0 and Party.historyPanel.rows[1].name.points.TOPLEFT.x==pad)
+end
+Core.db.profile.bodyPadding=oldPad
 Party:ToggleHistory(false)
 assert(not Party.historyPanel:IsShown() and Party.column:IsShown() and Party:CanSend())
 local savedArchive=Core.db.char.partyRoomArchive
 Core.features.partyChat.buildOptions().args.remember.set(nil,false)
 assert(Core.db.char.partyRoomArchive==savedArchive,"turning off recording deleted archive")
 """)
+
+# Drive the same practice script that the client schedules. Keep real rooms active.
+lua.execute(root.joinpath("Modules/ChatPractice.lua").read_text(encoding="utf-8-sig"),"Sunder",lua.globals().vars)
+lua.execute("""
+local practice=Core.Components.ChatPractice
+local function equal(a,b)
+ if type(a)~="table" then return a==b end
+ if type(b)~="table" then return false end
+ for k,v in pairs(a) do if not equal(v,b[k]) then return false end end
+ for k in pairs(b) do if a[k]==nil then return false end end
+ return true
+end
+local char,profile=clone(Core.db.char),clone(Core.db.profile)
+local realSelected,realFrame,realArchive,realUnread=W.selected,Party.frame,Party:HistoryRecords(),Party.unread
+local routes=partyOpens
+local liveEditor=ui:GetChatWindow(Party.frame).editBox
+liveEditor:SetText("An unrelated live draft")
+local liveFocus=SELECTED_CHAT_FRAME
+local liveSend=SendChatMessage
+SendChatMessage=function()error("practice attempted to send chat")end
+C_Timer.NewTimer=function(delay,callback)
+ return {delay=delay,fn=callback,Cancel=function(self)self.cancelled=true end}
+end
+practice:Toggle()
+local r=practice.owner
+assert(practice.active and practice.timer and r.kind=="Whispers")
+local stale=practice.timer
+now=GetTime()+0.5
+practice:Pause(true);assert(stale.cancelled and not practice.timer)
+assert(math.abs(practice.remaining-0.5)<.001,"pause lost the remaining quiet interval")
+now=GetTime()+10;practice:Pause(false)
+assert(math.abs(practice.timer.delay-0.5)<.001)
+practice:Pause(true)
+stale.fn();assert(practice.index==1)
+practice:Step();assert(r.selectedMember=="Elowen" and not practice.timer)
+local editor=practice.controls.draft
+editor:SetText("Unsent practice draft");editor:GetScript("OnTextChanged")(editor)
+practice:Pause(false);local timer=practice.timer;timer.fn();assert(practice.index==3)
+while practice.index<#practice.events do
+ practice:Step()
+ if practice.lastEvent=="message" and r.kind=="Whispers" and practice.index==5 then
+   assert(r.selectedMember=="Elowen" and r.records.Mira.unread==1 and r.room.minimizedWhispers[1].person==r.records.Mira)
+   r.room:OpenMinimizedWhisper(r.room.minimizedWhispers[1]);assert(r.selectedMember=="Mira" and r.records.Mira.unread==0)
+   editor:SetText("Local reply");editor:GetScript("OnTextChanged")(editor);editor:GetScript("OnEnterPressed")(editor)
+   assert(r.records.Mira.lines[#r.records.Mira.lines].own)
+   r:ShowMemberCard(r.records.Elowen);assert(editor:GetText()=="Unsent practice draft")
+ elseif practice.lastEvent=="archive" then assert(r.historyMode and r.historyPanel:IsShown())
+ elseif practice.lastEvent=="message" and r.historyMode then
+   assert(#r.log==2 and #r.archives[1].lines==2 and r.historyPanel.transcript.lines==r.archives[1].lines)
+ elseif practice.lastEvent=="offline" then assert(#r.members==40 and r.onlineCount==39 and #r.log==3)
+ elseif practice.lastEvent=="burst" then assert(#r.log==33)
+ end
+end
+assert(not practice.timer and practice.controls.step.disabled)
+-- A real incoming group event still belongs to the real controller during practice.
+Party.room.minimized=true;Party:OnGroupMessage("CHAT_MSG_PARTY","OtherGUID")
+assert(Party.unread==realUnread+1)
+practice:Start("Groups");local interrupted=practice.timer;practice:Toggle();interrupted.fn()
+assert(not practice.active and not practice.timer and not r.room.hub:IsShown() and #r.archives==0)
+assert(equal(Core.db.char,char),"sample state leaked into character data")
+assert(equal(Core.db.profile,profile),"practice changed real settings")
+assert(W.selected==realSelected and Party.frame==realFrame and Party:HistoryRecords()==realArchive and Party.unread==realUnread+1)
+assert(partyOpens==routes and not Core.Components.WindowManager.chatRooms.chatPractice)
+assert(SELECTED_CHAT_FRAME==liveFocus and liveEditor:GetText()=="An unrelated live draft")
+SendChatMessage=liveSend
+""")
+print("Chat practice passed: complete timed script, single-step, stale timers, isolated toast selection, background group log, raid roster, burst, exit and SavedVariables equality.")

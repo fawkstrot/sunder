@@ -395,12 +395,17 @@ function ChatTabMixin:Init(slidingMessageFrame, dock)
       if parent.StartWindowDrag then parent:StartWindowDrag() end
       return
     end
+    if not Core.Components.WindowManager:CanMove(Core.Components.WindowManager:Settings("main")) then
+      tab.sunderBlockedDrag = true
+      return
+    end
     if not dock:StartTabDrag(tab, button) and originalOnDragStart then
       originalOnDragStart(tab, button)
     end
   end)
   self:SetScript("OnDragStop", function (tab, button)
     local parent = tab:GetParent()
+    if tab.sunderBlockedDrag then tab.sunderBlockedDrag=nil;return end
     if tab.sunderWindowDrag then
       tab.sunderWindowDrag = nil
       if parent.StopWindowDrag then parent:StopWindowDrag() end
