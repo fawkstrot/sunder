@@ -425,10 +425,16 @@ Manager.windowActions={
   Roster={icon="roster",tooltip="Show / hide member roster",enabled=function()return true end},
   Dock={icon="dock",tooltip="Return to General / main chat tabs"},
 }
+function Manager:CanCloseWindow(host)
+  local settings=host:HubSettings()
+  return settings and not settings.movementLocked
+end
+
 function Manager:CreateWindowAction(parent,id,host,action,style)
   local spec=assert(self.windowActions[id],"Unknown window capability: "..tostring(id))
   local button
   button=self:CreateAction(parent,spec.icon,function()return button.windowTooltip or spec.tooltip end,function(...)
+    if id=="Close" and not self:CanCloseWindow(host) then return end
     action(...)
     self:RefreshRoomActions(host)
     if button.hovered and button.ShowActionTooltip then button:ShowActionTooltip()end
@@ -451,6 +457,7 @@ function Manager:RefreshRoomActions(host)
       local spec=self.windowActions[id]
       button.actionKey=spec.icon;button.windowTooltip=button.windowTooltipOverride or spec.tooltip
       if button.windowEnabled then button:SetEnabled(button.windowEnabled())elseif spec.enabled then button:SetEnabled(spec.enabled(host))end
+      if id=="Close" then button:SetShown(self:CanCloseWindow(host)) end
       if id=="Maximize" and host.maximized then button.actionKey="restore-size";button.windowTooltip="Restore window size" end
       if id=="CollapseTop" or id=="CollapseBottom" then
         local bottom=host.minimized and host:HubSettings().minimizeEdge=="BOTTOM"
@@ -471,7 +478,7 @@ function Manager:RefreshRoomActions(host)
   end
 end
 -- Rightmost first. Missing capabilities and hidden controls reserve no space.
-local headerOrder={"Close","Settings","Maximize","CollapseTop","CollapseBottom","Lock","Windows","Dock","Info","Roster","Detach","Search","Reply"}
+local headerOrder={"Close","Settings","Lock","Maximize","CollapseTop","CollapseBottom","Windows","Dock","Info","Roster","Detach","Search","Reply"}
 function Manager:LayoutHeaderActions(host,parent,right,size,icon,gap,height)
   self:RefreshRoomActions(host)
   for _,id in ipairs(headerOrder)do

@@ -102,3 +102,5 @@ Rendered Whispers use Name: message for incoming lines and message-only dim styl
 WhisperWorkspace owns the open/minimized checkpoint for each workspace. Startup shows the remembered shell before applying collapse geometry and leaves the active native editor and conversation acknowledgement alone. Explicit Close records a closed window. A temporary hide of an open shell retains its checkpoint so a notification can show it in the same state when incoming visibility or keep-open is enabled. The shared tray still supports notifications above a closed workspace and acknowledges the sender when clicked.
 
 Use `/sunder practice` and choose Whispers for a short, repeatable two-person exchange with quiet intervals, a background toaster, collapse and detachment. Use the labeled practice reply field for local drafts. The separate five-minute Whispers stress test remains in Samples & testing.
+
+The Whispers header reserves only the unread counter and conversation picker beside its window actions. Use the wheel or people-list scrollbar to browse, or click the counter to search and jump to a person. The same controls apply to sample conversations.

@@ -7,11 +7,11 @@ assert(W:SingleRowHeader() and W:PreviewTop()==0)
 assert(W:PreviewBodyTop()==W:HeaderHeight()+W:HeaderGap())
 assert(W:ContentTop()+W:ConversationTabHeight()==W:HeaderHeight())
 assert(W.previewTabScroll.points.TOPLEFT.relative==W.hub)
-assert(W.previewTabScroll.points.TOPRIGHT.x==-W.headerActionWidth-100)
+assert(W.previewTabScroll.points.TOPRIGHT.x==-W.headerActionWidth-W:NavigationWidth())
 assert(W.previewBody.points.TOPLEFT.y==-W:HeaderHeight()-W:HeaderGap()-W:BodyPadding())
 assert(not W.hubActionButtons.Detach:IsShown() and not W.hubActionButtons.Search:IsShown())
 assert(W.hubActionButtons.Windows:IsShown() and W.hubActionButtons.CollapseTop:IsShown() and W.hubActionButtons.CollapseBottom:IsShown())
-assert(W.minimumWorkspaceWidth>=W.headerTitleEnd+W.headerActionWidth+100+120)
+assert(W.minimumWorkspaceWidth>=W.headerTitleEnd+W.headerActionWidth+W:NavigationWidth()+120)
 local active=W.previewConversations[W.previewSelected]
 local last=W.previewConversations[#W.previewConversations]
 W:PreviewAction('Pin',last)

@@ -1,6 +1,6 @@
 local Core, Constants = unpack(select(2, ...))
 local W = Core:GetModule("Whispers")
-W.CONVERSATION_NAV_WIDTH = 148
+W.CONVERSATION_NAV_WIDTH = 50
 local ICONS = "Interface\\AddOns\\Sunder\\Media\\Icons\\"
 
 function W:EnsureWorkspaces()
@@ -292,7 +292,13 @@ function W:CreateWindowControls(chrome)
   local grip=Core.Components.WindowManager:CreateGrip(chrome,function()self:BeginHubMove(true)end,function()self:UpdateHubMove();self:StopHubMove()end)
   grip:SetPoint("TOPLEFT",8,-6)
   self.hubGrip = grip
-  self.movementLockButton=Core.Components.WindowManager:CreateLock(chrome,function()return self:HubSettings()end,function()self:StopHubMove();if self.roomResize then self.roomResize:FinishResize()end;if self.hubResize then self.hubResize:FinishResize()end;Core.Components.WindowManager:RefreshRoomActions(self)end,function(button)self:StyleWindowIcon(button)end)
+  self.movementLockButton=Core.Components.WindowManager:CreateLock(chrome,function()return self:HubSettings()end,function()
+    self:StopHubMove()
+    if self.roomResize then self.roomResize:FinishResize() end
+    if self.hubResize then self.hubResize:FinishResize() end
+    self:LayoutHeaderStrip()
+    self:PresentCollapsedHeader()
+  end,function(button)self:StyleWindowIcon(button)end)
   self.hubTitle:ClearAllPoints()
   self.hubTitle:SetPoint("TOPLEFT", chrome, "TOPLEFT", 64, -6)
   self.hubTitle:SetPoint("TOPRIGHT", chrome, "TOPRIGHT", -272, -6)
@@ -596,12 +602,7 @@ function W:CreateConversationNavigation(scroll, child, preview)
   nav:SetFrameLevel(scroll:GetFrameLevel() + 4)
   nav.scroll, nav.child, nav.preview = scroll, child, preview
   if preview then self.previewNavigation = nav else self.conversationNavigation = nav end
-  nav.left = self:IconButton(nav, "left", "Previous conversation tabs", function () self:PageConversationTabs(preview, -1) end)
-  nav.left:SetSize(28, 22); nav.left:SetPoint("LEFT", 8, 0); nav.left.icon:SetSize(16, 16)
-  nav.right = self:IconButton(nav, "right", "Next conversation tabs", function () self:PageConversationTabs(preview, 1) end)
-  nav.right:SetSize(28, 22); nav.right:SetPoint("LEFT", 42, 0); nav.right.icon:SetSize(16, 16)
   local all = Core.Components.WindowManager:CreateUnreadIndicator(nav)
-  all:SetSize(64, 22); all:SetPoint("LEFT", 76, 0)
   local label = all:GetFontString()
   label:ClearAllPoints(); label:SetPoint("LEFT", 30, 0); label:SetPoint("RIGHT", -8, 0); label:SetJustifyH("CENTER")
   local plate = all:CreateTexture(nil, "BACKGROUND")
@@ -613,11 +614,7 @@ function W:CreateConversationNavigation(scroll, child, preview)
   divider:SetSize(1, 18); divider:SetPoint("LEFT", 0, 0); divider:SetColorTexture(1, 1, 1, 0.1)
   nav.divider = divider
   all:SetHighlightTexture("Interface\\Buttons\\WHITE8X8"); all:GetHighlightTexture():SetVertexColor(0.5, 0.7, 1, 0.12)
-  for _, control in ipairs({nav.left, nav.right, nav.all}) do
-    control:SetHeight(math.min(22, self:ConversationTabHeight())); self:StyleWindowIcon(control)
-    local iconSize = self:UsesChatAppearance() and math.min(14, self:ToolbarIconSize()) or 16
-    control.icon:SetSize(iconSize, iconSize)
-  end
+  self:StyleWindowIcon(all)
   divider:SetShown(not self:UsesChatAppearance())
   all:SetScript("OnClick", function () self:ShowConversationPicker(preview, all) end)
   all:SetScript("OnEnter", function ()
@@ -662,7 +659,6 @@ function W:RefreshConversationNavigation(preview)
   local maximum = math.max(0, child:GetWidth() - width)
   local position = math.max(0, math.min(maximum, scroll:GetHorizontalScroll()))
   if position ~= scroll:GetHorizontalScroll() then scroll:SetHorizontalScroll(position) end
-  nav.left:SetEnabled(position > 0.5); nav.right:SetEnabled(position < maximum - 0.5)
   local hidden, count, unreadTotal = 0, 0, 0
   local entries = preview and self.previewConversations or self.hubOrder
   local step = self:TabStep()
@@ -677,16 +673,6 @@ function W:RefreshConversationNavigation(preview)
   nav.unreadTotal = unreadTotal
   Core.Components.WindowManager:StyleUnreadIndicator(nav.all,unreadTotal,self:InterfaceAccent())
   nav.all:SetEnabled(count > 0)
-end
-
-function W:PageConversationTabs(preview, direction)
-  local nav = preview and self.previewNavigation or self.conversationNavigation
-  if not nav then return end
-  local step = self:TabStep()
-  local page = math.max(1, math.floor(nav.scroll:GetWidth() / step)) * step
-  local maximum = math.max(0, nav.child:GetWidth() - nav.scroll:GetWidth())
-  nav.scroll:SetHorizontalScroll(math.max(0, math.min(maximum, nav.scroll:GetHorizontalScroll() + direction * page)))
-  self:RefreshConversationNavigation(preview)
 end
 
 function W:ShowConversationPicker(preview, owner)
@@ -849,7 +835,7 @@ function W:SingleRowHeader() return self:UsesChatAppearance() and self:Settings(
 function W:ContentTop() return self:SingleRowHeader() and math.max(0, self:HeaderHeight() - self:ConversationTabHeight()) or self:HeaderHeight() end
 function W:PreviewTop() return self:SingleRowHeader() and 0 or self:HeaderHeight() end
 function W:PreviewBodyTop() return (self:SingleRowHeader() and self:HeaderHeight() or self:ConversationTabHeight()) + (self:UsesChatAppearance() and self:HeaderGap() or 8) end
-function W:NavigationWidth() return self:SingleRowHeader() and 100 or W.CONVERSATION_NAV_WIDTH end
+function W:NavigationWidth() return W.CONVERSATION_NAV_WIDTH end
 
 function W:LayoutConversationStrip(preview)
   local scroll = preview and self.previewTabScroll or self.tabScroll
@@ -872,12 +858,8 @@ function W:LayoutConversationStrip(preview)
     if self.minimized and not self:SingleRowHeader() then nav:SetPoint("RIGHT", self.hubChrome, "RIGHT", -(self.headerActionWidth or 220), 0)
     else nav:SetPoint("TOPLEFT", scroll, "TOPRIGHT") end
     nav:SetWidth(self:NavigationWidth())
-    local compact = self:SingleRowHeader()
-    nav.left:ClearAllPoints(); nav.left:SetPoint("LEFT", compact and 2 or 8, 0); nav.left:SetWidth(compact and 20 or 28)
-    nav.right:ClearAllPoints(); nav.right:SetPoint("LEFT", compact and 24 or 42, 0); nav.right:SetWidth(compact and 20 or 28)
-    nav.all:ClearAllPoints(); nav.all:SetPoint("LEFT", compact and 46 or 76, 0); nav.all:SetWidth(compact and 50 or 64)
-    nav.all.icon:ClearAllPoints(); nav.all.icon:SetPoint("LEFT", compact and 4 or 8, 0)
-    local label = nav.all:GetFontString(); label:ClearAllPoints(); label:SetPoint("LEFT", compact and 22 or 30, 0); label:SetPoint("RIGHT", -4, 0)
+    nav.all:ClearAllPoints(); nav.all:SetPoint("CENTER",nav,"CENTER")
+    Core.Components.WindowManager:LayoutUnreadIndicator(nav.all,self:NavigationWidth(),self:ConversationTabHeight(),math.min(14,self:ToolbarIconSize()))
   end
 end
 
@@ -987,10 +969,10 @@ function W:ApplyWorkspaceMetrics()
   local right=self.headerActionWidth
   for _, nav in pairs({self.conversationNavigation, self.previewNavigation}) do
     local controlHeight = math.min(22, self:ConversationTabHeight())
-    for _, control in ipairs({nav.left, nav.right, nav.all}) do control:SetHeight(controlHeight); self:StyleWindowIcon(control) end
+    nav.all:SetHeight(controlHeight); self:StyleWindowIcon(nav.all)
     if nav.divider then nav.divider:SetShown(not self:UsesChatAppearance()) end
     self:WorkspaceFont(nav.all:GetFontString(), self:InterfaceTextSize())
-    for _, control in ipairs({nav.left, nav.right, nav.all}) do control.icon:SetSize(self:UsesChatAppearance() and math.min(14, self:ToolbarIconSize()) or 16, self:UsesChatAppearance() and math.min(14, self:ToolbarIconSize()) or 16) end
+
   end
   if self.conversationPicker then
     for _, row in ipairs(self.conversationPicker.rows) do self:WorkspaceFont(row:GetFontString(), metric("tabFontSize", 12, 10, 18)) end

@@ -196,7 +196,9 @@ function G:EnsureRoom()
       menu:CreateButton(self.minimized and "Restore window" or "Minimize window",function()self:SetMinimized(not self.minimized)end)
       menu:CreateButton(self.maximized and "Restore window size" or "Maximize window",function()G:ToggleMaximized()end)
       menu:CreateButton(options.title(G).." settings",function()Core:GetModule("Config"):OpenSettings(options.settings)end)
-      menu:CreateButton("Close window",function()G:CloseRoom()end)
+      if Core.Components.WindowManager:CanCloseWindow(self) then
+        menu:CreateButton("Close window",function()if Core.Components.WindowManager:CanCloseWindow(self) then G:CloseRoom()end end)
+      end
     end)
   end
   local hub=CreateFrame("Frame",options.frameName,UIParent);h.hub=hub;hub:Hide()

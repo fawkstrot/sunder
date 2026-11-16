@@ -416,3 +416,5 @@ The timeline lives in `Modules/ChatPractice.lua`. Add a delayed event to an exis
 For a dead header, compare WoW mouse focus at the visible icon and grip. Frame Stack includes decorative regions. GetMouseFoci identifies the receiving frame. The native viewport fixture checks click and wheel bounds at latest, in readback, and after returning to latest. Checking button callbacks alone cannot catch a neighboring transcript covering the dock.
 
 For header changes, exercise both collapse edges, the single opposite-facing restore control, tab clearance after repacking, and the expanded anchor after restore. WindowManager creates and formats the unread indicator. Each room supplies its unread total and click action.
+
+For locked-header regressions, click the real lock, assert Close disappears and Settings moves into its position, refresh the header, and unlock. For Whispers overflow, exercise wheel scrolling, unread counts, searchable selection and reveal with more people than fit.

@@ -189,7 +189,7 @@ assert(ui.dock.windowActionWidth+ui.dock.windowTitleInset+Constants.DOCK_HEIGHT<
 ui.dock:SetWidth(515);Core.Components.WindowManager:ApplyNativeSurface(root,ui.dock);assert(lock:GetWidth()==22)
 local actions=host.hubActionButtons
 assert(actions.Settings.points.RIGHT.x>maximize.points.RIGHT.x and maximize.points.RIGHT.x>collapse.points.RIGHT.x)
-assert(collapse.points.RIGHT.x>actions.CollapseBottom.points.RIGHT.x and actions.CollapseBottom.points.RIGHT.x>lock.points.RIGHT.x)
+assert(collapse.points.RIGHT.x>actions.CollapseBottom.points.RIGHT.x and actions.Settings.points.RIGHT.x>lock.points.RIGHT.x and lock.points.RIGHT.x>maximize.points.RIGHT.x)
 click(lock)
 assert(host:HubSettings().movementLocked and lock.actionSelected and maximize.disabled and ui.mainResize.finished)
 assert(not ui.mainResize:IsShown() and not ui.moverFrame.resizeHandle:IsShown())

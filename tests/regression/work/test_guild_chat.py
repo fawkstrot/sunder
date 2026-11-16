@@ -435,7 +435,16 @@ for _,host in ipairs({W,G.room})do
  local actions=host.hubActionButtons
  assert(actions.Maximize.actionKey=="maximize" and actions.CollapseTop.actionKey=="collapse-up" and actions.CollapseBottom.actionKey=="collapse-down")
  assert(actions.Settings.points.RIGHT.x>actions.Maximize.points.RIGHT.x and actions.Maximize.points.RIGHT.x>actions.CollapseTop.points.RIGHT.x)
- assert(actions.CollapseTop.points.RIGHT.x>actions.CollapseBottom.points.RIGHT.x and actions.CollapseBottom.points.RIGHT.x>host.movementLockButton.points.RIGHT.x)
+ assert(actions.CollapseTop.points.RIGHT.x>actions.CollapseBottom.points.RIGHT.x and actions.Settings.points.RIGHT.x>host.movementLockButton.points.RIGHT.x and host.movementLockButton.points.RIGHT.x>actions.Maximize.points.RIGHT.x)
+ local lock=host.movementLockButton
+ local closeX=actions.Close.points.RIGHT.x
+ assert(actions.Close:IsShown() and closeX>actions.Settings.points.RIGHT.x)
+ lock:GetScript("OnClick")(lock)
+ assert(not actions.Close:IsShown() and actions.Settings.points.RIGHT.x==closeX)
+ host:LayoutHeaderStrip()
+ assert(not actions.Close:IsShown() and lock:IsShown())
+ lock:GetScript("OnClick")(lock)
+ assert(actions.Close:IsShown() and actions.Settings.points.RIGHT.x<closeX)
  assert(actions.Maximize.windowTooltip=="Maximize window")
  local width,height=host.hub:GetWidth(),host.hub:GetHeight()
  wm:ToggleMaximized(host)

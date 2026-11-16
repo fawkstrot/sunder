@@ -686,3 +686,10 @@ The user confirmed the updated window behavior works in game on WoW Forever. Thi
 Release validation passed the full suite, dry run and backed-up deployment on WoW Forever. Installed files were hash-verified against the release workspace. Backup 20261116T224150197107Z preserves the previous install. SavedVariables were untouched. The clean and manual-upgrade packages were prepared with the alpha channel.
 
 CurseForge accepted file 9656593 on the Alpha channel for WoW Forever 1.60.1. Tag v0.10.0-alpha.2 points to b0c0f4b. Branch and tag CI passed. The [draft rehearsal](https://github.com/fawkstrot/sunder/actions/runs/43972581104) and [upload](https://github.com/fawkstrot/sunder/actions/runs/43972843929) passed. Both draft ZIP contents matched the tagged source with the packaging exclusions. The uploaded clean ZIP SHA-256 is 24def47e45cfbb278bed7ec564124ea560aa407dd719a57a9ff638efe4cf557d. The GitHub release remains a draft prerelease. Public CurseForge listing status is unconfirmed.
+
+## 2026-11-16 header locks and Whispers navigation
+
+Common right-edge actions are Close, Settings, Lock. Locking hides Close, reclaims its width and removes the roster-room menu shortcut. Unlock restores it. General keeps its native tabs and window capabilities. Whispers removed both header paging buttons and their reserved width from real and preview layouts. The unread counter still opens the searchable picker. Wheel scrolling, the people scrollbar and selection reveal remain available.
+
+Automated: all ten regression entry points, migration, workflow and release checks passed. Coverage includes both lock states, action anchors on refresh, header hit-space reclamation, and navigation through 30 conversations. In game: pending a safe reload and visual check of the new order, close visibility and counter placement.
+Installed preview: dry run and backed-up deploy succeeded. All installed files verified, backup 20261116T225341234941Z. SavedVariables preserved. Both local ZIPs rebuilt at the existing version. No reload or CurseForge upload.

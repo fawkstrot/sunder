@@ -8,10 +8,12 @@ function methods:ClearFocus() self.focus=false end
 cfg.previewConversations=30;W:StartPreview();W.previewTabScroll:SetWidth(350)
 W:RefreshConversationNavigation(true)
 local nav=W.previewNavigation
-assert(nav.total==30 and nav.hiddenUnread>0 and nav.left.disabled and not nav.right.disabled)
-W:PageConversationTabs(true,1);assert(W.previewTabScroll:GetHorizontalScroll()==math.floor(350/W:TabStep())*W:TabStep())
-for i=1,40 do W:PageConversationTabs(true,1) end
-assert(W.previewTabScroll:GetHorizontalScroll()==30*W:TabStep()-350 and nav.right.disabled)
+assert(nav.total==30 and nav.hiddenUnread>0 and not nav.left and not nav.right)
+assert(nav:GetWidth()==nav.all:GetWidth())
+local wheel=W.previewTabScroll:GetScript("OnMouseWheel")
+wheel(W.previewTabScroll,-1);assert(W.previewTabScroll:GetHorizontalScroll()==W:TabStep())
+for i=1,40 do wheel(W.previewTabScroll,-1) end
+assert(W.previewTabScroll:GetHorizontalScroll()==30*W:TabStep()-350)
 W:SelectPreviewConversation(30);assert(W.previewSelected==30)
 W:ShowConversationPicker(true,nav.all)
 assert(#W.conversationPicker.matches==30 and W.conversationPicker.rows[9]:IsShown())
@@ -26,19 +28,19 @@ W:ShowConversationPicker(true,nav.all);picker.search:SetText("no such person");W
 assert(#picker.matches==0 and not picker.rows[1]:IsShown())
 picker.search:SetText("");W:RefreshConversationPicker();picker.offset=21;W:RefreshConversationPicker();assert(picker.rows[9].entry)
 W.previewTabScroll:SetWidth(7000);W:RefreshConversationNavigation(true)
-assert(nav.left.disabled and nav.right.disabled and W.previewTabScroll:GetHorizontalScroll()==0)
+assert(W.previewTabScroll:GetHorizontalScroll()==0)
 W:ClearPreviewData()
 W.tabScroll:SetWidth(220);W:RefreshConversationNavigation(false)
 local entries=W:ConversationEntries(false)
 assert(#entries==#W.hubOrder)
 if #entries>1 then
- W:PageConversationTabs(false,1);assert(W.tabScroll:GetHorizontalScroll()>0)
+ W.tabScroll:GetScript("OnMouseWheel")(W.tabScroll,-1);assert(W.tabScroll:GetHorizontalScroll()>0)
  W:ShowConversationPicker(false,W.conversationNavigation.all)
  local entry=W.conversationPicker.matches[#W.conversationPicker.matches]
  W:ChoosePickerConversation(entry);assert(W.selected==entry.value)
 end
 ''')
-print('Tab navigation passed: 30 conversations, bounded paging, edge states, hidden unread, searchable full list, empty search, list scrolling, selection reveal and resize clamping for preview/native tabs.')
+print('Tab navigation passed: 30 conversations, wheel scrolling without page buttons, hidden unread, searchable full list, empty search, list scrolling, selection reveal and resize clamping for preview/native tabs.')
 
 lua.execute("""
 local create=CreateFrame

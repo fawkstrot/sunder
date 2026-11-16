@@ -1,6 +1,7 @@
 # Unreleased
 
-Record player-facing changes here while developing; move them into a versioned section before releasing. Include related issue/PR numbers once GitHub is connected.
+- Window headers start with Close, Settings and Lock from right to left. Locking hides Close until you unlock the window.
+- Removed the previous and next buttons from Whispers. Scroll through people or click the unread counter to find a conversation.
 
 # 0.10.0-alpha.2 (2026-11-16)
 

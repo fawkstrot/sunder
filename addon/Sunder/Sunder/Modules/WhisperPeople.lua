@@ -17,13 +17,12 @@ end
 local function listFor(host, preview) return preview and host.previewConversations or host.hubOrder end
 local function verticalMaximum(scroll, child) return math.max(0, child:GetHeight() - scroll:GetHeight()) end
 
-local singleRow, contentTop, previewTop, previewBodyTop, tabWidth, navWidth = W.SingleRowHeader, W.ContentTop, W.PreviewTop, W.PreviewBodyTop, W.TabWidth, W.NavigationWidth
+local singleRow, contentTop, previewTop, previewBodyTop, tabWidth = W.SingleRowHeader, W.ContentTop, W.PreviewTop, W.PreviewBodyTop, W.TabWidth
 function W:SingleRowHeader() return not self:IsConversationList() and singleRow(self) end
 function W:ContentTop() return self:IsConversationList() and 0 or contentTop(self) end
 function W:PreviewTop() return self:IsConversationList() and 0 or previewTop(self) end
 function W:PreviewBodyTop() return self:IsConversationList() and self:HeaderHeight() + self:HeaderGap() or previewBodyTop(self) end
 function W:TabWidth() return self:IsConversationList() and self:ConversationListWidth() - self:BodyPadding() * 2 or tabWidth(self) end
-function W:NavigationWidth() return self:IsConversationList() and 100 or navWidth(self) end
 
 local strip = W.LayoutConversationStrip
 function W:LayoutConversationStrip(preview)
@@ -38,16 +37,13 @@ function W:LayoutConversationStrip(preview)
   scroll:SetHeight(self.minimized and not self.collapseAnimation and 1 or math.max(1,self.hub:GetHeight()-top))
   scroll:SetWidth(self:ConversationListWidth())
   scroll:SetShown((not self.minimized or self.collapseAnimation) and (preview and self.previewActive or not preview and not self.previewActive))
-  -- Paging/search stays in the title bar, never adds a second row above the body.
+  -- The unread counter and picker stay in the title bar, never adds a second row above the body.
   local nav = preview and self.previewNavigation or self.conversationNavigation
   if nav then
     nav:ClearAllPoints(); nav:SetPoint("RIGHT", self.hubChrome, "RIGHT", -(self.headerActionWidth or 160), 0)
-    nav:SetSize(100, self:HeaderHeight())
-    for _, item in ipairs({{nav.left,2},{nav.right,24},{nav.all,46}}) do
-      item[1]:ClearAllPoints(); item[1]:SetPoint("LEFT", item[2], 0); item[1]:SetWidth(item[1] == nav.all and 50 or 20)
-    end
-    Core.Components.WindowManager:LayoutUnreadIndicator(nav.all,50,self:HeaderHeight(),math.min(14,self:ToolbarIconSize()))
-    nav.left.icon:SetRotation(-math.pi / 2); nav.right.icon:SetRotation(-math.pi / 2)
+    nav:SetSize(self:NavigationWidth(),self:HeaderHeight())
+    nav.all:ClearAllPoints();nav.all:SetPoint("CENTER",nav,"CENTER")
+    Core.Components.WindowManager:LayoutUnreadIndicator(nav.all,self:NavigationWidth(),self:HeaderHeight(),math.min(14,self:ToolbarIconSize()))
     nav:SetShown(preview and self.previewActive or not preview and not self.previewActive)
   end
   scroll:SetScript("OnMouseWheel", function (_, delta)
@@ -110,7 +106,7 @@ function W:UpdatePreviewBadges()
   if self:IsConversationList() and self.previewActive then self:PositionConversationBody(); self:LayoutConversationStrip(true); self:LayoutPeopleRows(true); self:RefreshConversationNavigation(true) end
 end
 
-local navigation, page, revealNative, revealSample = W.RefreshConversationNavigation, W.PageConversationTabs, W.EnsureHubTabVisible, W.EnsurePreviewTabVisible
+local navigation, revealNative, revealSample = W.RefreshConversationNavigation, W.EnsureHubTabVisible, W.EnsurePreviewTabVisible
 function W:RefreshConversationNavigation(preview)
   if not self:IsConversationList() then return navigation(self, preview) end
   local nav = preview and self.previewNavigation or self.conversationNavigation
@@ -119,7 +115,6 @@ function W:RefreshConversationNavigation(preview)
   local pos = math.max(0, math.min(verticalMaximum(scroll,child), scroll:GetVerticalScroll()))
   self:UpdatePeopleScrollIndicator(scroll,child)
   scroll:SetVerticalScroll(pos)
-  nav.left:SetEnabled(not self.minimized and pos > .5); nav.right:SetEnabled(not self.minimized and pos < verticalMaximum(scroll,child)-.5)
   local count, unread, hidden = 0,0,0
   for i, item in ipairs(listFor(self,preview) or {}) do
     local record = preview and item or W.records[item]
@@ -132,13 +127,6 @@ function W:RefreshConversationNavigation(preview)
   local r,g,b=self:InterfaceAccent()
   Core.Components.WindowManager:StyleUnreadIndicator(nav.all,unread,r,g,b)
   nav.all:SetEnabled(count>0)
-end
-function W:PageConversationTabs(preview,direction)
-  if not self:IsConversationList() then return page(self,preview,direction) end
-  local scroll,child=scrollFor(self,preview);if not scroll then return end
-  local size=math.max(self:ConversationRowStep(),math.floor(scroll:GetHeight()/self:ConversationRowStep())*self:ConversationRowStep())
-  scroll:SetVerticalScroll(math.max(0,math.min(verticalMaximum(scroll,child),scroll:GetVerticalScroll()+direction*size)))
-  self:RefreshConversationNavigation(preview)
 end
 function W:RevealPerson(preview,index)
   local scroll=scrollFor(self,preview);if not scroll or not index then return end
@@ -222,11 +210,10 @@ end
 function W:ApplyWorkspaceMetrics()
   metrics(self)
   if self:IsConversationList() then
-    self.hubTitle:SetPoint("RIGHT",self.hubChrome,"RIGHT",-(self.headerActionWidth or 160)-100-self:HeaderPadding(),0)
+    self.hubTitle:SetPoint("RIGHT",self.hubChrome,"RIGHT",-(self.headerActionWidth or 160)-self:NavigationWidth()-self:HeaderPadding(),0)
     self:PositionConversationBody();self:LayoutConversationStrip(false);self:LayoutConversationStrip(true)
     self:LayoutPeopleRows(not not self.previewActive)
   else
-    for _,nav in pairs({self.conversationNavigation,self.previewNavigation}) do nav.left.icon:SetRotation(0);nav.right.icon:SetRotation(0) end
     for _,tab in pairs(self.hubTabs or {}) do if tab.underline then tab.appearanceStamp=nil;tab.underline:ClearAllPoints();tab.underline:SetPoint("BOTTOMLEFT",4,0);tab.underline:SetPoint("BOTTOMRIGHT",-4,0) end end
     for _,tab in ipairs(self.previewTabs or {}) do if tab.underline then tab.appearanceStamp=nil;tab.underline:ClearAllPoints();tab.underline:SetPoint("BOTTOMLEFT",4,0);tab.underline:SetPoint("BOTTOMRIGHT",-4,0) end end
     self.tabScroll:SetVerticalScroll(0);if self.previewTabScroll then self.previewTabScroll:SetVerticalScroll(0) end
@@ -245,7 +232,7 @@ function W:PresentCollapsedHeader()
     self.hubChrome:Show();self.hubChrome:SetAlpha(1)
     if self.previewFrame then self.previewFrame:SetShown(self.previewActive and (not self.minimized or self.collapseAnimation)) end
     if self.minimized and not self.collapseAnimation then self.hubContent:Hide();if self.previewBody then self.previewBody:Hide() end end
-    self.hubTitle:SetPoint("RIGHT",self.hubChrome,"RIGHT",-(self.headerActionWidth or 160)-100-self:HeaderPadding(),0)
+    self.hubTitle:SetPoint("RIGHT",self.hubChrome,"RIGHT",-(self.headerActionWidth or 160)-self:NavigationWidth()-self:HeaderPadding(),0)
   end
 end
 function W:PresentWindowBody(shown,alpha)

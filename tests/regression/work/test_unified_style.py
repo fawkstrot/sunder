@@ -31,7 +31,7 @@ assert(W.hubRule.paint.a==0)
 for _,line in ipairs(W.hubBorders) do assert(line.rgba[4]==0) end
 assert(W.previewTabs[1]:GetFontString().wrap==false)
 assert(W.previewTabs[1].selection.rgba[4]==0 and W.previewTabs[1].underline:GetHeight()==1)
-assert(W.previewNavigation.left:GetHeight()==20 and not W.previewNavigation.divider:IsShown())
+assert(W.previewNavigation.all:GetHeight()==20 and not W.previewNavigation.divider:IsShown())
 assert(W.hubActionButtons.Close.plate.rgba[4]==0 and W.hubActionButtons.Close.icon:GetAlpha()==.4)
 assert(W.hubActionButtons.Close:GetHeight()==18)
 W:SetMinimized(true,true);assert(W.hub:GetHeight()==20)

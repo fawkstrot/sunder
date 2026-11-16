@@ -15,7 +15,7 @@ WindowManager owns surfaces, action feedback, semantic window commands, native a
 
 ## Commands and visual meanings
 
-Semantic IDs choose a stable icon and default tooltip through `windowActions` and `CreateWindowAction`. Callbacks supply behavior. `LayoutHeaderActions` places supported controls in the same order from the right: close, settings, maximize, collapse up, collapse down, lock, menu, then type-specific controls. Guild and Party add roster; Party also provides Previous groups; Whispers people-list conversation actions stay in person menus rather than a redundant header toolbar.
+Semantic IDs choose a stable icon and default tooltip through `windowActions` and `CreateWindowAction`. Callbacks supply behavior. `LayoutHeaderActions` places supported controls in the same order from the right: close, settings, lock, maximize, collapse up, collapse down, menu, then type-specific controls. Locking hides Close and reclaims its space immediately. The roster-room menu follows the same close policy. Settings, unlock, collapse and conversation controls stay available. Guild and Party add roster; Party also provides Previous groups; Whispers people-list conversation actions stay in person menus rather than a redundant header toolbar.
 
 - Square: maximize; overlapping squares: restore size.
 - Three lines: window/conversation menu.

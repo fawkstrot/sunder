@@ -15,7 +15,7 @@ assert(W.previewTabs[2].points.TOPLEFT.y==-W:ConversationRowStep()-W:BodyPadding
 assert(W.previewTabs[2]:GetWidth()==W:TabWidth())
 assert(W.previewTabChild:GetHeight()==30*W:ConversationRowStep()+W:BodyPadding()*2)
 W.previewTabScroll:SetHeight(180);W.previewTabScroll:SetVerticalScroll(0)
-W:PageConversationTabs(true,1);assert(W.previewTabScroll:GetVerticalScroll()>0)
+W.previewTabScroll:GetScript("OnMouseWheel")(W.previewTabScroll,-1);assert(W.previewTabScroll:GetVerticalScroll()>0)
 W:SelectPreviewConversation(30)
 assert(W.previewTabScroll:GetVerticalScroll()>=29*W:ConversationRowStep()+W:ConversationRowHeight()-W.previewTabScroll:GetHeight())
 local selected=W.previewConversations[W.previewSelected]
@@ -44,7 +44,7 @@ local favorites=W:GetWorkspace('group2');favorites:OpenMessages();favorites:Refr
 assert(not favorites.contactPane and not favorites.contactScroll)
 assert(favorites:ConversationListWidth()>=140)
 ''')
-print('People layout passed: shared minimum with proportional split, separate title, native/sample right-pane bounds, 30 vertical rows, paging/reveal, sorting/pinning, horizontal insertion marker, edge scrolling, minimized navigation and reversible tab layout.')
+print('People layout passed: shared minimum with proportional split, separate title, native/sample right-pane bounds, 30 vertical rows, wheel scrolling and selection reveal, sorting/pinning, horizontal insertion marker, edge scrolling, minimized navigation and reversible tab layout.')
 
 # Exercise the complete timed scenario with the new layout loaded.
 exec("\n".join(Path("work/test_scenario051.py").read_text().splitlines()[1:]))
