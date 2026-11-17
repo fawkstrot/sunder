@@ -135,7 +135,7 @@ end
 ui.container=CreateFrame("Frame",nil,UIParent);ui.container:SetSize(600,250)
 ''')
 lua.execute('Core:GetModule("Config").Pages={messages=function() return {args={section1={args={}}}} end}')
-for name in ['Components/WindowManager.lua','Components/ResizeHandle.lua','Modules/Whispers.lua','Modules/WhisperWorkspace.lua','Modules/WhisperHub.lua','Modules/WhispersOptions.lua','Modules/UIManager.lua']:
+for name in ['utils.lua','Components/WindowManager.lua','Components/ResizeHandle.lua','Modules/Whispers.lua','Modules/WhisperWorkspace.lua','Modules/WhisperHub.lua','Modules/WhispersOptions.lua','Modules/UIManager.lua']:
     lua.execute(root.joinpath(name).read_text(encoding='utf-8'), 'Sunder', lua.globals().vars)
 lua.execute('''
 Core.db.profile.whispers=clone(Core.defaults.profile.whispers)

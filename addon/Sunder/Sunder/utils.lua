@@ -20,6 +20,42 @@ function Utils.hookPresentation(owner, object, method, handler)
   owner.hooks[object][method] = original
 end
 
+-- Native buffers may expose either wall time or seconds on the client clock.
+-- A backfilled entry's new native timestamp describes replay, not receipt.
+local function readable(value)
+  return not canaccessvalue or canaccessvalue(value)
+end
+
+function Utils.getMessageReceipt(entry)
+  if not readable(entry) or not entry or entry.sunderUndated then return end
+  local stamp=entry.serverTime
+  if readable(stamp) and type(stamp)=="number" and stamp>0 then return stamp end
+  stamp=entry.timestamp
+  if readable(stamp) and type(stamp)=="number" and stamp>=0 then
+    local age=GetTime()-stamp
+    if age>=0 then return GetServerTime()-math.floor(age) end
+  end
+end
+
+function Utils.restoreChatLine(frame,line)
+  local buffer=frame.historyBuffer
+  local before=frame:GetNumMessages()
+  local previous=buffer and before>0 and buffer:GetEntryAtIndex(before)
+  local window=Core:GetModule("UIManager"):GetChatWindow(frame)
+  local smf=window and window.slidingMessageFrame
+  local pending=smf and smf.state.incomingScrollbackMessages
+  local count=pending and #pending
+  frame:BackFillMessage(line[1],line[2],line[3],line[4],line.typeID)
+  local receipt=type(line.receivedAt)=="number" and line.receivedAt>0 and line.receivedAt or nil
+  local after=frame:GetNumMessages()
+  local entry=buffer and after>0 and buffer:GetEntryAtIndex(after)
+  if readable(entry) and entry and entry~=previous then
+    entry.serverTime=receipt
+    entry.sunderUndated=not receipt or nil
+  end
+  if pending and #pending>count then pending[#pending].receivedAt=receipt end
+end
+
 -- Utility functions
 Utils.super = function (obj)
   return getmetatable(obj).__index

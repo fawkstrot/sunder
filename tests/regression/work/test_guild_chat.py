@@ -198,6 +198,24 @@ Core.db.char.guildRoomHistory={key=G.currentGuild,lines={{"Guild Message of the 
 frame.history={{text="Guild Message of the Day: current notice",typeID=40}}
 G.restoredFrame=nil;G:RestoreHistory();drain()
 assert(#frame.history==3 and frame.history[1].text=="repeated" and frame.history[2].text=="repeated","MOTD replay or genuine repeat loss")
+-- The native buffer has only uptime for one older line and no date for another.
+local oldClock=GetServerTime
+function GetServerTime()return 1800000000 end
+local origin=now;now=20000
+frame.history={{text="earlier",typeID=40,timestamp=5600},{text="unknown",typeID=40}}
+G:SaveHistory()
+local known=1800000000-14400
+local lines=Core.db.char.guildRoomHistory.lines
+assert(lines[1].receivedAt==known and not lines[2].receivedAt)
+frame.history={};G.restoredFrame=nil
+local backfill=frame.BackFillMessage
+frame.BackFillMessage=function(self,...)
+ backfill(self,...);self.history[1].timestamp=now;self.history[1].serverTime=GetServerTime()
+end
+G:RestoreHistory();drain();G:SaveHistory()
+lines=Core.db.char.guildRoomHistory.lines
+assert(lines[1].receivedAt==known and not lines[2].receivedAt,"replay time leaked into Guild recall")
+frame.BackFillMessage=backfill;now=origin;GetServerTime=oldClock
 frame.history={}
 for i=1,230 do frame.history[i]={text="guild line "..i,typeID=i%2==0 and 40 or 41,serverTime=1000+i}end
 G:SaveHistory();local saved=Core.db.char.guildRoomHistory

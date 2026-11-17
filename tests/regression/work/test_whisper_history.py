@@ -73,6 +73,7 @@ local wasEnabled,wasAll,wasFormat,wasColor=p.timestampsEnabled,p.timestampAllWin
 p.timestampsEnabled=true;p.timestampAllWindows=true;p.timestampColorEnabled=false;p.timestampFormat="[%I:%M %p]"
 cfg.timestamps=false
 for _,frame in ipairs({HistoryFrame7,{chatType="GUILD",GetName=function()return "NewGuildSlot"end},{chatType="PARTY",GetName=function()return "NewPartySlot"end},{GetName=function()return "General"end}})do
+ assert(timestampTest("undated",frame,nil)=="undated","legacy history received the display time")
  local out=timestampTest("hello",frame,1006)
  assert(out:find("|cff999999",1,true) and out:find("[%I:%M %p]:1006",1,true),"all-window 12-hour setting was bypassed")
 end

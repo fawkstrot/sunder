@@ -242,7 +242,7 @@ local function getTimestampColorHex(color)
 end
 
 local function timestampProcessor(text, frame, receivedAt)
-  if type(text)~="string"then return text end
+  if type(text)~="string" or type(receivedAt)~="number" or receivedAt<=0 then return text end
   local profile=Core.db.profile
   if profile.timestampAllWindows==true and not profile.timestampsEnabled then return text end
   local whisper=profile.whispers
@@ -259,11 +259,11 @@ local function timestampProcessor(text, frame, receivedAt)
   local nativeFormat=util and util.GetTimestampFormat and util.GetTimestampFormat()
   if nativeFormat then
     local formatDate=_G.TimeUtil and _G.TimeUtil.BetterDate or date
-    local prefix=formatDate(nativeFormat,receivedAt or _G.time())
+    local prefix=formatDate(nativeFormat,receivedAt)
     if text:sub(1,#prefix)==prefix then text=text:sub(#prefix+1)end
   end
   local format=whisperOnly and whisper.timestampFormat or profile.timestampFormat
-  local stamp=receivedAt and date(format,receivedAt) or date(format)
+  local stamp=date(format,receivedAt)
   if whisperOnly then return "|cff999999"..stamp.."|r "..text end
   -- The all-window option is deliberately subdued even without a color override.
   if not profile.timestampColorEnabled then return (all and "|cff999999"..stamp.."|r" or stamp).." "..text end

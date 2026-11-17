@@ -19,7 +19,7 @@ function P:ArchiveHistory()
   if changed then
   self.archiveSnapshot=saved;record.updatedAt=now();record.lines={}
   for _,line in ipairs(saved.lines)do
-    record.lines[#record.lines+1]={line[1],line[2],line[3],line[4],typeID=line.typeID,receivedAt=line.receivedAt or record.updatedAt,own=line.own}
+    record.lines[#record.lines+1]={line[1],line[2],line[3],line[4],typeID=line.typeID,receivedAt=line.receivedAt,own=line.own}
   end
   end
   local known={};for _,person in ipairs(record.members)do known[person.name]=true end

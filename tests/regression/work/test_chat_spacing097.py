@@ -347,3 +347,22 @@ native=root.joinpath('Components/SlidingMessageFrameNative.lua').read_text(encod
 a=native.index('    hookMessage(self, self.historyBuffer, "PushBack"')
 b=native.index('  self:HookChatFrameVisibility',a)
 lua.execute('local captured;local self={historyBuffer={},chatFrame={GetMessageInfo=function()return "native",1,1,1,80,42,99 end}};local getReceivedAt=function()return 1234 end;local hookMessage=function(_,_,_,fn)captured=fn end;function self:BackFillMessageAt(...) nativeBackfill={...}end;'+native[a:b].rsplit('  end',1)[0]+' captured(nil,{message="native",r=1,g=1,b=1});assert(nativeBackfill[7]==80 and nativeBackfill[8]==42 and nativeBackfill[9]==99,"native backfill dropped direction/type metadata")')
+
+# Live inserts without native time acquire one receipt. Reads later retain it.
+start=native.index('  if self.historyBuffer and type(self.historyBuffer.PushFront)')
+stop=native.index('  if self.historyBuffer and not self.state.isCombatLog',start)
+lua.execute('''local captured
+local self={historyBuffer={PushFront=function()end}}
+local hookMessage=function(_,_,_,fn)captured=fn end
+local getReceivedAt=vars[3].getMessageReceipt
+local clock=1700000000
+local GetServerTime=function()return clock end
+'''+native[start:stop]+'''
+local entry={}
+captured(nil,entry)
+clock=clock+14400
+assert(getReceivedAt(entry)==1700000000)
+local known={serverTime=1234}
+captured(nil,known)
+assert(getReceivedAt(known)==1234)
+''')

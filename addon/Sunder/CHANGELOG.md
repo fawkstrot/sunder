@@ -1,5 +1,7 @@
 # Unreleased
 
+- Guild and other saved chat histories keep their original receipt times through reopen and reload. Older undated lines no longer appear to have arrived just now.
+
 - Fixed garbled punctuation in the Whispers contact tooltip, saved-history menu and update notification.
 
 - Window headers start with Close, Settings and Lock from right to left. Locking hides Close until you unlock the window.

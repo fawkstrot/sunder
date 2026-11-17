@@ -1,4 +1,4 @@
-local Core,Constants=unpack(select(2,...))
+local Core,Constants,Utils=unpack(select(2,...))
 -- One implementation for persistent native chat rooms. Feature controllers supply
 -- lifecycle, channel, roster data and caption adapters, never parallel chrome.
 function Core.Components.InstallRosterRoom(G,options)
@@ -476,7 +476,7 @@ function G:SaveHistory(allowPartial)
       local tp=Core:GetModule("TextProcessing",true)
       local line={value,number(r,1),number(g,1),number(b,1),typeID=typeID,own=tp and tp.IsOwnChatLine and tp:IsOwnChatLine(value,typeID,lineID) or false}
       local entry=frame.historyBuffer and frame.historyBuffer:GetEntryAtIndex(count-i+1)
-      if entry and accessible(entry.serverTime) and type(entry.serverTime)=="number" then line.receivedAt=entry.serverTime end
+      line.receivedAt=Utils.getMessageReceipt(entry)
       table.insert(lines,1,line)
     end
   end
@@ -525,12 +525,7 @@ function G:RestoreHistory()
     if self.frame~=frame or self.currentGuild~=options.scope(G) or not profile().enabled or not profile().remember then self.restoringHistory=nil;return end
     local last=math.max(1,index-11)
     for i=index,last,-1 do
-      local line=saved.lines[i];frame:BackFillMessage(line[1],line[2],line[3],line[4],line.typeID)
-      local entry=frame.historyBuffer and frame.historyBuffer:GetEntryAtIndex(frame:GetNumMessages())
-      if entry and line.receivedAt then entry.serverTime=line.receivedAt end
-      local window=Core:GetModule("UIManager"):GetChatWindow(frame)
-      local pending=window and window.slidingMessageFrame.state.incomingScrollbackMessages
-      if pending and pending[#pending] then pending[#pending].receivedAt=line.receivedAt end
+      Utils.restoreChatLine(frame,saved.lines[i])
     end
     index=last-1
     if index>0 then C_Timer.After(0,chunk)else self.restoringHistory=nil end

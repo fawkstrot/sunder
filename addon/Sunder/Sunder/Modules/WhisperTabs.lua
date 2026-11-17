@@ -1,4 +1,4 @@
-local Core = unpack(select(2, ...))
+local Core, Constants, Utils = unpack(select(2, ...))
 local WhisperTabs = Core:GetModule("WhisperTabs")
 
 -- WoW provides these globals at runtime, so suppress Luacheck's undefined-global warning while localizing them.
@@ -79,8 +79,7 @@ local function readLines(chatFrame,archive)
       local line = {text, canAccess(red) and type(red)=="number" and red or 1, canAccess(green) and type(green)=="number" and green or 1, canAccess(blue) and type(blue)=="number" and blue or 1}
       if canAccess(typeID) and type(typeID)=="number" then line.typeID=typeID end
       local entry = chatFrame.historyBuffer and chatFrame.historyBuffer:GetEntryAtIndex(count - index + 1)
-      local serverTime = entry and entry.serverTime
-      if canAccess(serverTime) and type(serverTime) == "number" then line.receivedAt = serverTime end
+      line.receivedAt=Utils.getMessageReceipt(entry)
       lines[#lines + 1] = line
     end
   end
@@ -268,14 +267,7 @@ function WhisperTabs:Restore()
       for lineIndex = index, last, -1 do
         local line = tab.lines[lineIndex]
         if type(line) == "table" and type(line[1]) == "string" then
-          chatFrame:BackFillMessage(line[1], line[2], line[3], line[4], line.typeID)
-          if type(line.receivedAt) == "number" then
-            local entry = chatFrame.historyBuffer and chatFrame.historyBuffer:GetEntryAtIndex(chatFrame:GetNumMessages())
-            if entry and canAccess(entry) then entry.serverTime = line.receivedAt end
-            local window = Core:GetModule("UIManager"):GetChatWindow(chatFrame)
-            local pending = window and window.slidingMessageFrame and window.slidingMessageFrame.state.incomingScrollbackMessages
-            if pending and pending[#pending] then pending[#pending].receivedAt = line.receivedAt end
-          end
+          Utils.restoreChatLine(chatFrame,line)
         end
       end
       index = last - 1
@@ -467,12 +459,7 @@ function WhisperTabs:OnConversationOpened(frame)
     local last=math.max(floorIndex,index-11)
     for i=index,last,-1 do
       local line=entry.lines[i]
-      frame:BackFillMessage(line[1],line[2],line[3],line[4],line.typeID)
-      local native=frame.historyBuffer and frame.historyBuffer:GetEntryAtIndex(frame:GetNumMessages())
-      if native and type(line.receivedAt)=="number" then native.serverTime=line.receivedAt end
-      local window=Core:GetModule("UIManager"):GetChatWindow(frame)
-      local pending=window and window.slidingMessageFrame.state.incomingScrollbackMessages
-      if pending and pending[#pending] then pending[#pending].receivedAt=line.receivedAt end
+      Utils.restoreChatLine(frame,line)
     end
     index=last-1
     if index>=floorIndex then C_Timer.After(0,chunk) else

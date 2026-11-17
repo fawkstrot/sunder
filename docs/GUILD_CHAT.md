@@ -129,3 +129,5 @@ Current expanded people-column width is 150 px, owned solely by WindowManager.PE
 
 
 The shared TextProcessing label adapter removes the redundant native channel label only inside this registered room, retaining sender links and message text. General/other tabs keep their channel context. Saved history remains original native text.
+
+Guild recall stores each available original receipt time. Native entries with a client-clock timestamp are converted to wall time using their age. Reopening, reflowing or saving a room again preserves that time. Older records with no recoverable receipt time show their text without an added timestamp.

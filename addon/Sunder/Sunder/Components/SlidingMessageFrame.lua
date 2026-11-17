@@ -65,17 +65,7 @@ local function getEditBoxEasing()
   return type(easing) == "function" and easing or LibEasing.OutCubic
 end
 
-local function getReceivedAt(entry)
-  if entry and tonumber(entry.serverTime) then
-    return tonumber(entry.serverTime)
-  end
-
-  if entry and tonumber(entry.timestamp) then
-    return GetServerTime() - math.max(0, GetTime() - tonumber(entry.timestamp))
-  end
-
-  return GetServerTime()
-end
+local getReceivedAt = Utils.getMessageReceipt
 
 local function getHistoryEntry(chatFrame, messageIndex)
   local historyBuffer = chatFrame and chatFrame.historyBuffer
@@ -791,6 +781,7 @@ local function CreateSlidingMessageFramePool(parent)
 
       if smf.historyBuffer then
         smf:Unhook(smf.historyBuffer, "PushBack")
+        smf:Unhook(smf.historyBuffer, "PushFront")
       end
 
       if smf.chatFrame then

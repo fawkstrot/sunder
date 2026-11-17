@@ -293,8 +293,9 @@ end
 function SlidingMessageFrameMixin:HookNativeMessages(chatFrame, chatFrameWasShown)
   local hookMessage = Constants.ENV == "retail" and self.SecureHook or self.Hook
   hookMessage(self, chatFrame, "AddMessage", function (...)
-    local newestEntry = self.historyBuffer and self.historyBuffer:GetEntryAtIndex(1)
-    local queued = self:AddMessageAt(getReceivedAt(newestEntry), ...)
+    -- On Forever this hook runs before native insertion. Index 1 still belongs to the previous line.
+    local inserted = Constants.ENV=="retail" and self.historyBuffer and self.historyBuffer:GetEntryAtIndex(1)
+    local queued = self:AddMessageAt(getReceivedAt(inserted) or GetServerTime(), ...)
     local tab = queued and not self.state.isCombatLog and _G[chatFrame:GetName().."Tab"]
     if tab and tab.AddUnreadMessage then tab:AddUnreadMessage() end
     local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
@@ -315,6 +316,19 @@ function SlidingMessageFrameMixin:HookNativeMessages(chatFrame, chatFrameWasShow
       local oldestEntry = self.historyBuffer and self.historyBuffer:GetEntryAtIndex(chatFrame:GetNumMessages())
       self:BackFillMessageAt(getReceivedAt(oldestEntry), ...)
     end, true)
+  end
+
+  -- PushFront receives a live entry. Keep its arrival time for buffers that
+  -- supply neither a wall clock nor a client-clock timestamp.
+  if self.historyBuffer and type(self.historyBuffer.PushFront)=="function" then
+    hookMessage(self,self.historyBuffer,"PushFront",function(_,entry)
+      if (not canaccessvalue or canaccessvalue(entry)) and type(entry)=="table" then
+        if not canaccessvalue or canaccessvalue(entry.serverTime) and canaccessvalue(entry.timestamp) then
+          entry.sunderUndated=nil
+          if not getReceivedAt(entry) then entry.serverTime=GetServerTime() end
+        end
+      end
+    end,true)
   end
 
   if self.historyBuffer and not self.state.isCombatLog then
