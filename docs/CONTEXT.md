@@ -712,3 +712,10 @@ The user reported reversed dragging in Guild members and inconsistent scrollbars
 
 Lists, previews, picker and notification queue, live and archived transcripts, the Guild information drawer and Sunder-owned scrollable utility dialogs use the shared control. Existing tab reordering, docking, native editor input and host add-on settings remain under their respective owners. Post-change native pointer tracking and appearance require a safe user reload.
 Validation: the full suite passed, including scaled pointer drag to both ends, hide/release cleanup, wrapping and hit clearance, live wheel and thumb bounds, resize and toolkit value synchronization. WoW Forever dry run and backed-up deployment passed. Installed hashes verified, SavedVariables preserved, backup 20261117T043829030157Z. Both local ZIPs rebuilt. No reload or publication.
+
+## 2026-11-17 scrollbar clearance and bottom-of-history stability
+
+The user observed a scrollbar overlapping the resize grip and a jump in thumb height on reaching the newest message. The shared rail now measures the owning corner grip in the pane coordinate system, leaving a gap between hit boxes. Sidebars and panes that already end above the grip retain full travel. Live transcripts reserve consistent rail geometry across the return-to-latest transition; the viewport still expands for text at latest, and a fully fitting history still has no draggable thumb.
+
+Regression coverage checks the shared grip factory with a nested, differently scaled rail; it checks both a side pane and an editor-cleared corner. A wrapped transcript crosses the endpoint with the mouse held and with the wheel, and verifies track length, thumb height, range and lack of bounce. Native hover and drag feel after deployment still require an in-game check.
+Validation and install: the full CLI test suite and dry run passed. WoW Forever deployment verified installed hashes and preserved SavedVariables, backup 20261117T160958898821Z. Both local packages were rebuilt at the existing version. No reload or publication.

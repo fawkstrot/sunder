@@ -127,7 +127,10 @@ end
 function SlidingMessageFrameMixin:ScrollTranscriptWheel(delta)
   local rail=self.scrollRail
   if not rail or not rail:IsShown() then return false end
-  if rail.maximum==0 then return true end
+  if rail.maximum==0 then
+    if delta<0 and not self.state.scrollAtBottom then self:SetScrollPosition(1,0) end
+    return true
+  end
   local offset=rail.offset
   if IsShiftKeyDown() then
     offset=offset-delta*20
@@ -148,15 +151,13 @@ end
 -- The pinned message sits on the slider's bottom edge. While scrolled back that edge stays above the
 -- return-to-latest row; at the bottom the pane extends below it so incoming lines can slide in.
 function SlidingMessageFrameMixin:UpdateViewportHeight(unreadRowHeight)
-  local viewHeight = self.config.height
-  if not self.state.scrollAtBottom then
-    local reservedHeight = unreadRowHeight
-    if reservedHeight == nil and self.overlay and self.overlay.GetUnreadRowHeight then
-      reservedHeight = self.overlay:GetUnreadRowHeight()
-    end
-    reservedHeight = math.max(0, tonumber(reservedHeight) or DEFAULT_UNREAD_ROW_HEIGHT)
-    viewHeight = math.max(1, viewHeight - reservedHeight)
+  local reservedHeight = unreadRowHeight
+  if reservedHeight == nil and self.overlay and self.overlay.GetUnreadRowHeight then
+    reservedHeight = self.overlay:GetUnreadRowHeight()
   end
+  reservedHeight = math.max(0, tonumber(reservedHeight) or DEFAULT_UNREAD_ROW_HEIGHT)
+  local readbackHeight = math.max(1,self.config.height-reservedHeight)
+  local viewHeight = self.state.scrollAtBottom and self.config.height or readbackHeight
 
   local overflow = self.state.scrollAtBottom and not self.state.jumpingToBottom and self.config.overflowHeight or 0
   self:SetHeight(viewHeight + overflow)
@@ -183,8 +184,12 @@ function SlidingMessageFrameMixin:UpdateViewportHeight(unreadRowHeight)
       total=total+height
       if i>pinned then newer=newer+height end
     end
-    local page=math.max(1,viewHeight-Core.Components.WindowManager:BodyPadding()*2)
-    Core.Components.WindowManager:UpdateScrollRail(self,room,viewHeight,total,page,total-page-newer-(self.state.messageOffset or 0),setTranscriptOffset)
+    -- The message viewport reclaims the return-to-latest row at the bottom.
+    -- The rail keeps its readback travel and page size through that transition.
+    local padding=2*Core.Components.WindowManager:BodyPadding()
+    local fullPage=math.max(1,self.config.height-padding)
+    local page=total<=fullPage and fullPage or math.max(1,readbackHeight-padding)
+    Core.Components.WindowManager:UpdateScrollRail(self,room,readbackHeight,total,page,total-page-newer-(self.state.messageOffset or 0),setTranscriptOffset)
   end
 end
 

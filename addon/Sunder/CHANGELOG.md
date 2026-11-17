@@ -1,5 +1,7 @@
 # Unreleased
 
+- Scrollbars leave the resize corner clear and keep a steady thumb size when you reach the newest chat message.
+
 - Chat transcripts, member lists, archives and chat tools now use the Guild-style scrollbar. Drag down to move toward the bottom, or click the track to jump.
 
 - Guild and other saved chat histories keep their original receipt times through reopen and reload. Older undated lines no longer appear to have arrived just now.

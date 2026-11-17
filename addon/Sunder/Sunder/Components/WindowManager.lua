@@ -123,7 +123,8 @@ function Manager:UpdateContentExtent(root,height,top)
 end
 function Manager:CreateWindowResizer(root,options)
   local handle=Core.Components.CreateResizeHandle(root,options)
-  handle:SetSize(24,24);handle:SetAlpha(.4);handle:SetFrameLevel(root:GetFrameLevel()+30)
+  root.windowResizeGrip=handle
+  handle:SetAlpha(.4);handle:SetFrameLevel(root:GetFrameLevel()+30)
   for _,method in ipairs({"GetNormalTexture","GetHighlightTexture","GetPushedTexture"})do
     local texture=handle[method] and handle[method](handle)
     if texture then texture:ClearAllPoints();texture:SetSize(16,16);texture:SetPoint("BOTTOMRIGHT")end
@@ -633,6 +634,32 @@ local function createRail(owner,writeOffset,outside)
   return rail
 end
 
+-- Leave space for the complete grip hit box only where it crosses this rail.
+-- Use a common coordinate scale for nested/native panes. Reserve the corner
+-- even while locked so an unlock never moves the thumb under the pointer.
+local function readableCoordinate(value)
+  return (not canaccessvalue or canaccessvalue(value)) and type(value)=="number"
+end
+local function availableRailHeight(owner,height,top,right,width)
+  local root=owner
+  while root and root~=UIParent and not root.windowResizeGrip do root=root:GetParent() end
+  local grip=root and root.windowResizeGrip
+  if not grip then return height end
+  local left,bottom,w,h=grip:GetRect()
+  local x,y,ownerWidth,ownerHeight=owner:GetRect()
+  if not (readableCoordinate(left) and readableCoordinate(bottom) and readableCoordinate(w) and readableCoordinate(h)
+      and readableCoordinate(x) and readableCoordinate(y) and readableCoordinate(ownerWidth) and readableCoordinate(ownerHeight)) then
+    return height-grip:GetHeight()-2
+  end
+  local scale=grip:GetEffectiveScale()/owner:GetEffectiveScale()
+  local railRight=x+ownerWidth+right
+  local railTop=y+ownerHeight-top
+  if railRight>left*scale and railRight-width<(left+w)*scale and railTop>bottom*scale then
+    return math.min(height,railTop-(bottom+h)*scale-2)
+  end
+  return height
+end
+
 function Manager:UpdateScrollRail(owner,visible,height,total,page,offset,writeOffset,top,right)
   local rail=owner.scrollRail
   if not visible or (right and right>0 and not owner:IsShown()) then
@@ -640,8 +667,11 @@ function Manager:UpdateScrollRail(owner,visible,height,total,page,offset,writeOf
     return
   end
   if not rail then rail=createRail(owner,writeOffset,right and right>0) end
-  height=math.max(1,height-8)
-  rail:SetPoint("TOPRIGHT",owner,"TOPRIGHT",right or -1,-4-(top or 0))
+  top=4+(top or 0)
+  right=right or -1
+  height=availableRailHeight(owner,height-8,top,right,self.SCROLL_RAIL_WIDTH)
+  if height<=0 then rail:Hide();return end
+  rail:SetPoint("TOPRIGHT",owner,"TOPRIGHT",right,-top)
   rail:SetSize(self.SCROLL_RAIL_WIDTH,height)
   rail:SetFrameLevel(owner:GetFrameLevel()+6)
   rail.maximum=math.max(0,total-page)

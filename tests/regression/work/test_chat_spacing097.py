@@ -379,19 +379,54 @@ function f:SetScrollPosition(index,offset)
  self.state.scrollAtBottom=index==1 and offset==0
  self:UpdateViewportHeight(20)
 end
+f.overlay={GetUnreadRowHeight=function()return 20 end}
 f:UpdateViewportHeight()
 local rail=f.scrollRail
-assert(rail.maximum==180 and rail.thumbOffset>0)
+local height,thumb=rail:GetHeight(),rail.thumb:GetHeight()
+local function stable()assert(rail:GetHeight()==height and rail.thumb:GetHeight()==thumb and rail.maximum==200,"rail jumped at latest")end
+stable();assert(rail.thumbOffset>0)
 mouseDown=true;cursorY=rail:GetTop()
 rail:GetScript("OnMouseDown")(rail,"LeftButton");rail:GetScript("OnUpdate")(rail)
 assert(f.state.scrollIndex==3 and f.state.messageOffset==80,"drag to top missed start of wrapped row")
 cursorY=rail:GetTop()-rail:GetHeight();rail:GetScript("OnUpdate")(rail)
 assert(f.state.scrollAtBottom and f.state.messageOffset==0)
+stable()
+local bottom=rail.thumbOffset
+rail:GetScript("OnUpdate")(rail)
+assert(rail.thumbOffset==bottom and f.state.scrollAtBottom,"held pointer bounced into readback")
 mouseDown=false;rail:GetScript("OnUpdate")(rail);assert(not rail:GetScript("OnUpdate"))
 local wheel=Core.Components.SlidingMessageFrameMixin.ScrollTranscriptWheel
 wheel(f,1);assert(not f.state.scrollAtBottom)
-wheel(f,-1);assert(f.state.scrollAtBottom)
+stable();wheel(f,-1);assert(f.state.scrollAtBottom);stable()
 f.state.messages={{sunderHeight=12}};f:UpdateViewportHeight()
 wheel(f,1);assert(not rail.thumb:IsShown() and f.state.scrollAtBottom)
 wm.UpdateContentExtent=extent;Core.db.profile.bodyPadding=pad
+''')
+
+# Exercise a real registered grip and the common layout at unequal UI scales.
+lua.execute('''
+local wm=Core.Components.WindowManager
+local root=CreateFrame("Frame",nil,UIParent);root:SetSize(300,200)
+local grip=wm:CreateWindowResizer(root,{})
+assert(root.windowResizeGrip==grip)
+function grip:GetRect()
+ local _,_,_,dx,dy=self:GetPoint()
+ return 300+dx-self:GetWidth(),dy,self:GetWidth(),self:GetHeight()
+end
+local pane=CreateFrame("Frame",nil,root)
+local owner=CreateFrame("Frame",nil,pane)
+function owner:GetEffectiveScale()return .8 end
+local bottom,width=0,375
+function owner:GetRect()return 0,bottom,width,200 end
+local function refresh()
+ return wm:UpdateScrollRail(owner,true,200,600,200,0,function()end)
+end
+local rail=refresh()
+local function railBottom()return (bottom+200-4-rail:GetHeight())*.8 end
+local _,gripBottom,_,gripHeight=grip:GetRect()
+assert(railBottom()>gripBottom+gripHeight,"rail hit box crosses corner grip")
+local available=rail:GetHeight()
+refresh();assert(rail:GetHeight()==available)
+width=140;refresh();assert(rail:GetHeight()==192,"left member rail lost height")
+width=375;bottom=50;refresh();assert(rail:GetHeight()==192,"editor already clears the corner")
 ''')

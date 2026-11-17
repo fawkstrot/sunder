@@ -79,6 +79,7 @@ end
 
 -- Sunder's AceGUI windows are created once and only hidden, so a skinned frame never returns to AceGUI's pool.
 function Ellesmere:SkinWindow(window, parts)
+  if window.sizer_se then window.frame.windowResizeGrip=window.sizer_se end
   for _,part in ipairs(parts or {}) do
     if part.scrollFrame and part.scrollBar then
       Core.Components.WindowManager:BindWidgetScrollRail(part.scrollFrame,part.scrollBar,part.editBox)
