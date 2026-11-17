@@ -23,7 +23,10 @@ function W:ApplyRoomStructure(sidebarWidth)
 end
 
 function W:UpdatePeopleScrollIndicator(scroll,child)
-  Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,not self.minimized and not (scroll.peopleScrollbar and scroll.peopleScrollbar:IsShown()))
+  if not scroll.afterRailScroll then
+    scroll.afterRailScroll=function()self:RefreshConversationNavigation(scroll==self.previewTabScroll)end
+  end
+  Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,not self.minimized)
 end
 
 local function button(parent, text, width, action)

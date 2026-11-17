@@ -18,7 +18,7 @@ local function unread(item,preview) return preview and (item.unread or 0) or (W.
 
 local tabWidth=W.TabWidth
 function W:TabWidth()
-  if self:UsesUnifiedPeople() then return self:ConversationListWidth()-self:BodyPadding()*2 end
+  if self:UsesUnifiedPeople() then return self:ConversationListWidth()-self:BodyPadding()-Core.Components.WindowManager:ScrollRightInset(self:BodyPadding()) end
   return tabWidth(self)
 end
 

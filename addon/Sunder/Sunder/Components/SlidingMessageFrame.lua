@@ -694,8 +694,8 @@ function SlidingMessageFrameMixin:Update(incoming, reverse)
     if not self.state.scrollAtBottom then
       self:StopScrollAnimation()
       self:SetSlideOffset(0)
-      self:UpdateViewportHeight()
     end
+    self:UpdateViewportHeight()
   elseif self.state.scrollAtBottom then
     self:StopScrollAnimation()
     if canSlide and (addedHeight > 0 or previousSlide < 0) then
@@ -705,6 +705,7 @@ function SlidingMessageFrameMixin:Update(incoming, reverse)
       self:UpdateViewportHeight()
     end
   else
+    self:UpdateViewportHeight()
     -- Otherwise show "Unread messages" notification
     self.state.unreadMessages = true
     self.overlay:Show()

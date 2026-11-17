@@ -15,7 +15,6 @@ local canaccessvalue = canaccessvalue
 
 local MessageLineMixin = {}
 
-local SCROLLBAR_CLEARANCE = 6
 
 local function applyWrap(text)
   text:SetWordWrap(true)
@@ -29,7 +28,7 @@ end
 local function layoutMetrics(row)
   local owner=assert(row.sunderRenderer,"Message row requires its owning renderer")
   local width=owner:GetLayoutWidth()
-  local clearance=(owner.windowSurface or owner.whisperFullSurface or owner.sharedFullSurface) and SCROLLBAR_CLEARANCE or 0
+  local clearance=(owner.windowSurface or owner.whisperFullSurface or owner.sharedFullSurface) and Core.Components.WindowManager:ScrollRightInset(0) or 0
   return width,clearance
 end
 

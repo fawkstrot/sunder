@@ -95,11 +95,11 @@ Room collapse is an opaque geometric clip, not a fade-out: keep body backing, na
 
 WindowManager owns room body visibility/opacity and sidebar width bounds as well as collapse transitions. Feature adapters supply content measurements and layout, not alternate body lifecycle policies. Responsive compaction must not silently override Show actions; a show command must reveal content or restore sufficient geometry.
 
-People lists share WindowManager:UpdateListScrollIndicator for passive scroll-area feedback. Interactive scrollbar controls must sit above row content; preserve a subtle track when all rows fit. Empty conversation wording describes selection state without assuming routing, newcomers or detached tabs.
+WindowManager:UpdateScrollRail owns vertical scrollbar appearance and pointer mapping across Sunder windows. List and archive adapters use UpdateListScrollIndicator. Downward dragging advances toward the bottom and the drag driver stops on release or hide. Interactive scrollbar controls must sit above row content; preserve a subtle track when all rows fit. Empty conversation wording describes selection state without assuming routing, newcomers or detached tabs.
 
 Use sentence case and normal punctuation for empty-state messages; do not introduce all-caps headings.
 
-Anchor list rails to the viewport edge through WindowManager:LayoutListScrollRail. Body padding belongs to row content, not an extra gutter between scrollbar and sidebar divider.
+Anchor list rails to the viewport edge through WindowManager:UpdateScrollRail. Body padding belongs to row content, not an extra gutter between scrollbar and sidebar divider.
 
 MessageLine geometry must use its owning renderer layout width, never the global General width for detached/room rows. Reserve scrollbar clearance within text bounds, including zero body padding. Header metadata counters use shared action layout and remain independent of roster filters/visibility.
 

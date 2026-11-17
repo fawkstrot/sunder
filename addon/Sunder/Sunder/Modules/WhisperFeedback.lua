@@ -3,57 +3,6 @@ local W = Core:GetModule("Whispers")
 local function accessible(value) return not _G.canaccessvalue or _G.canaccessvalue(value) end
 local function clamp(value,low,high) return math.max(low,math.min(high,value)) end
 
--- A visible, proportional thumb appears only when the people list overflows.
-function W:UpdatePeopleScrollbar(preview)
-  local scroll=preview and self.previewTabScroll or self.tabScroll
-  local child=preview and self.previewTabChild or self.tabChild
-  if not scroll or not child then return end
-  local rail=scroll.peopleScrollbar
-  if not rail then
-    rail=CreateFrame("Slider",nil,self.hub)
-    scroll.peopleScrollbar=rail
-    rail:SetOrientation("VERTICAL");rail:SetValueStep(1);rail:SetObeyStepOnDrag(true)
-    local track=rail:CreateTexture(nil,"BACKGROUND");track:SetPoint("TOP");track:SetPoint("BOTTOM");track:SetWidth(2);track:SetColorTexture(1,1,1,.08)
-    rail:SetThumbTexture("Interface\\Buttons\\WHITE8X8")
-    local thumb=rail:GetThumbTexture();thumb:SetWidth(3)
-    local r,g,b=self:InterfaceAccent();thumb:SetVertexColor(r,g,b,.55)
-    rail:SetScript("OnValueChanged",function(_,value)
-      if rail.syncing then return end
-      scroll:SetVerticalScroll(value);self:RefreshConversationNavigation(preview)
-    end)
-    rail:EnableMouseWheel(true)
-    rail:SetScript("OnMouseWheel",function(_,delta)
-      scroll:SetVerticalScroll(clamp(scroll:GetVerticalScroll()-delta*self:ConversationRowStep()*2,0,rail.maximum or 0))
-      self:RefreshConversationNavigation(preview)
-    end)
-    rail:SetScript("OnEnter",function()
-      thumb:SetVertexColor(r,g,b,.9)
-      GameTooltip:SetOwner(rail,"ANCHOR_RIGHT");GameTooltip:AddLine("More people",1,1,1)
-      GameTooltip:AddLine("Mouse-wheel the list or drag this scrollbar.",.7,.75,.8);GameTooltip:Show()
-    end)
-    rail:SetScript("OnLeave",function() thumb:SetVertexColor(r,g,b,.55);GameTooltip:Hide() end)
-    scroll:HookScript("OnVerticalScroll",function() if not rail.syncing then self:UpdatePeopleScrollbar(preview) end end)
-    scroll:HookScript("OnHide",function()
-      rail:Hide();Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,false)
-    end)
-    rail.above=rail:CreateTexture(nil,"OVERLAY");rail.above:SetSize(4,2);rail.above:SetPoint("TOP",0,3);rail.above:SetColorTexture(r,g,b,.65)
-    rail.below=rail:CreateTexture(nil,"OVERLAY");rail.below:SetSize(4,2);rail.below:SetPoint("BOTTOM",0,-3);rail.below:SetColorTexture(r,g,b,.65)
-  end
-  local height=math.max(1,scroll:GetHeight())
-  local maximum=math.max(0,child:GetHeight()-height)
-  rail.maximum=maximum
-  Core.Components.WindowManager:LayoutListScrollRail(rail,scroll)
-  rail.syncing=true
-  rail:SetMinMaxValues(0,math.max(1,maximum))
-  rail:SetValue(clamp(scroll:GetVerticalScroll(),0,maximum))
-  rail:GetThumbTexture():SetHeight(clamp((height-8)*height/math.max(height,child:GetHeight()),18,math.max(18,height-8)))
-  rail.syncing=nil
-  rail.above:SetShown(scroll:GetVerticalScroll()>.5);rail.below:SetShown(scroll:GetVerticalScroll()<maximum-.5)
-  local visible=self:IsConversationList() and not self.minimized and scroll:IsShown()
-  local interactive=visible and maximum>.5 and height>26
-  rail:SetShown(interactive)
-  Core.Components.WindowManager:UpdateListScrollIndicator(scroll,child,visible and not interactive)
-end
 local refreshNavigation=W.RefreshConversationNavigation
 function W:RefreshConversationNavigation(preview)
   refreshNavigation(self,preview)
@@ -73,8 +22,8 @@ function W:RefreshConversationNavigation(preview)
     end)
     nav:SetShown(preview and self.previewActive or not preview and not self.previewActive)
   end
-  if self:IsConversationList() then self:UpdatePeopleScrollbar(preview)
-  else local scroll=preview and self.previewTabScroll or self.tabScroll;if scroll and scroll.peopleScrollbar then scroll.peopleScrollbar:Hide() end end
+  local scroll=preview and self.previewTabScroll or self.tabScroll
+  if scroll and not self:IsConversationList() and scroll.scrollRail then scroll.scrollRail:Hide() end
 end
 
 -- Queue entries contain session-only references; no message text enters SavedVariables.
@@ -168,7 +117,10 @@ function W:JumpToWhisperToast(entry)
     self.previewJumpLine=entry.line;self:RenderPreview()
     for i,line in ipairs(entry.person.lines or {}) do
       if line==entry.line then
-        if self.previewBody.SetScrollOffset then self.previewBody:SetScrollOffset((self.previewRenderedRows or #entry.person.lines)-(line.renderedRow or i)) end
+        if self.previewBody.SetScrollOffset then
+          self.previewBody:SetScrollOffset((self.previewRenderedRows or #entry.person.lines)-(line.renderedRow or i))
+          self.previewBody:RefreshScrollRail()
+        end
         self:FlashWhisperMessage(self.previewBody)
         return
       end
@@ -237,6 +189,10 @@ function W:UpdateMinimizedWhispers()
     nav.previous=self:IconButton(nav,"left","Newer whispers",function() self:PageWhisperToasts(-(tonumber(self:Settings().minimizedPreviewRows) or 5)) end);nav.previous:SetPoint("LEFT",4,0)
     nav.next=self:IconButton(nav,"right","Older whispers",function() self:PageWhisperToasts(tonumber(self:Settings().minimizedPreviewRows) or 5) end);nav.next:SetPoint("RIGHT",-4,0)
     nav.label=nav:CreateFontString(nil,"OVERLAY","SunderChatDockFont");nav.label:SetPoint("CENTER");self:WorkspaceFont(nav.label,self:InterfaceTextSize())
+    tray.setRailOffset=function(owner,value)
+      self.whisperToastOffset=math.floor(owner.scrollRail.maximum-value+.5)
+      self:UpdateMinimizedWhispers()
+    end
     tray:EnableMouseWheel(true);tray:SetScript("OnMouseWheel",function(_,delta) self:PageWhisperToasts(-delta) end)
   end
   local navHeight=#queue>limit and count>0 and 22 or 0
@@ -295,15 +251,19 @@ function W:UpdateMinimizedWhispers()
       local color=Core.db.profile.chatBackgroundColor or {r=.035,g=.04,b=.05,a=.25}
       if Core.Components.PaintGradientTexture then Core.Components.PaintGradientTexture(row.fill,color,color.a or .25,true)
       else row.fill:SetColorTexture(color.r,color.g,color.b,color.a or .25) end
+      row.close:SetPoint("TOPRIGHT",navHeight>0 and -14 or -3,-3)
       row:Show()
     elseif row then row.retiring=row:IsShown();row.fromAlpha=row:GetAlpha();row.entry=nil;row:Disable() end
   end
   local from=tray:GetHeight();local target=count>0 and count*(rowHeight+spacing)-spacing+navHeight or 1
   local fromAlpha=tray:GetAlpha();local elapsed=0
+  Core.Components.WindowManager:UpdateScrollRail(tray,navHeight>0,math.min(from,target)-navHeight,#queue,count,#queue-count-offset,tray.setRailOffset)
   tray:Show()
   tray:SetScript("OnUpdate",function(_,delta)
     elapsed=elapsed+delta;local t=math.min(1,elapsed/.18);local eased=t*t*(3-2*t)
-    tray:SetHeight(from+(target-from)*eased);tray:SetAlpha(count>0 and 1 or fromAlpha*(1-eased))
+    tray:SetHeight(from+(target-from)*eased)
+    if navHeight>0 then Core.Components.WindowManager:UpdateScrollRail(tray,true,tray:GetHeight()-navHeight,#queue,count,#queue-count-offset,tray.setRailOffset) end
+    tray:SetAlpha(count>0 and 1 or fromAlpha*(1-eased))
     for i=1,count do
       local row=tray.rows[i];local y=row.fromY+(row.targetY-row.fromY)*eased
       row.currentY=y;row:ClearAllPoints();row:SetPoint("BOTTOMLEFT",tray,"BOTTOMLEFT",0,y);row:SetPoint("BOTTOMRIGHT",tray,"BOTTOMRIGHT",0,y)

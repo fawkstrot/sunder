@@ -14,14 +14,22 @@ lua.execute('''
 cfg.minimizedPreviewUntilRead=false;cfg.conversationLayout='list';cfg.minimizedPreviews=true;cfg.minimizedPreviewRows=3;cfg.minimizedPreviewTime=20
 cfg.previewConversations=30;W:StartPreview();W:RefreshHubStyle()
 W.previewTabScroll:SetHeight(180);W:RefreshConversationNavigation(true)
-local rail=W.previewTabScroll.peopleScrollbar
-assert(rail:IsShown() and rail.orientation=='VERTICAL' and rail:GetThumbTexture():GetHeight()>=18)
-rail:SetValue(120);assert(W.previewTabScroll:GetVerticalScroll()==120)
-assert(rail.above:IsShown() and rail.below:IsShown())
-assert(not W.previewTabScroll.roomTrack:IsShown(),"interactive scrollbar doubled the passive track")
-W.previewTabScroll:SetHeight(2000);W:RefreshConversationNavigation(true);assert(not rail:IsShown())
-assert(W.previewTabScroll.roomTrack:IsShown() and not W.previewTabScroll.roomThumb:IsShown())
-W.previewTabScroll:SetHeight(180);W:RefreshConversationNavigation(true);assert(rail:IsShown())
+local rail=W.previewTabScroll.scrollRail
+assert(rail:IsShown() and rail.thumb:GetWidth()==3 and rail.thumb:GetHeight()>=18)
+function rail:GetEffectiveScale()return .75 end
+local function pointer(depth)cursorY=(rail:GetTop()-depth)*rail:GetEffectiveScale() end
+mouseDown=true;pointer(rail.thumb:GetHeight()/2);rail:GetScript("OnMouseDown")(rail,"LeftButton")
+pointer(rail:GetHeight());rail:GetScript("OnUpdate")(rail)
+assert(W.previewTabScroll:GetVerticalScroll()==rail.maximum,"dragging down did not reach the last person")
+pointer(0);rail:GetScript("OnUpdate")(rail);assert(W.previewTabScroll:GetVerticalScroll()==0)
+mouseDown=false;rail:GetScript("OnUpdate")(rail);assert(not rail:GetScript("OnUpdate"))
+mouseDown=true;pointer(rail:GetHeight()/2)
+rail:GetScript("OnMouseDown")(rail,"LeftButton");assert(rail:GetScript("OnUpdate"))
+rail:Hide();assert(not rail:GetScript("OnUpdate"),"hidden rail retained drag driver")
+mouseDown=false
+W.previewTabScroll:SetHeight(2000);W:RefreshConversationNavigation(true)
+assert(rail:IsShown() and not rail.thumb:IsShown())
+W.previewTabScroll:SetHeight(180);W:RefreshConversationNavigation(true);assert(rail.thumb:IsShown())
 -- One full-width surface, with no restarted column gradients.
 assert(W.whisperSurface and W.whisperSurface:IsShown())
 assert(W.whisperSurface.points.TOPLEFT.x==0 and W.whisperSurface.points.TOPRIGHT.relative==W.hub and W.whisperSurface:GetHeight()>=1)
@@ -83,3 +91,24 @@ assert(line.coverage==1 and frame.gapBackground:GetAlpha()==0)
 ''')
 print('Native background integration passed: grouped rows and gap filler defer to the shared full-width surface.')
 
+
+lua.execute('''
+local wm=Core.Components.WindowManager
+local owner=CreateFrame("ScrollFrame",nil,UIParent)
+local native=CreateFrame("Slider",nil,owner)
+local child=CreateFrame("Frame",nil,owner)
+owner:SetHeight(100);child:SetHeight(400)
+native:SetMinMaxValues(0,1000)
+function native:GetMinMaxValues()return self.minimum,self.maximum end
+function native:GetValue()return self.value end
+native:SetValue(500)
+wm:BindWidgetScrollRail(owner,native,child)
+local rail=owner.scrollRail
+assert(rail and rail.maximum==300 and not native:IsShown())
+rail.writeOffset(owner,75);assert(native:GetValue()==250)
+native:SetValue(1000);assert(rail.thumbOffset==rail:GetHeight()-rail.thumb:GetHeight())
+child:SetHeight(50);assert(not rail.thumb:IsShown())
+native:Show();assert(not native:IsShown())
+owner:Hide();assert(not rail:IsShown())
+owner:Show();assert(rail:IsShown())
+''')

@@ -107,6 +107,44 @@ function SlidingMessageFrameMixin:SetSunderShown(shown)
   end
 end
 
+local function scrollRowHeight(row)
+  -- Restricted rows have no measurable height. Use one font line for rail travel.
+  return row.sunderHeight or Core.db.profile.messageFontSize or 13
+end
+local function setTranscriptOffset(renderer,offset)
+  local remaining=renderer.scrollRail.maximum-offset
+  local messages=renderer.state.messages
+  local index=1
+  while index<#messages do
+    local height=scrollRowHeight(messages[#messages-index+1])
+    if remaining<height then break end
+    remaining=remaining-height
+    index=index+1
+  end
+  renderer:SetScrollPosition(index,remaining)
+end
+
+function SlidingMessageFrameMixin:ScrollTranscriptWheel(delta)
+  local rail=self.scrollRail
+  if not rail or not rail:IsShown() then return false end
+  if rail.maximum==0 then return true end
+  local offset=rail.offset
+  if IsShiftKeyDown() then
+    offset=offset-delta*20
+  else
+    local rows=self.state.messages
+    local anchor=#rows-self.state.scrollIndex+1
+    local target=math.max(1,math.min(#rows,anchor-(delta>0 and math.ceil(delta) or math.floor(delta))))
+    offset=offset+(self.state.messageOffset or 0)
+    for i=target+1,anchor do offset=offset-scrollRowHeight(rows[i]) end
+    for i=anchor+1,target do offset=offset+scrollRowHeight(rows[i]) end
+    if delta>0 and target==1 then offset=0 end
+    if delta<0 and target==#rows then offset=rail.maximum end
+  end
+  setTranscriptOffset(self,math.max(0,math.min(rail.maximum,offset)))
+  return true
+end
+
 -- The pinned message sits on the slider's bottom edge. While scrolled back that edge stays above the
 -- return-to-latest row; at the bottom the pane extends below it so incoming lines can slide in.
 function SlidingMessageFrameMixin:UpdateViewportHeight(unreadRowHeight)
@@ -136,19 +174,17 @@ function SlidingMessageFrameMixin:UpdateViewportHeight(unreadRowHeight)
     self.slider:SetHeight(math.max(1,viewHeight-padding*2))
   end
   local room=self.windowSurface or self.whisperFullSurface or self.sharedFullSurface
-  if room and not self.roomScrollTrack then
-    self.roomScrollTrack=self:CreateTexture(nil,"OVERLAY")
-    self.roomScrollThumb=self:CreateTexture(nil,"OVERLAY")
-  end
-  if self.roomScrollTrack then
-    local track,thumb=self.roomScrollTrack,self.roomScrollThumb
-    local height=math.max(1,viewHeight-16)
-    local count=#self.state.messages
-    local thumbHeight=math.min(height,math.max(18,height/math.max(1,count/8)))
-    track:ClearAllPoints();track:SetPoint("TOPRIGHT",self,"TOPRIGHT",-3,-8);track:SetSize(2,height);track:SetColorTexture(.7,.75,.8,.08)
-    thumb:ClearAllPoints();thumb:SetPoint("TOPRIGHT",track,"TOPRIGHT",0,-(height-thumbHeight)*(1-(self.state.scrollIndex-1)/math.max(1,count-1)));thumb:SetSize(2,thumbHeight)
-    thumb:SetColorTexture(.7,.75,.8,self.state.scrollAtBottom and .18 or .5)
-    track:SetShown(not not room);thumb:SetShown(not not room and count>8)
+  if room or self.scrollRail then
+    local messages=self.state.messages
+    local total,newer=0,0
+    local pinned=#messages-(self.state.scrollIndex or 1)+1
+    for i,row in ipairs(messages) do
+      local height=scrollRowHeight(row)
+      total=total+height
+      if i>pinned then newer=newer+height end
+    end
+    local page=math.max(1,viewHeight-Core.Components.WindowManager:BodyPadding()*2)
+    Core.Components.WindowManager:UpdateScrollRail(self,room,viewHeight,total,page,total-page-newer-(self.state.messageOffset or 0),setTranscriptOffset)
   end
 end
 

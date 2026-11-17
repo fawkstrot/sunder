@@ -704,6 +704,10 @@ function W:ShowConversationPicker(preview, owner)
     end
     picker.status = picker:CreateFontString(nil, "OVERLAY", "SunderChatDockFont")
     picker.status:SetPoint("BOTTOMLEFT", 12, 10); picker.status:SetTextColor(0.65, 0.7, 0.8)
+    picker.setRailOffset=function(_,offset)
+      picker.offset=math.floor(offset+.5)
+      self:RefreshConversationPicker()
+    end
     picker:EnableMouseWheel(true)
     picker:SetScript("OnMouseWheel", function (_, delta)
       picker.offset = math.max(0, math.min(math.max(0, #(picker.matches or {}) - 9), (picker.offset or 0) - delta * 3))
@@ -745,6 +749,7 @@ function W:RefreshConversationPicker()
       row:SetText(flags..entry.name..(entry.unread > 0 and "  |cffffcc66("..entry.unread..")|r" or ""))
     end
   end
+  Core.Components.WindowManager:UpdateScrollRail(picker,#matches>9,9*28,#matches,9,picker.offset,picker.setRailOffset,62)
   picker.status:SetText(#matches == 0 and "No conversations match" or (#matches.." conversations · Scroll for more"))
 end
 
@@ -1002,7 +1007,7 @@ function W:ApplyWorkspaceMetrics()
     self.previewTabScroll:SetHeight(self:ConversationTabHeight()); self.previewTabChild:SetHeight(self:ConversationTabHeight())
     if self.previewNavigation then self.previewNavigation:SetHeight(self:ConversationTabHeight()) end
     self.previewBody:ClearAllPoints(); self.previewBody:SetPoint("TOPLEFT", self.previewFrame, "TOPLEFT", self:BodyPadding(), -self:PreviewBodyTop()-self:BodyPadding())
-    self.previewBody:SetPoint("BOTTOMRIGHT", self.previewFrame, "BOTTOMRIGHT", -self:BodyPadding(), self:BodyPadding())
+    self.previewBody:SetPoint("BOTTOMRIGHT", self.previewFrame, "BOTTOMRIGHT", -Core.Components.WindowManager:ScrollRightInset(self:BodyPadding()), self:BodyPadding())
     if self.previewActive then self:UpdatePreviewBadges() end
   end
   if self.collapseAnimation and self.finishCollapse then self.finishCollapse() end

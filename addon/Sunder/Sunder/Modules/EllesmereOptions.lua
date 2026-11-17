@@ -268,8 +268,8 @@ local function inputRow(ctx, text, multiline, getText, commit)
     container:SetScript("OnMouseDown", function () editBox:SetFocus() end)
     if Ellesmere.skin then
       pcall(Ellesmere.skin.Panel, container, {inset = true})
-      pcall(Ellesmere.skin.ScrollBar, scroll.ScrollBar)
     end
+    Core.Components.WindowManager:BindWidgetScrollRail(scroll,scroll.ScrollBar,editBox)
   else
     label:SetPoint("LEFT", 20, 0)
     accept:SetPoint("RIGHT", -20, 0)

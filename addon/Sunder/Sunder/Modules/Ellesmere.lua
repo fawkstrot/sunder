@@ -50,9 +50,6 @@ local function skinWindow(S, window, parts)
       S.EditBox(part.editbox)
     elseif part.type == "MultiLineEditBox" then
       S.Panel(part.scrollBG, {inset = true})
-      S.ScrollBar(part.scrollBar)
-    elseif part.type == "ScrollFrame" then
-      S.ScrollBar(part.scrollbar)
     end
   end
 end
@@ -82,6 +79,13 @@ end
 
 -- Sunder's AceGUI windows are created once and only hidden, so a skinned frame never returns to AceGUI's pool.
 function Ellesmere:SkinWindow(window, parts)
+  for _,part in ipairs(parts or {}) do
+    if part.scrollFrame and part.scrollBar then
+      Core.Components.WindowManager:BindWidgetScrollRail(part.scrollFrame,part.scrollBar,part.editBox)
+    elseif part.scrollframe and part.scrollbar then
+      Core.Components.WindowManager:BindWidgetScrollRail(part.scrollframe,part.scrollbar,part.content)
+    end
+  end
   if self.skin then
     skinSafely(skinWindow, self.skin, window, parts)
   else

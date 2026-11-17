@@ -40,10 +40,10 @@ f.state.layoutRefreshPending=true
 f.windowSurface=true
 f:RefreshLayoutGeometry()
 assert(f:GetWidth()==640 and f.config.height==240 and f.slider:GetWidth()==640)
-assert(f.roomScrollTrack:GetHeight()==200,"rail waited for deferred history layout")
+assert(f.scrollRail:GetHeight()==208,"rail waited for deferred history layout")
 assert(f.state.scrollIndex==7 and f.state.layoutRefreshPending,"geometry update disturbed readback or pending reflow")
 nextWidth,nextHeight=720,310;f:RefreshLayoutGeometry()
-assert(f:GetWidth()==720 and f.roomScrollTrack:GetHeight()==270 and f.overlay.updated)
+assert(f:GetWidth()==720 and f.scrollRail:GetHeight()==278 and f.overlay.updated)
 f.state.messageOffset=9;f.state.unreadMessages=true
 function f:SetScrollPosition(index,offset)
  assert(index==7 and offset==9,"full reflow jumped to newest and acknowledged unread")
@@ -84,9 +84,9 @@ local row=CreateFrame("Frame",nil,slider);row.text=row:CreateFontString();row.su
 for k,v in pairs(messageMixin)do row[k]=v end
 row.WithTextDetached=function(_,fn)fn()end;row.UpdateFadeSettings=function()end;row.SetGradientBackground=function()end;row.SetBackgroundCoverage=function()end
 Core.db.profile.bodyPadding=8
-row:UpdateFrame();assert(row.sunderLayoutWidth==220 and row.text:GetWidth()==204)
-owner.widthNow=140;row:UpdateFrame();assert(row.text:GetWidth()==124)
-Core.db.profile.bodyPadding=0;row:UpdateFrame();assert(row.text:GetWidth()==134,"room scrollbar clearance lost at zero padding")
+row:UpdateFrame();assert(row.sunderLayoutWidth==220 and row.text:GetWidth()==201)
+owner.widthNow=140;row:UpdateFrame();assert(row.text:GetWidth()==121)
+Core.db.profile.bodyPadding=0;row:UpdateFrame();assert(row.text:GetWidth()==129,"room scrollbar clearance lost at zero padding")
 """)
 # Exercise the actual native initializer and actual pool through viewport -> slider.
 lua.execute("""
@@ -137,14 +137,14 @@ local row=renderer.messageFramePool:Acquire()
 assert(row.sunderRenderer==renderer,"native pool did not bind explicit owner")
 row:SetDisplayText("[Party] Player: "..string.rep("A long linked quest message ",15))
 Core.db.profile.bodyPadding=8;row:UpdateFrame()
-assert(row:GetWidth()==220 and row.text:GetWidth()==204 and row.sunderHeight>12,"actual viewport hierarchy lost wrapping width/height")
+assert(row:GetWidth()==220 and row.text:GetWidth()==201 and row.sunderHeight>12,"actual viewport hierarchy lost wrapping width/height")
 assert(row.text.wordWrap and row.text.nonSpaceWrap and row.text.maxLines==0)
-renderer.widthNow=140;row:UpdateFrame();assert(row.text:GetWidth()==124 and row.sunderHeight>24)
+renderer.widthNow=140;row:UpdateFrame();assert(row.text:GetWidth()==121 and row.sunderHeight>24)
 renderer.messageFramePool:Release(row)
 local recycled=renderer.messageFramePool:Acquire();assert(recycled==row and recycled.sunderRenderer==renderer)
 renderer.widthNow=126;Core.db.profile.bodyPadding=0
 recycled:SetDisplayText(string.rep("X",180));recycled:UpdateFrame()
-assert(recycled.text:GetWidth()==120 and recycled.sunderHeight>24)
+assert(recycled.text:GetWidth()==115 and recycled.sunderHeight>24)
 assert(not pcall(Core.Components.CreateMessageLine,renderer.slider),"row accepted a missing owner")
 assert(not pcall(Core.Components.CreateMessageLinePool,renderer.slider),"ownerless pool silently falls back to General")
 """)
@@ -170,7 +170,7 @@ renderer.overlay=CreateFrame("Frame",nil,renderer);renderer.overlay.UpdateFrame=
 local layout=ui:CreateDetachedLayout({chatFrame=native,slidingMessageFrame=renderer})
 local root=layout.container;renderer.detachedContainer=root;renderer:SetParent(root)
 root:SetSize(190,170);root:SetSize(160,150)
-assert(renderer.slider:GetWidth()==160 and renderer.roomScrollTrack:GetHeight()==90)
+assert(renderer.slider:GetWidth()==160 and renderer.scrollRail:GetHeight()==98)
 assert(root.windowSurface.bodyFrame:GetHeight()==root:GetHeight()-layout.dock:GetHeight())
 assert(renderer.widthChanges==1 and renderer.state.messageOffset==8)
 root:SetHeight(140);assert(renderer.widthChanges==1,"height-only drag queued a text pass")
@@ -194,7 +194,7 @@ local view=Core.Components.CreateReadOnlyTranscript(panel,ChatFrame1);view:SetSi
 view:SetLines({{string.rep("Long linked message ",20),1,1,1,typeID=3}})
 assert(#rows==1 and rows[1].text.wordWrap and rows[1].sunderHeight>24)
 assert(rows[1]:GetScript("OnHyperlinkClick") and not rows[1]:GetScript("OnMouseDown"),"archive stole live editor or lost links")
-assert(rows[1].text:GetWidth()==214,"archive applied extra horizontal clearance at zero padding")
+assert(rows[1].text:GetWidth()==209,"archive applied extra horizontal clearance at zero padding")
 Core.db.profile.bodyPadding=20
 view:SetLines({{string.rep("A",240)}, {string.rep("B",320)}})
 local firstHeight=rows[1].sunderHeight
@@ -206,9 +206,9 @@ assert(rows[1].text:GetWidth()==90 and rows[1].text.points.TOPLEFT.x==20)
 assert(view:GetVerticalScroll()==20+rows[1].sunderHeight+3 and not view:GetScript("OnUpdate"))
 local first=rows[1];view:SetHeight(2000)
 assert(rows[1]==first and not view:GetScript("OnUpdate") and view:GetVerticalScroll()==0)
-assert(view.roomTrack:IsShown() and not view.roomThumb:IsShown())
-view:SetHeight(75);assert(view.roomThumb:IsShown())
-view:Hide();assert(not view.roomTrack:IsShown());view:Show();assert(view.roomThumb:IsShown())
+assert(view.scrollRail:IsShown() and not view.scrollRail.thumb:IsShown())
+view:SetHeight(75);assert(view.scrollRail.thumb:IsShown())
+view:Hide();assert(not view.scrollRail:IsShown());view:Show();assert(view.scrollRail.thumb:IsShown())
 local log={{string.rep("Wrapped practice line ",35)}}
 view:ShowAppendedLines(log,ChatFrame1)
 assert(view:GetVerticalScroll()>0,"initial practice log did not follow the latest line")
@@ -229,11 +229,11 @@ for _,padding in ipairs({0,8,12,24}) do
  assert(W:BodyPadding()==padding and W:HeaderHeight()==header,"body setting changed headers")
  local top=W:HeaderHeight()+W:HeaderGap()+32
  assert(W.previewBody.points.TOPLEFT.x==W:ConversationBodyLeft()+padding)
- assert(W.previewBody.points.TOPRIGHT.x==-padding)
+ assert(W.previewBody.points.TOPRIGHT.x==-Core.Components.WindowManager:ScrollRightInset(padding))
  assert(W.previewBody.points.TOPLEFT.y==-top-padding)
  assert(W.previewBody:GetHeight()==math.max(1,W.hub:GetHeight()-top-padding*2))
  assert(W.previewTabs[1].points.TOPLEFT.x==padding)
- assert(W.previewTabs[1]:GetWidth()==W:ConversationListWidth()-padding*2)
+ assert(W.previewTabs[1]:GetWidth()==W:ConversationListWidth()-padding-Core.Components.WindowManager:ScrollRightInset(padding))
  W.minimizedWhispers={};local person=W.previewConversations[2]
  W:SetMinimized(true,true);W:QueueMinimizedWhisper(person,true,"Spacing test")
  local toast=W.minimizedWhisperRows and W.minimizedWhisperRows[1]
@@ -365,4 +365,33 @@ assert(getReceivedAt(entry)==1700000000)
 local known={serverTime=1234}
 captured(nil,known)
 assert(getReceivedAt(known)==1234)
+''')
+
+lua.execute('''
+local f=CreateFrame("Frame",nil,UIParent)
+f.sharedFullSurface=true;f.config={height=100,overflowHeight=0}
+f.state={scrollAtBottom=true,scrollIndex=1,messages={{sunderHeight=160},{sunderHeight=40},{sunderHeight=80}}}
+f.UpdateViewportHeight=Core.Components.SlidingMessageFrameMixin.UpdateViewportHeight
+local wm=Core.Components.WindowManager;local extent=wm.UpdateContentExtent;wm.UpdateContentExtent=function()end
+local pad=Core.db.profile.bodyPadding;Core.db.profile.bodyPadding=0
+function f:SetScrollPosition(index,offset)
+ self.state.scrollIndex=index;self.state.messageOffset=offset
+ self.state.scrollAtBottom=index==1 and offset==0
+ self:UpdateViewportHeight(20)
+end
+f:UpdateViewportHeight()
+local rail=f.scrollRail
+assert(rail.maximum==180 and rail.thumbOffset>0)
+mouseDown=true;cursorY=rail:GetTop()
+rail:GetScript("OnMouseDown")(rail,"LeftButton");rail:GetScript("OnUpdate")(rail)
+assert(f.state.scrollIndex==3 and f.state.messageOffset==80,"drag to top missed start of wrapped row")
+cursorY=rail:GetTop()-rail:GetHeight();rail:GetScript("OnUpdate")(rail)
+assert(f.state.scrollAtBottom and f.state.messageOffset==0)
+mouseDown=false;rail:GetScript("OnUpdate")(rail);assert(not rail:GetScript("OnUpdate"))
+local wheel=Core.Components.SlidingMessageFrameMixin.ScrollTranscriptWheel
+wheel(f,1);assert(not f.state.scrollAtBottom)
+wheel(f,-1);assert(f.state.scrollAtBottom)
+f.state.messages={{sunderHeight=12}};f:UpdateViewportHeight()
+wheel(f,1);assert(not rail.thumb:IsShown() and f.state.scrollAtBottom)
+wm.UpdateContentExtent=extent;Core.db.profile.bodyPadding=pad
 ''')

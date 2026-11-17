@@ -13,7 +13,7 @@ function Core.Components.InstallRosterRoom(G,options)
     for _,kind in ipairs(options.historyTypes)do if ChatTypeInfo and ChatTypeInfo[kind] and ChatTypeInfo[kind].id==id then return true end end
     return false
   end
-  local ROOM_FIELDS={"panel","rows","column","surface","toggle","guildLabel","countLabel","search","searchIcon","scroll","child","rail","empty","conversationLabel","motdLabel","captionHelp"}
+  local ROOM_FIELDS={"panel","rows","column","surface","toggle","guildLabel","countLabel","search","searchIcon","scroll","child","empty","conversationLabel","motdLabel","captionHelp"}
   G.roomId=options.id;G.roomSettings=options.settings;G.roomLabel=options.title(G);G.editKey=options.editKey
   if not options.isolated then Core.Components.WindowManager:RegisterChatRoom(options.id,G) end
 function G:RenderRoster()
@@ -24,7 +24,7 @@ function G:RenderRoster()
   self.guildLabel:SetText("Members")
   self.countLabel:SetText((self.onlineCount or 0).." online")
   if self.compact then
-    self.scroll:Hide();self.search:Hide();self.guildLabel:Hide();self.countLabel:Hide();self.empty:Hide();self.rail:Hide()
+    self.scroll:Hide();self.search:Hide();self.guildLabel:Hide();self.countLabel:Hide();self.empty:Hide()
     Core.Components.WindowManager:UpdateListScrollIndicator(self.scroll,self.child,false)
     for _,row in ipairs(self.rows)do row:Hide()end
     self.renderingRoster=nil;return
@@ -105,10 +105,7 @@ function G:RenderRoster()
   if self.rosterFilters then self.rosterFilters:SetShown(not self.compact)end
   self.empty:SetText((self.rosterFilter=="favorites" and #list==0 and "No favorite members yet. Open a member card to add one.") or (self.rosterFilter=="zone" and #list==0 and "No members in your zone.") or self.rosterStatus or (self.query~="" and self.query and "No matching members." or "No members are online."))
   self.empty:SetShown(#list==0)
-  self.syncingRail=true;self.rail:SetMinMaxValues(0,math.max(1,maximum));self.rail:SetValue(offset);self.syncingRail=nil
-  self.rail:GetThumbTexture():SetHeight(math.max(14,(height-4)*height/math.max(height,#list*rowHeight)))
-  self.rail:SetShown(maximum>0)
-  Core.Components.WindowManager:UpdateListScrollIndicator(self.scroll,self.child,maximum<=0)
+  Core.Components.WindowManager:UpdateListScrollIndicator(self.scroll,self.child,true)
   self.renderingRoster=nil
 end
 function G:SelectInput()
@@ -325,13 +322,6 @@ function G:CreatePanel(window)
     self:RenderRoster()
   end)
   scroll:SetScript("OnVerticalScroll",function()self:RenderRoster()end)
-  local rail=CreateFrame("Slider",nil,panel);self.rail=rail
-  local railTrack=rail:CreateTexture(nil,"BACKGROUND");railTrack:SetPoint("TOP");railTrack:SetPoint("BOTTOM");railTrack:SetWidth(2);railTrack:SetColorTexture(.7,.75,.8,.10)
-  rail:SetFrameLevel(scroll:GetFrameLevel()+6)
-  rail:SetOrientation("VERTICAL");rail:SetValueStep(1);rail:SetObeyStepOnDrag(true);rail:SetWidth(8)
-  rail:SetThumbTexture("Interface\\Buttons\\WHITE8X8");rail:GetThumbTexture():SetWidth(3)
-  rail:GetThumbTexture():SetVertexColor(theme():InterfaceAccent())
-  rail:SetScript("OnValueChanged",function(_,value)if not self.syncingRail then scroll:SetVerticalScroll(value);self:RenderRoster()end end)
   self.empty=scroll:CreateFontString(nil,"OVERLAY","SunderChatDockFont")
   self.empty:SetPoint("TOPLEFT",0,0);self.empty:SetPoint("TOPRIGHT",0,0);self.empty:SetJustifyH("LEFT");self.empty:SetTextColor(.55,.6,.66)
   panel:EnableMouse(true)
@@ -415,7 +405,6 @@ function G:LayoutWindow(window)
   end
   if self.LayoutRosterFilters then listTop=self:LayoutRosterFilters(showSearch and searchTop+size+10+3 or searchTop,panelWidth)end
   self.scroll:ClearAllPoints();self.scroll:SetPoint("TOPLEFT",pad,-listTop);self.scroll:SetPoint("BOTTOMRIGHT",0,0)
-  Core.Components.WindowManager:LayoutListScrollRail(self.rail,self.scroll)
   theme():WorkspaceFont(self.empty,size)
   window.tab:SetParent(h.parking)
   if input then input:SetSunderParent(self.column,true)end

@@ -62,14 +62,28 @@ function W:EnsurePreviewFrame()
   local body = CreateFrame("ScrollingMessageFrame", nil, panel)
   self.previewBody = body
   body:SetPoint("TOPLEFT", panel, "TOPLEFT", self:BodyPadding(), -self:PreviewBodyTop()-self:BodyPadding())
-  body:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -self:BodyPadding(), self:BodyPadding())
+  body:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -Core.Components.WindowManager:ScrollRightInset(self:BodyPadding()), self:BodyPadding())
   self:ApplyPreviewFont(body)
   body:SetJustifyH("LEFT")
   body:SetFading(false)
   body:SetMaxLines(200)
+  local function setPreviewOffset(owner,value)
+    owner:SetScrollOffset(math.floor(owner.scrollRail.maximum-value+.5))
+    owner:RefreshScrollRail()
+  end
+  function body:RefreshScrollRail()
+    if not self.SetScrollOffset or not self.GetScrollOffset then return end
+    local _,size=self:GetFont()
+    local page=self.GetNumVisibleLines and self:GetNumVisibleLines() or math.max(1,math.floor(self:GetHeight()/(size or 14)))
+    local maximum=self.GetMaxScrollRange and self:GetMaxScrollRange() or math.max(0,(self:GetNumMessages() or 0)-page)
+    Core.Components.WindowManager:UpdateScrollRail(self,true,self:GetHeight(),maximum+page,page,maximum-self:GetScrollOffset(),setPreviewOffset,0,Core.Components.WindowManager.SCROLL_RAIL_WIDTH)
+  end
+  body:HookScript("OnSizeChanged",body.RefreshScrollRail)
+  body:HookScript("OnShow",body.RefreshScrollRail)
   body:EnableMouseWheel(true)
   body:SetScript("OnMouseWheel", function (_, delta)
     if delta > 0 then body:ScrollUp() else body:ScrollDown() end
+    body:RefreshScrollRail()
   end)
   local help = panel:CreateFontString(nil, "OVERLAY", "SunderChatDockFont")
   help:SetPoint("BOTTOMLEFT", 8, 6)
@@ -193,6 +207,7 @@ function W:RenderPreview()
     local marker=differentiate and self:Settings().replyMarker and "› " or ""
     self.previewBody:AddMessage(marker..(line==self.previewJumpLine and "|cffffc738›|r " or "")..stamp..(line.outgoing and "" or sender..": ")..line.text, differentiate and replyColor[1] or 0.94, differentiate and replyColor[2] or 0.9, differentiate and replyColor[3] or 0.95)
   end
+  self.previewBody:RefreshScrollRail()
   self:UpdatePreviewBadges()
 end
 

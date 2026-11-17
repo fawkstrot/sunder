@@ -60,7 +60,7 @@ function P:RenderHistoryList()
   local pad=wm():BodyPadding();local size=theme():InterfaceTextSize()
   local detailSize=wm():PersonDetailSize(theme())
   local height=math.max(48,pad*2+size+4+detailSize)
-  local textWidth=math.max(1,width-pad-math.max(pad,6))
+  local textWidth=math.max(1,width-pad-wm():ScrollRightInset(pad))
   panel.child:SetWidth(math.max(1,width));panel.child:SetHeight(math.max(1,#records*height))
   for i=1,math.max(#records,#panel.rows)do
     local row=panel.rows[i];local record=records[i]

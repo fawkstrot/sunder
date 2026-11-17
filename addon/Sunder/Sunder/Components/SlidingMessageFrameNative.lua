@@ -267,11 +267,13 @@ function SlidingMessageFrameMixin:InitializeScrollFrame()
   -- The wheel steps one message at a time; Shift pans within a message taller than the view.
   self:SetScript("OnMouseWheel", function (_, delta)
     self:CancelDynamicEditBoxLayout(true)
-    if IsShiftKeyDown() then
-      self:SetScrollPosition(self.state.scrollIndex, self.state.messageOffset + delta * 20)
-    else
-      local step = delta > 0 and math.ceil(delta) or math.floor(delta)
-      self:SetScrollPosition(self.state.scrollIndex + step, 0)
+    if not self:ScrollTranscriptWheel(delta) then
+      if IsShiftKeyDown() then
+        self:SetScrollPosition(self.state.scrollIndex, self.state.messageOffset + delta * 20)
+      else
+        local step = delta > 0 and math.ceil(delta) or math.floor(delta)
+        self:SetScrollPosition(self.state.scrollIndex + step, 0)
+      end
     end
 
     -- Show hidden messages

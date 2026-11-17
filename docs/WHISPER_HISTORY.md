@@ -52,7 +52,7 @@ User reported “Worked great!” after the durable-history deployment and reque
 
 ### Room presentation follow-up — 2026-11-11
 
-Whispers now shares the Guild room's neutral one-pixel outline, darker compact people column, inset divider and passive scroll affordances. Rows have a font-aware 26 px minimum and selection follows the configured accent. A lower-right corner handle resizes the room directly; collapse and native scroll/editor easing remain cancelable. These presentation changes do not alter archive storage or retention policy.
+Whispers now shares the Guild room's neutral one-pixel outline, darker compact people column, inset divider and shared draggable scrollbars. Rows have a font-aware 26 px minimum and selection follows the configured accent. A lower-right corner handle resizes the room directly; collapse and native scroll/editor easing remain cancelable. These presentation changes do not alter archive storage or retention policy.
 
 
 Whispers title text and empty headers now drag like Guild Chat, with a persistent per-window position lock. All / Unread / Favorites occupy a separate full-width row above both columns. Horizontal edge fades paint above body backing. Archive behavior is unchanged.

@@ -582,29 +582,128 @@ function Manager:PeopleSidebarWidth(width)
   return math.max(1,math.min(self.PEOPLE_SIDEBAR_WIDTH,width-220))
 end
 
--- Passive list affordance stays visible even when all rows fit.
-function Manager:UpdateListScrollIndicator(scroll,child,visible)
-  if not scroll or not child then return end
-  if not scroll.roomTrack then
-    local track=scroll:GetParent():CreateTexture(nil,"OVERLAY");scroll.roomTrack=track
-    local thumb=scroll:GetParent():CreateTexture(nil,"OVERLAY");scroll.roomThumb=thumb
+-- Scroll owners supply a top-origin offset and range. Pointer geometry and
+-- thumb presentation are independent of native Slider orientation.
+Manager.SCROLL_RAIL_WIDTH=10
+function Manager:ScrollRightInset(pad)
+  return math.max(pad,self.SCROLL_RAIL_WIDTH+1)
+end
+local function stopRail(rail)
+  rail.grab=nil
+  rail:SetScript("OnUpdate",nil)
+end
+local function cursorDepth(rail)
+  local _,y=GetCursorPosition()
+  return rail:GetTop()-y/rail:GetEffectiveScale()
+end
+local function dragRail(rail)
+  if not IsMouseButtonDown("LeftButton") then stopRail(rail);return end
+  local travel=rail:GetHeight()-rail.thumb:GetHeight()
+  if travel<=0 then return end
+  local fraction=math.max(0,math.min(1,(cursorDepth(rail)-rail.grab)/travel))
+  local nextOffset=fraction*rail.maximum
+  if nextOffset~=rail.lastDrag or rail.lastMaximum~=rail.maximum then
+    rail.lastDrag,rail.lastMaximum=nextOffset,rail.maximum
+    rail.writeOffset(rail.owner,nextOffset)
   end
-  local height=math.max(1,scroll:GetHeight()-12)
-  local maximum=math.max(0,child:GetHeight()-scroll:GetHeight())
-  local thumbHeight=math.min(height,math.max(18,height*scroll:GetHeight()/math.max(1,child:GetHeight())))
-  local track,thumb=scroll.roomTrack,scroll.roomThumb
-  track:ClearAllPoints();track:SetPoint("TOPRIGHT",scroll,"TOPRIGHT",-3,-6);track:SetSize(2,height);track:SetColorTexture(.7,.75,.8,.09)
-  thumb:ClearAllPoints();thumb:SetPoint("TOPRIGHT",track,"TOPRIGHT",0,-(height-thumbHeight)*(maximum>0 and math.min(1,scroll:GetVerticalScroll()/maximum)or 0));thumb:SetSize(2,thumbHeight)
-  thumb:SetColorTexture(.7,.75,.8,maximum>0 and .4 or .13)
-  track:SetShown(scroll:IsShown() and visible);thumb:SetShown(scroll:IsShown() and visible and maximum>0)
+end
+local function createRail(owner,writeOffset,outside)
+  local rail=CreateFrame("Frame",nil,outside and owner:GetParent() or owner)
+  if outside then owner:HookScript("OnHide",function()rail:Hide()end) end
+  rail.owner,rail.writeOffset=owner,writeOffset
+  rail.track=rail:CreateTexture(nil,"BACKGROUND")
+  rail.track:SetPoint("TOP");rail.track:SetPoint("BOTTOM");rail.track:SetWidth(2)
+  rail.track:SetColorTexture(.7,.75,.8,.10)
+  rail.thumb=rail:CreateTexture(nil,"OVERLAY");rail.thumb:SetWidth(3)
+  rail:SetScript("OnMouseDown",function(self,button)
+    if button~="LeftButton" or self.maximum<=0 then return end
+    local relative=cursorDepth(self)-self.thumbOffset
+    local height=self.thumb:GetHeight()
+    self.grab=relative>=0 and relative<=height and relative or height/2
+    self.lastDrag=nil
+    self:SetScript("OnUpdate",dragRail)
+    dragRail(self)
+  end)
+  rail:SetScript("OnMouseUp",stopRail);rail:SetScript("OnHide",stopRail)
+  rail:SetScript("OnMouseWheel",function(_,delta)
+    local wheel=owner:GetScript("OnMouseWheel")
+    if wheel then wheel(owner,delta) end
+  end)
+  owner.scrollRail=rail
+  return rail
 end
 
+function Manager:UpdateScrollRail(owner,visible,height,total,page,offset,writeOffset,top,right)
+  local rail=owner.scrollRail
+  if not visible or (right and right>0 and not owner:IsShown()) then
+    if rail then rail:Hide() end
+    return
+  end
+  if not rail then rail=createRail(owner,writeOffset,right and right>0) end
+  height=math.max(1,height-8)
+  rail:SetPoint("TOPRIGHT",owner,"TOPRIGHT",right or -1,-4-(top or 0))
+  rail:SetSize(self.SCROLL_RAIL_WIDTH,height)
+  rail:SetFrameLevel(owner:GetFrameLevel()+6)
+  rail.maximum=math.max(0,total-page)
+  local thumbHeight=math.min(height,math.max(math.min(18,height/2),height*page/math.max(1,total)))
+  rail.offset=math.max(0,math.min(rail.maximum,offset))
+  rail.thumbOffset=rail.maximum>0 and (height-thumbHeight)*rail.offset/rail.maximum or 0
+  local color=Core.GetThemeColor and Core:GetThemeColor("tabHighlightTextColor")
+  rail.thumb:SetColorTexture(color and color.r or .84,color and color.g or .66,color and color.b or .38,1)
+  rail.thumb:SetHeight(thumbHeight)
+  rail.thumb:SetPoint("TOP",rail,"TOP",0,-rail.thumbOffset)
+  local overflow=rail.maximum>0 and height>1
+  rail.thumb:SetShown(overflow);rail:EnableMouse(overflow)
+  rail:EnableMouseWheel(overflow and owner:GetScript("OnMouseWheel")~=nil)
+  if not overflow then stopRail(rail) end
+  rail:Show()
+  return rail
+end
 
--- List rails sit against the viewport edge, never inside body padding.
-function Manager:LayoutListScrollRail(rail,scroll)
-  rail:ClearAllPoints();rail:SetPoint("TOPRIGHT",scroll,"TOPRIGHT",-1,-4)
-  rail:SetWidth(10);rail:SetHeight(math.max(1,scroll:GetHeight()-8))
-  rail:SetFrameLevel(scroll:GetFrameLevel()+6)
+local function writeListOffset(scroll,value)
+  scroll:SetVerticalScroll(value)
+  if scroll.afterRailScroll then scroll.afterRailScroll() end
+  Manager:UpdateListScrollIndicator(scroll,scroll.railChild,scroll:IsVisible())
+end
+function Manager:UpdateListScrollIndicator(scroll,child,visible)
+  if not scroll or not child then return end
+  scroll.railChild=child
+  local height=scroll:GetHeight()
+  local total=child:GetHeight()
+  local offset=scroll:GetVerticalScroll()
+  local maximum=math.max(0,total-height)
+  if visible and offset>maximum then
+    offset=maximum
+    scroll:SetVerticalScroll(offset)
+  end
+  return self:UpdateScrollRail(scroll,visible and scroll:IsShown(),height,total,height,offset,writeListOffset)
+end
+
+-- These Sunder utility windows retain their private toolkit widget. Keep its
+-- scrollbar as the value model so keyboard, editor caret and wheel still sync.
+function Manager:BindWidgetScrollRail(scroll,native,child)
+  if not scroll or not native or not child or scroll.sunderWidgetRail then return end
+  scroll.sunderWidgetRail=true
+  local function write(_,offset)
+    local lo,hi=native:GetMinMaxValues()
+    local range=child:GetHeight()-scroll:GetHeight()
+    if range>0 then native:SetValue(lo+(hi-lo)*offset/range) end
+  end
+  local function refresh()
+    local page=scroll:GetHeight()
+    local total=child:GetHeight()
+    local lo,hi=native:GetMinMaxValues()
+    local offset=hi>lo and (native:GetValue()-lo)/(hi-lo)*math.max(0,total-page) or 0
+    self:UpdateScrollRail(scroll,true,page,total,page,offset,write,0,self.SCROLL_RAIL_WIDTH)
+  end
+  native:HookScript("OnShow",function(bar)bar:Hide()end)
+  native:Hide()
+  native:HookScript("OnValueChanged",refresh)
+  native:HookScript("OnMinMaxChanged",refresh)
+  child:HookScript("OnSizeChanged",refresh)
+  scroll:HookScript("OnSizeChanged",refresh)
+  scroll:HookScript("OnShow",refresh)
+  refresh()
 end
 
 function Manager:PersonDetailSize(host)return math.max(9,math.floor(host:InterfaceTextSize()*.78))end

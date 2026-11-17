@@ -176,7 +176,7 @@ function G:LayoutGuildInfo(sidebar,top,height)
   p.detail:ClearAllPoints();p.detail:SetPoint("TOPLEFT",pad,-pad-size-8);p.detail:SetPoint("TOPRIGHT",-pad,-pad-size-8);p.detail:SetHeight(size+3);wm():ApplyPersonDetailFont(theme(),p.detail)
   local footer=self.infoMode=="member" and 38 or pad
   p.scroll:ClearAllPoints();p.scroll:SetPoint("TOPLEFT",pad,-pad-size*2-18);p.scroll:SetPoint("BOTTOMRIGHT",-pad,-footer)
-  p.child:SetWidth(math.max(1,width-pad*2));p.body:ClearAllPoints();p.body:SetPoint("TOPLEFT");p.body:SetWidth(math.max(1,width-pad*2-10))
+  p.child:SetWidth(math.max(1,width-pad*2));p.body:ClearAllPoints();p.body:SetPoint("TOPLEFT");p.body:SetWidth(math.max(1,width-pad*2-wm():ScrollRightInset(0)))
   p.whisper:ClearAllPoints();p.whisper:SetPoint("BOTTOMLEFT",pad,pad);p.whisper:SetSize(math.max(1,(width-pad*2-34)/2),24)
   p.invite:ClearAllPoints();p.invite:SetPoint("LEFT",p.whisper,"RIGHT",4,0);p.invite:SetSize(math.max(1,(width-pad*2-34)/2),24)
   p.favorite:ClearAllPoints();p.favorite:SetPoint("BOTTOMRIGHT",-pad,pad);p.favorite:SetSize(24,24)

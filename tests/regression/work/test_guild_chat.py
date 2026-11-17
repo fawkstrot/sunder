@@ -182,8 +182,8 @@ G:ToggleMaximized();UIParent.GetHeight=originalHeight
 local shown=0;for _,row in ipairs(G.rows)do if row:IsShown()then shown=shown+1 end end
 assert(shown<=math.ceil(G.scroll:GetHeight()/G.rowHeight)+1,"offscreen roster controls remained visible")
 G.scroll:SetVerticalScroll(9000);G:RenderRoster();assert(#G.rows<=256 and G.rows[1].member)
-assert(G.rail:IsShown() and G.rail:GetFrameLevel()>G.scroll:GetFrameLevel(),"overflow rail hidden under roster rows")
-G.rail:GetScript("OnValueChanged")(G.rail,100);assert(G.scroll:GetVerticalScroll()==100)
+assert(G.scroll.scrollRail:IsShown() and G.scroll.scrollRail:GetFrameLevel()>G.scroll:GetFrameLevel(),"overflow rail hidden under roster rows")
+G.scroll.scrollRail.writeOffset(G.scroll,100);assert(G.scroll:GetVerticalScroll()==100)
 G.scroll:SetVerticalScroll(9000)
 G:FilterRoster(false);assert(G.scroll:GetVerticalScroll()==9000,"roster refresh jumped to the top")
 rosterReads=0;G:RefreshRoster();currentGuildName="Different Guild";G.members={};G.filtered={};drain()
@@ -561,7 +561,7 @@ print('Clipped transition regression passed: both directions and hosts retain op
 lua.execute("""
 local list=G.filtered
 G.filtered={};G:RenderRoster()
-assert(not G.rail:IsShown() and G.scroll.roomTrack:IsShown(),"fitting roster lost its scroll-area affordance")
+assert(not G.scroll.scrollRail.thumb:IsShown() and G.scroll.scrollRail:IsShown(),"fitting roster lost its scroll-area affordance")
 G.filtered=list;G:RenderRoster()
 local selected=W.selected;W.selected=nil;W:RefreshConversationEmptyState()
 assert(W.hubEmpty:GetText()=="No conversation selected.\\n\\nSelect a conversation to view its messages.")
@@ -570,10 +570,9 @@ W.selected=selected;W:RefreshConversationEmptyState()
 
 lua.execute("""
 local wm=Core.Components.WindowManager
-local rail=CreateFrame("Slider");wm:LayoutListScrollRail(rail,G.scroll)
-assert(G.scroll.points.BOTTOMRIGHT.x==0 and G.scroll.points.BOTTOMRIGHT.y==0,"roster viewport retained a padded scrollbar gutter")
-assert(G.rail.points.TOPRIGHT.rel==rail.points.TOPRIGHT.rel and G.rail.points.TOPRIGHT.x==rail.points.TOPRIGHT.x and G.rail.points.TOPRIGHT.y==rail.points.TOPRIGHT.y)
-assert(G.rail:GetWidth()==rail:GetWidth() and G.rail:GetHeight()==rail:GetHeight())
+local rail=G.scroll.scrollRail
+assert(G.scroll.points.BOTTOMRIGHT.x==0 and rail.points.TOPRIGHT.x==-1)
+assert(rail:GetWidth()==wm.SCROLL_RAIL_WIDTH and rail:GetHeight()==G.scroll:GetHeight()-8)
 """)
 
 lua.execute("""

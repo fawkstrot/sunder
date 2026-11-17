@@ -22,7 +22,7 @@ function W:SingleRowHeader() return not self:IsConversationList() and singleRow(
 function W:ContentTop() return self:IsConversationList() and 0 or contentTop(self) end
 function W:PreviewTop() return self:IsConversationList() and 0 or previewTop(self) end
 function W:PreviewBodyTop() return self:IsConversationList() and self:HeaderHeight() + self:HeaderGap() or previewBodyTop(self) end
-function W:TabWidth() return self:IsConversationList() and self:ConversationListWidth() - self:BodyPadding() * 2 or tabWidth(self) end
+function W:TabWidth() return self:IsConversationList() and self:ConversationListWidth() - self:BodyPadding() - Core.Components.WindowManager:ScrollRightInset(self:BodyPadding()) or tabWidth(self) end
 
 local strip = W.LayoutConversationStrip
 function W:LayoutConversationStrip(preview)
@@ -204,7 +204,7 @@ function W:PositionConversationBody()
   self.previewFrame:ClearAllPoints();self.previewFrame:SetPoint("TOPLEFT",self.hub,"TOPLEFT");self.previewFrame:SetPoint("BOTTOMRIGHT",self.hub,"BOTTOMRIGHT")
   local top=self:HeaderHeight()+self:HeaderGap()+(self.PeopleFilterHeight and self:PeopleFilterHeight() or 0)
   self.previewBody:ClearAllPoints();self.previewBody:SetPoint("TOPLEFT",self.hub,"TOPLEFT",self:ConversationBodyLeft()+self:BodyPadding(),-top-self:BodyPadding())
-  self.previewBody:SetPoint("TOPRIGHT",self.hub,"TOPRIGHT",-self:BodyPadding(),-top-self:BodyPadding())
+  self.previewBody:SetPoint("TOPRIGHT",self.hub,"TOPRIGHT",-Core.Components.WindowManager:ScrollRightInset(self:BodyPadding()),-top-self:BodyPadding())
   self.previewBody:SetHeight(math.max(1,self.hub:GetHeight()-top-self:BodyPadding()*2))
 end
 function W:ApplyWorkspaceMetrics()
