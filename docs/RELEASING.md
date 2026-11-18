@@ -1,6 +1,6 @@
 # Releasing Sunder
 
-CurseForge project: **1798860** (approval/visibility last reported pending). Prepared alpha: **0.10.0-alpha.3**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
+CurseForge project: **1798860** (public visibility not independently confirmed). Current uploaded alpha: **0.10.0-alpha.3**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
 
 The user confirmed green CI, a draft GitHub release and a successful CurseForge upload on 2026-11-11. Do not upload 0.9.11 again. See [session context](CONTEXT.md) for remaining launch checks.
 
@@ -49,3 +49,5 @@ API reference: [CurseForge Upload API](https://support.curseforge.com/support/so
 2026-11-16: **0.10.0-alpha.1** uploaded successfully as **Alpha**, CurseForge file **9652042**, Forever **1.60.1**, through [Release Sunder run 43922901392](https://github.com/fawkstrot/sunder/actions/runs/43922901392). GitHub release is a draft prerelease with checked ZIPs/manifest; it remains unpublished. CurseForge review/public visibility is not yet confirmed. Do not upload this version again. See CONTEXT.md for commit/checksum and native-validation limits.
 
 2026-11-16: CurseForge accepted **0.10.0-alpha.2** as **Alpha** for WoW Forever **1.60.1**, file **9656593**. The [upload run](https://github.com/fawkstrot/sunder/actions/runs/43972843929) used the tagged commit b0c0f4b. Keep the GitHub prerelease in draft. Public visibility on CurseForge has not been independently confirmed.
+
+2026-11-18: CurseForge accepted **0.10.0-alpha.3** as **Alpha** for WoW Forever **1.60.1**, file **9688726**, from tagged commit **e1ad414**. [Rehearsal](https://github.com/fawkstrot/sunder/actions/runs/44370166249), both branch/tag CI runs and the [upload run](https://github.com/fawkstrot/sunder/actions/runs/44370305724) succeeded. Clean and upgrade draft assets were verified byte-for-byte against tagged source; clean ZIP SHA256: `05714be4a5d7a8cfaa1373e6856dc466335c4e37c28f36cb7c9637dd93aec0bb`. GitHub remains a draft prerelease. CurseForge acceptance does not independently establish public visibility. Do not upload this version again.
