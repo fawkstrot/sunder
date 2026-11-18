@@ -3,8 +3,12 @@ local W = Core:GetModule("Whispers")
 
 -- Room structure stays legible even where the shared chat edge fade reaches zero.
 -- These are passive textures: native links, scrolling and editor ownership stay intact.
-function W:ApplyRoomStructure(sidebarWidth)
+function W:ApplyRoomStructure(sidebarWidth,toolbarHeight)
   if not self.hub then return end
+  if not self.minimized and not self.collapseAnimation then
+    local width,height=Core.Components.WindowManager:ClampWindowSize(self.hub:GetWidth(),self.hub:GetHeight(),self)
+    if width~=self.hub:GetWidth() or height~=self.hub:GetHeight() then self.hub:SetSize(width,height) end
+  end
   local cfg=self:Settings();local unified=self:UsesChatAppearance()
   local top=self:HeaderHeight()+self:HeaderGap()
   self.roomStructure=Core.Components.WindowManager:ApplySurface(self.hub,{
@@ -14,7 +18,7 @@ function W:ApplyRoomStructure(sidebarWidth)
     headerOpacity=not unified and cfg.hubHeaderOpacity or nil,
     borderOpacity=not unified and cfg.hubBorderOpacity or nil,
     headerHeight=self:HeaderHeight(),bodyTop=top,
-    sidebarWidth=sidebarWidth,listTop=top+(self.PeopleFilterHeight and self:PeopleFilterHeight() or 0),
+    sidebarWidth=sidebarWidth,listTop=top+(toolbarHeight or (self.PeopleFilterHeight and self:PeopleFilterHeight() or 0)),
     bodyVisible=not not (not self.minimized or self.collapseAnimation or self.transitionBody),
     fade=unified or cfg.hubUseChatFade,
   })
@@ -79,7 +83,8 @@ function W:EnsureHub()
   local cfg = self:HubSettings()
   local hub = CreateFrame("Frame", "SunderMessagesFrame_"..self.hostId, UIParent)
   self.hub, self.hubTabs, self.hubOrder = hub, {}, {}
-  hub:SetSize(cfg.hubWidth, cfg.hubHeight)
+  hub.sunderWindowHost=self
+  hub:SetSize(Core.Components.WindowManager:ClampWindowSize(cfg.hubWidth,cfg.hubHeight,self))
   hub:SetPoint(cfg.hubPoint, UIParent, cfg.hubPoint, cfg.hubX, cfg.hubY)
   hub:SetFrameStrata("MEDIUM")
   hub:SetToplevel(true)
@@ -143,6 +148,7 @@ function W:EnsureHub()
   self:CreateHubOverlay()
   hub:SetScript("OnSizeChanged", function () if self.hubReady then self:ApplyHubAppearance() end; self:ScheduleHubLayout() end)
   hub:SetScript("OnShow", function ()
+    if self.tabMinimized then hub:Hide();return end
     if not W.restoringWindowState then self.windowManuallyClosed = false end
     self:SaveMessageWindowState()
   end)
@@ -191,17 +197,17 @@ function W:CreateHubOverlay()
   overlay:SetScript("OnDragStop", function () self:UpdateHubMove(); self:StopHubMove() end)
   overlay:SetScript("OnHide", function () self:StopHubMove() end)
   self.hubResize = Core.Components.CreateResizeHandle(overlay, {
-    minWidth = 480, minHeight = 220,settings=function()return self:HubSettings()end,
-    allowed = function () return Core.sunderMoverUnlocked and self.hub:IsShown() end,
+    settings=function()return self:HubSettings()end,
+    allowed = function () return Core.sunderMoverUnlocked and self.hub:IsShown() and not self.minimized and not self.collapseAnimation end,
     begin = function () self:StopHubMove(); Core.Components.WindowManager:ClearMaximized(self); return self.hub, self.hub:GetWidth(), self.hub:GetHeight() end,
-    apply = function (width, height) self.hub:SetSize(math.max(width, self.minimumWorkspaceWidth or 480), height); self:LayoutHub() end,
+    apply = function (width, height) self.hub:SetSize(Core.Components.WindowManager:ClampWindowSize(width,height,self)); self:LayoutHub() end,
     finish = function () self:SaveHubGeometry() end,
   })
   self.roomResize=Core.Components.WindowManager:CreateWindowResizer(self.hub,{
-    minWidth=480,minHeight=220,settings=function()return self:HubSettings()end,
+    settings=function()return self:HubSettings()end,
     allowed=function()return self.hub:IsShown() and not self.minimized and not self.collapseAnimation end,
     begin=function()self:StopHubMove();Core.Components.WindowManager:ClearMaximized(self);return self.hub,self.hub:GetWidth(),self.hub:GetHeight()end,
-    apply=function(width,height)self.hub:SetSize(math.max(width,self.minimumWorkspaceWidth or 480),height);self:LayoutHub()end,
+    apply=function(width,height)self.hub:SetSize(Core.Components.WindowManager:ClampWindowSize(width,height,self));self:LayoutHub()end,
     finish=function()self:SaveHubGeometry();self:SaveMessageWindowState()end,
   })
   overlay:SetShown(not not Core.sunderMoverUnlocked)
@@ -285,7 +291,8 @@ function W:SaveHubGeometry()
   cfg.hubPoint, cfg.hubX, cfg.hubY = point, x, y
   if not self.minimized and not self.collapseAnimation then
     cfg.hubWidth = self.hub:GetWidth()
-    if self.hub:GetHeight() >= 220 then cfg.hubHeight = self.hub:GetHeight() end
+    local _,minimum=Core.Components.WindowManager:MinimumWindowSize(self)
+    if self.hub:GetHeight() >= minimum then cfg.hubHeight = self.hub:GetHeight() end
   end
 end
 
@@ -349,7 +356,7 @@ function W:AddHubTab(frame)
   end)
   tab:SetScript("OnEnter", function ()
     GameTooltip:SetOwner(tab, "ANCHOR_TOPLEFT")
-    GameTooltip:AddLine(W:ConversationName(frame), 1, 1, 1)
+    GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(W:ConversationName(frame)), 1, 1, 1)
     GameTooltip:AddLine("Click: read  •  Right-click: conversation actions", 0.75, 0.75, 0.75)
     GameTooltip:AddLine("Shift-click: pin  •  Middle-click: close", 0.75, 0.75, 0.75)
     GameTooltip:Show()
@@ -512,6 +519,7 @@ function W:EnsureHubTabVisible(frame)
 end
 
 function W:UpdateBadges()
+  Core.Components.WindowManager:RefreshMinimizedTabs()
   local total = 0
   for frame, r in pairs(self.records or {}) do
     if r.placement == "hub" then total = total + r.unread end

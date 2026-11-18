@@ -175,14 +175,15 @@ function W:UpdateMinimizedWhispers()
   local limit=clamp(tonumber(cfg.minimizedPreviewRows) or 5,1,10)
   self.whisperToastOffset=clamp(self.whisperToastOffset or 0,0,math.max(0,#queue-limit))
   local offset=self.whisperToastOffset
-  local count=cfg.enabled and (self.hub:IsShown() or self==W and cfg.singleToasterStack) and cfg.minimizedPreviews~=false and math.min(#queue,limit) or 0
+  local count=cfg.enabled and (self.hub:IsShown() or self.tabMinimized and Core.Components.WindowManager:MinimizedToastAnchor(self):IsShown() or not self.tabMinimized and self==W and cfg.singleToasterStack) and cfg.minimizedPreviews~=false and math.min(#queue,limit) or 0
   if count==0 and not self.minimizedWhisperTray then return end
   self:EnsureMinimizedWhisperTray()
   local tray=self.minimizedWhisperTray
   local inset=self.simulationStatus and self.simulationStatus:IsShown() and W.previewSimulation and self.simulationStatus:GetHeight()+12 or 6
-  if tray.anchorInset~=inset then
-    tray.anchorInset=inset;tray:ClearAllPoints()
-    tray:SetPoint("BOTTOMLEFT",self.hub,"TOPLEFT",0,inset);tray:SetPoint("BOTTOMRIGHT",self.hub,"TOPRIGHT",0,inset)
+  local anchor=Core.Components.WindowManager:MinimizedToastAnchor(self)
+  if tray.anchorInset~=inset or tray.anchorWindow~=anchor then
+    tray.anchorInset=inset;tray.anchorWindow=anchor;tray:ClearAllPoints()
+    tray:SetPoint("BOTTOMLEFT",anchor,"TOPLEFT",0,inset);tray:SetPoint("BOTTOMRIGHT",anchor,"TOPRIGHT",0,inset)
   end
   if not tray.navigation then
     local nav=CreateFrame("Frame",nil,tray);tray.navigation=nav;nav:SetHeight(22);nav:SetPoint("BOTTOMLEFT");nav:SetPoint("BOTTOMRIGHT")
@@ -201,7 +202,7 @@ function W:UpdateMinimizedWhispers()
   tray.navigation.label:SetText(string.format("%d–%d / %d",offset+1,offset+count,#queue))
   local bg=Core.db.profile.chatBackgroundColor or {}
   local padding=self:BodyPadding()
-  local stamp=tostring(padding)..":"..tostring(bg.r)..tostring(bg.g)..tostring(bg.b)..tostring(bg.a)..tostring(count)..":"..offset..":"..#queue..":"..self:InterfaceTextSize()..":"..self.hub:GetWidth()
+  local stamp=tostring(padding)..":"..tostring(bg.r)..tostring(bg.g)..tostring(bg.b)..tostring(bg.a)..tostring(count)..":"..offset..":"..#queue..":"..self:InterfaceTextSize()..":"..anchor:GetWidth()
   for i=1,count do
     local entry=queue[i+offset]
     local starred=entry.sample and entry.person.favorite or not entry.sample and W:IsFavorite(entry.person)
@@ -229,13 +230,13 @@ function W:UpdateMinimizedWhispers()
         row:SetHighlightTexture("Interface\\Buttons\\WHITE8X8");row:GetHighlightTexture():SetVertexColor(r,g,b,.06)
         row:SetScript("OnClick",function() self:OpenMinimizedWhisper(row.entry) end)
         row:SetScript("OnEnter",function()
-          GameTooltip:SetOwner(row,"ANCHOR_RIGHT");GameTooltip:AddLine(row.entry and row.entry.name or "Whisper",1,1,1)
+          GameTooltip:SetOwner(row,"ANCHOR_RIGHT");GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(row.entry and row.entry.name or "Whisper"),1,1,1)
           GameTooltip:AddLine("Click to open this message. Mouse-wheel for older whispers.",.7,.75,.8);GameTooltip:Show()
         end)
         row:SetScript("OnLeave",function() GameTooltip:Hide() end)
       end
       local entry=queue[i+offset];local changed=row.entry~=entry
-      row.entry=entry;row:SetHeight(rowHeight);row:SetWidth(self.hub:GetWidth())
+      row.entry=entry;row:SetHeight(rowHeight);row:SetWidth(anchor:GetWidth())
       row.fromY=row.currentY or (i-1)*(rowHeight+spacing);row.targetY=navHeight+(i-1)*(rowHeight+spacing)
       row.fromAlpha=changed and 0 or row:GetAlpha()
       row:SetAlpha(row.fromAlpha);row.retiring=nil;row:Enable()

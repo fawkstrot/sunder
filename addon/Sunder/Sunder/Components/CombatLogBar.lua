@@ -80,7 +80,7 @@ function CombatLogBarMixin:UpdateLayout()
   if position == "ABOVE" then
     self:SetPoint("BOTTOMLEFT", self.sunderParent, "TOPLEFT", xOffset, yOffset)
   else
-    self:SetPoint("TOPLEFT", self.sunderParent, "TOPLEFT", xOffset, -Constants.DOCK_HEIGHT + yOffset)
+    self:SetPoint("TOPLEFT", self.sunderParent, "TOPLEFT", xOffset, -Constants.DOCK_HEIGHT - Core.Components.WindowManager:HeaderGap() + yOffset)
   end
 
   self:UpdateBackground()
@@ -264,7 +264,7 @@ function CombatLogBarMixin:Init(parent, slidingMessageFrame)
           self:UpdateVisibility()
         end
 
-        if key == "combatLogBarLayout" or key == "frameWidth" then
+        if key == "combatLogBarLayout" or key == "frameWidth" or key == "tabMessageSpacing" then
           self:UpdateLayout()
           self:RefreshButtons()
         end

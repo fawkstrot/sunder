@@ -19,7 +19,6 @@ local SAVE_FRAME_POSITION = Constants.EVENTS.SAVE_FRAME_POSITION
 local SettingsValues = {
   maxTabMessageOffset = 50,
   maxCombatLogBarOffset = 500,
-  minFrameHeight = 100,
   maxTextLeftPadding = 100,
   maxEditBoxVerticalPadding = 2,
   anchors = {
@@ -72,7 +71,6 @@ C.Pages = {}
 
 local MAX_TAB_MESSAGE_OFFSET = SettingsValues.maxTabMessageOffset
 local MAX_COMBAT_LOG_BAR_OFFSET = SettingsValues.maxCombatLogBarOffset
-local MIN_FRAME_HEIGHT = SettingsValues.minFrameHeight
 local MAX_TEXT_LEFT_PADDING = SettingsValues.maxTextLeftPadding
 local MAX_EDIT_BOX_VERTICAL_PADDING = SettingsValues.maxEditBoxVerticalPadding
 local COMBAT_LOG_BAR_POSITIONS = SettingsValues.combatLogBarPositions
@@ -235,7 +233,7 @@ end
 
 local function normalizeFrameHeight()
   local height = tonumber(Core.db.profile.frameHeight) or Core.defaults.profile.frameHeight
-  Core.db.profile.frameHeight = math.max(MIN_FRAME_HEIGHT, math.floor(height))
+  Core.db.profile.frameWidth,Core.db.profile.frameHeight=Core.Components.WindowManager:ClampWindowSize(Core.db.profile.frameWidth,math.floor(height))
 end
 
 local function normalizeTextLeftPadding()
@@ -399,11 +397,32 @@ function C:RegisterBlizzardOptions()
   end
 end
 
+-- AceConfig range bounds must be numbers, not callbacks. Refresh the registered
+-- table when shared geometry preferences or typography change.
+function C:RefreshWindowSizeOptions()
+  if not self.options then return end
+  local width,height=Core.Components.WindowManager:MinimumWindowSize()
+  local changed=false
+  local function visit(group)
+    for key,option in pairs(group.args or {})do
+      local value=key=="frameWidth" and width or key=="frameHeight" and height
+      if value and option.type=="range" then
+        if option.min~=value then changed=true end
+        option.min=value;option.softMin=value;option.softMax=math.max(value,option.softMax or 800)
+      elseif option.type=="group" then visit(option) end
+    end
+  end
+  visit(self.options)
+  if changed then Core.Libs.AceConfigRegistry:NotifyChange("Sunder") end
+end
+
 function C:OnEnable()
   normalizeSettings()
   Core:RegisterFeature("chat", {name = "Chat", order = 10, buildOptions = getChatOptions})
   local options = Core:BuildOptions()
   Core:LocalizeOptions(options)
+  self.options=options;self:RefreshWindowSizeOptions()
+  Core:Subscribe(Constants.EVENTS.UPDATE_CONFIG,function(key)if key=="font" or key=="bodyPadding" then self:RefreshWindowSizeOptions()end end)
 
   AceConfig:RegisterOptionsTable("Sunder", options)
   AceConfigDialog:SetDefaultSize("Sunder", 900, 650)
@@ -435,6 +454,10 @@ function C:OnSlashCommand(input)
     self:OpenSettings("itemProtection")
   elseif input == "protect" then
     Core:GetModule("ItemProtection"):ToggleHovered()
+  elseif input == "search" then
+    Core:GetModule("ChatCopy"):ShowAllSearch()
+  elseif input == "history" then
+    Core.Components.ConversationLog:Open()
   elseif input == "messages" then
     Core:GetModule("Whispers"):OpenMessages()
   elseif input == "practice" then

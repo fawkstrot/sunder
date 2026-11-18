@@ -171,7 +171,7 @@ function DetachedChatDockMixin:CreateMoverOverlay(parent)
   overlay:SetScript("OnDragStop", function () self:StopWindowDrag() end)
   overlay:SetScript("OnHide", function () self:StopWindowDrag() end)
   local resizeOptions = {
-    minWidth = 296, minHeight = 120,settings=function()return self:WindowSettings()end,
+    settings=function()return self:WindowSettings()end,
     allowed = function ()
       local frame = self.tab and self.tab.chatFrame
       return frame and not frame.isDocked
@@ -180,9 +180,10 @@ function DetachedChatDockMixin:CreateMoverOverlay(parent)
     begin = function ()
       self:StopWindowDrag()
       local frame = self.tab.chatFrame
-      return frame, frame:GetWidth(), frame:GetHeight()
+      Core.Components.WindowManager:ApplyNativeWindowMinimums(frame)
+      return frame, frame:GetWidth(), frame:GetHeight()+Constants.DOCK_HEIGHT
     end,
-    apply = function (width, height) self.tab.chatFrame:SetSize(width, height) end,
+    apply = function (width, height) self.tab.chatFrame:SetSize(width, height-Constants.DOCK_HEIGHT) end,
     finish = function ()
       local frame = self.tab and self.tab.chatFrame
       if frame and not frame.isDocked and not frame.isTemporary and FCF_SavePositionAndDimensions then

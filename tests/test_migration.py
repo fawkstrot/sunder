@@ -53,6 +53,8 @@ function getChatOptions()return {}end
 function core:RegisterFeature()end;function core:BuildOptions()return {}end;function core:LocalizeOptions()end
 function core:Subscribe()end
 function C:RegisterBlizzardOptions()end
+function C:RefreshWindowSizeOptions()end -- Geometry schema is exercised by the appearance fixture.
+Constants={EVENTS={UPDATE_CONFIG="config"}}
 function C:RegisterChatCommand(name)commands[name]=true end
 core.db={RegisterCallback=function()end}
 AceConfig={RegisterOptionsTable=function()end};AceConfigDialog={SetDefaultSize=function()end}

@@ -30,7 +30,7 @@ local function caption()
   return (P.raid and "Raid" or "Party").." · "..tostring(P.totalCount or 0).." members"
 end
 Core.defaults.profile.partyChat={enabled=true,autoOpen=true,followRaid=true,rosterShown=true,remember=true}
-Core.Components.InstallRosterRoom(P,{id="party",frameName="SunderPartyRoom",editKey="Sunder_PartyChat",settings="party",showSearch=function(p)return p.raid end,nativeTitle="Party Chat",info=true,infoTooltip="Previous groups",infoAction=function(p)p:ToggleHistory()end,infoSelected=function(p)return p.historyMode end,nativeGroups={PARTY=true,PARTY_LEADER=true,RAID=true,RAID_LEADER=true,RAID_WARNING=true,INSTANCE_CHAT=true,INSTANCE_CHAT_LEADER=true},title=title,caption=caption,subtitle=subtitle,
+Core.Components.InstallRosterRoom(P,{id="party",frameName="SunderPartyRoom",editKey="Sunder_PartyChat",settings="party",showSearch=function(p)return p.raid end,nativeTitle="Party Chat",info=true,infoActionID="Archive",infoTooltip="Previous groups",infoAction=function(p)p:ToggleHistory()end,infoSelected=function(p)return p.historyMode end,nativeGroups={PARTY=true,PARTY_LEADER=true,RAID=true,RAID_LEADER=true,RAID_WARNING=true,INSTANCE_CHAT=true,INSTANCE_CHAT_LEADER=true},title=title,caption=caption,subtitle=subtitle,
   state=state,profile=cfg,scope=function()return P.sessionKey end,historyKey="partyRoomHistory",
   historyTypes={"PARTY","PARTY_LEADER","RAID","RAID_LEADER","RAID_WARNING","INSTANCE_CHAT","INSTANCE_CHAT_LEADER"}})
 function P:IsRoom(frame)return cfg().enabled and frame~=nil and frame==self.frame end
@@ -38,6 +38,7 @@ function P:CanSend()return self.grouped and not self.historyMode and not self.pe
 function P:Report(message)Core:GetModule("Config"):Print(message)end
 function P:CollapseToward(edge)Core.Components.WindowManager:CollapseToward(self:EnsureRoom(),edge)end
 function P:UpdateUnread()
+  Core.Components.WindowManager:RefreshMinimizedTabs()
   local h=self.room;if not h or not h.unreadBadge then return end
   Core.Components.WindowManager:StyleUnreadIndicator(h.unreadBadge,self.unread or 0,h:InterfaceAccent())
 end
@@ -108,11 +109,12 @@ function P:RefreshRoster()
       if connected then online=online+1 end
       local guid=UnitGUID and text(UnitGUID(unit))or ""
       identities[#identities+1]=guid~="" and guid or name:lower()
-      list[#list+1]={name=name,key=name:lower(),unit=unit,online=connected,class=text(class),classFile=text(token),level=level,
+      list[#list+1]={name=name,key=name:lower(),guid=guid,unit=unit,online=connected,class=text(class),classFile=text(token),level=level,
         rank=rank,rankIndex=isLeader and 0 or role=="TANK" and 1 or role=="HEALER" and 2 or 3,note="",zone="",status=status}
     end
   end
-  if active and not self.groupInitialized and #list<count and Core.db.char.partyRoomHistory then
+  self.rosterComplete=not active or #list==count
+  if active and not self.groupInitialized and state().fingerprint and #list<count then
     self.waitingForRoster=true;self.rosterStatus="Waiting for party members…";return
   end
   self.waitingForRoster=nil
@@ -138,7 +140,7 @@ function P:RefreshRoster()
   self.members=list;self.totalCount=#list;self.onlineCount=online;self.leader=leader;self.roles=roles;self.readyCount=ready
   for _,member in ipairs(list)do member.guildKey=self.sessionKey;theme():RememberPersonDetails(member.name,member)end
   theme():QueuePersonRefresh()
-  saved.fingerprint=active and fingerprint or nil
+  if self.rosterComplete then saved.fingerprint=active and fingerprint or nil end
   self.hasRecentHistory=self.hasRecentHistory or Core.db.char.partyRoomHistory and #(Core.db.char.partyRoomHistory.lines or {})>0
   self.rosterStatus=active and "No matching members." or "No party members."
   if self.frame then
@@ -232,7 +234,7 @@ function P:FilterMessage(frame,event)
   if frame==self.frame and cfg().enabled then return not self.grouped or not self:AcceptEvent(event)end
   -- Presentation-only suppression: leave native subscriptions and other tabs intact.
   local h=self.room
-  return frame==_G.ChatFrame1 and self.frame~=nil and self.grouped and cfg().enabled and h~=nil and h.hub:IsShown() or false
+  return frame==_G.ChatFrame1 and self.frame~=nil and self.grouped and cfg().enabled and h~=nil and (h.hub:IsShown() or h.tabMinimized) or false
 end
 function P:OnWindowClosed(frame)
   if self.frame~=frame then return end
@@ -240,7 +242,7 @@ function P:OnWindowClosed(frame)
   self:SaveHistory(true);self.historyGeneration=(self.historyGeneration or 0)+1
   self.closedSlots=self.closedSlots or {};self.closedSlots[frame]=true
   state().frameID=nil;state().open=false
-  if self.room then self.room.hub:Hide()end
+  if self.room then Core.Components.WindowManager:RemoveMinimizedTab(self.room);self.room.hub:Hide()end
   local window=Core:GetModule("UIManager"):GetChatWindow(frame);if window then self:ClearRoomLayout(window)end
   self.frame=nil;self.roomFrame=nil;self.configuredType=nil
 end
@@ -306,10 +308,21 @@ Core:RegisterFeature("partyChat",{name="Party Chat",order=13,buildOptions=functi
     open={type="execute",name="Open Party Chat",order=1,func=function()P:Open()end},
     history={type="execute",name="Previous groups",order=1.5,func=function()P:Open();P:ToggleHistory(true)end},
     enabled={type="toggle",name="Enable Party Chat",order=2,get=function()return cfg().enabled end,set=function(_,v)cfg().enabled=v;if not v and P.room then P:CloseRoom();if P.frame then P.frame:Hide()end end end},
+    clearHistory={type="execute",name="Clear group room histories",order=7.1,
+      confirm="Clear all saved group rooms and their current transcript for this character? The separate conversation log is managed through /sunder history.",
+      func=function()
+        P.historyGeneration=(P.historyGeneration or 0)+1
+        P.restoringHistory=nil
+        if P.frame and P.frame.Clear then P.frame:Clear() end
+        Core.db.char.partyRoomArchive=nil
+        Core.db.char.partyRoomHistory=nil
+        P.archiveSnapshot=nil
+        if P.historyPanel then P:SelectHistory(nil) end
+      end},
     automatic={type="toggle",name="Open manually only",desc="Turn off automatic opening when joining a party. Window geometry and minimized state are still remembered.",order=3,get=function()return not cfg().autoOpen end,set=function(_,v)cfg().autoOpen=not v;cfg().autoOpenConfigured=true;if not v and P.grouped then P:Open(true)end end},
     raids={type="toggle",name="Follow the group into raids",order=4,get=function()return cfg().followRaid end,set=function(_,v)cfg().followRaid=v;P:ScheduleRoster()end},
     roster={type="toggle",name="Show members",order=5,get=function()return cfg().rosterShown end,set=function(_,v)cfg().rosterShown=v;if P.room then P.room:LayoutHub()end end},
     collapse={type="select",name="Collapse toward",order=6,values={TOP="Top - restore downward",BOTTOM="Bottom - restore upward"},get=function()return P:EnsureRoom():HubSettings().minimizeEdge or "TOP"end,set=function(_,v)local h=P:EnsureRoom();if h.finishCollapse then h.finishCollapse()end;if h.minimized then h:SetMinimized(false,true)end;h:HubSettings().minimizeEdge=v end},
-    remember={type="toggle",name="Save group conversations",order=7,get=function()return cfg().remember end,set=function(_,v)cfg().remember=v;if not v then P.historyGeneration=(P.historyGeneration or 0)+1;P.restoringHistory=nil end end},
+    remember={type="toggle",name="Save group conversations",order=7,get=function()return cfg().remember end,set=function(_,v)P.rosterRecordingReset=true;cfg().remember=v;if not v then P.historyGeneration=(P.historyGeneration or 0)+1;P.restoringHistory=nil end end},
   }}
 end})

@@ -64,6 +64,23 @@ function W:ConversationName(frame)
     if record and record.displayName then return record.displayName end
     return target
   end
+  if frame.chatType=="BN_WHISPER" and accessible(target) and type(target)=="number" then
+    local api=_G.C_BattleNet
+    local ok,info
+    if api and api.GetAccountInfoByID then ok,info=pcall(api.GetAccountInfoByID,target) end
+    if ok and accessible(info) and type(info)=="table" then
+      local game=info.gameAccountInfo
+      if accessible(game) and type(game)=="table" and accessible(game.isOnline)
+        and game.isOnline and accessible(game.clientProgram) and game.clientProgram=="WoW"
+        and accessible(game.characterName) and type(game.characterName)=="string"
+        and game.characterName~="" and not game.characterName:find("|K",1,true) then
+        return self:ConversationName({chatType="WHISPER",chatTarget=game.characterName})
+      end
+      if accessible(info.battleTag) and type(info.battleTag)=="string" and info.battleTag~="" then
+        return info.battleTag:match("^[^#]+") or info.battleTag
+      end
+    end
+  end
   local native=frame.GetName and _G[frame:GetName().."Tab"]
   return native and native.Text and native.Text:GetText() or "Whisper"
 end
@@ -432,7 +449,7 @@ function W:ApplySettings(relocate, changedKey)
   end
   if not cfg.enabled then
     self.deferredPlacements = nil
-    for _, host in pairs(self.workspaces or {}) do if host.hub then host.hub:Hide() end end
+    for _, host in pairs(self.workspaces or {}) do Core.Components.WindowManager:RemoveMinimizedTab(host);if host.hub then host.hub:Hide() end end
   end
   if not cfg.enabled and self.previewActive then self:StopPreview() end
   if not cfg.enabled or not cfg.replaceNativeSound or cfg.mode == "inline" then
@@ -476,7 +493,7 @@ function W:ApplySettings(relocate, changedKey)
     if not cfg.enabled then self.hub:Hide() end
     if cfg.enabled and not self.windowManuallyClosed and cfg.visibility == "always" and #self.hubOrder > 0 then self.hub:Show(); self.hub:SetAlpha(1) end
     if relocate then
-      self.hub:SetSize(cfg.hubWidth, cfg.hubHeight)
+      self.hub:SetSize(Core.Components.WindowManager:ClampWindowSize(cfg.hubWidth,cfg.hubHeight,self))
       self.hub:ClearAllPoints(); self.hub:SetPoint(cfg.hubPoint, UIParent, cfg.hubPoint, cfg.hubX, cfg.hubY)
       self:LayoutHub()
     end
@@ -534,6 +551,7 @@ function W:OnEnable()
   Core:Subscribe(Constants.EVENTS.UNLOCK_MOVER, function () self:SetHubEditMode(true) end)
   Core:Subscribe(Constants.EVENTS.LOCK_MOVER, function () self:SetHubEditMode(false) end)
   Core:Subscribe(Constants.EVENTS.UPDATE_CONFIG, function (key)
+    if key=="tabMessageSpacing" then self:RefreshHubStyle();for _,host in pairs(self.workspaces or {})do if host.hub then host:LayoutHub()end end;return end
     if key=="timestampDisplay"then
       for _,host in pairs(self.workspaces or {})do if host.previewActive then host:RenderPreview()end end
     end

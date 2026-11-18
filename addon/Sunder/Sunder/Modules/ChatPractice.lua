@@ -46,11 +46,11 @@ local function createRoom()
     title=function()return "Practice · "..r.kind end,
     caption=function()return r.caption or r.kind end, subtitle=function()return "" end,
     hasRoster=function()return #r.members>0 end, showSearch=function()return r.kind=="Raid" end,
-    info=true, infoTooltip="Practice group history", infoAction=function()r:ToggleHistory(not r.historyMode)end,
+    info=true, infoActionID="Archive", infoTooltip="Practice group history", infoAction=function()r:ToggleHistory(not r.historyMode)end,
     infoSelected=function()return r.historyMode end, state=function()return state end, profile=function()return profile end,
   })
   local party=Core:GetModule("PartyChat")
-  for _,key in ipairs({"EnsureHistory","RenderHistoryList","LayoutHistory","SelectHistory"}) do r[key]=party[key] end
+  for _,key in ipairs({"EnsureHistory","RenderHistoryList","LayoutHistory","SelectHistory","HistoryTimeline","RoomSurfaceLayout"}) do r[key]=party[key] end
   function r:HistoryRecords()return self.archives end
   function r:UpdateUnread()
     local unread=0
@@ -119,7 +119,7 @@ local function createRoom()
     if not r.historyMode then r:LayoutWindow(r.window) end
     if r.historyPanel then r:LayoutHistory() end
   end
-  h.hubActionButtons.Info.windowEnabled=function()return #r.archives>0 and not h.minimized end
+  h.hubActionButtons.Archive.windowEnabled=function()return #r.archives>0 and not h.minimized end
   -- Only sample entries reach this private tray. Clicks resolve inside the practice roster.
   h.UpdateMinimizedWhispers=C.UpdateWhisperToastTray
   h.QueueMinimizedWhisper=C.WhisperToastQueue
@@ -199,12 +199,12 @@ function Practice:SetDetached(person)
   end
   if not self.detached then
     local f=CreateFrame("Frame",nil,UIParent);self.detached=f
-    f:SetSize(370,190);f:SetPoint("RIGHT",UIParent,"RIGHT",-16,-130);f:SetFrameStrata("DIALOG")
+    f:SetSize(C.WindowManager:ClampWindowSize(370,190));f:SetPoint("RIGHT",UIParent,"RIGHT",-16,-130);f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true);f:EnableMouse(true);f:SetMovable(true);f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart",function()f:StartMoving()end);f:SetScript("OnDragStop",function()f:StopMovingOrSizing()end)
     C.WindowManager:ApplySurface(f,{headerHeight=24})
     C.WindowManager:CreateWindowResizer(f,{
-      minWidth=180,minHeight=100,
+
       allowed=function()return Practice.active and f:IsShown()end,
       begin=function()return f,f:GetWidth(),f:GetHeight()end,
       apply=function(width,height)f:SetSize(width,height)end,
@@ -216,6 +216,7 @@ function Practice:SetDetached(person)
     self.detachedTranscript=C.CreateReadOnlyTranscript(f,self.owner.frame)
     self.detachedTranscript:SetPoint("TOPLEFT",0,-24);self.detachedTranscript:SetPoint("BOTTOMRIGHT")
   end
+  self.detached:SetSize(C.WindowManager:ClampWindowSize(self.detached:GetWidth(),self.detached:GetHeight()))
   self.detached:Show()
   person.unread=0
   self.owner.room:DismissMinimizedWhisper(person)
@@ -226,7 +227,7 @@ function Practice:SetDetached(person)
       if other~=person then self.owner:ShowMemberCard(other);break end
     end
   end
-  self.detached.title:SetText("Practice · "..person.name)
+  self.detached.title:SetText("Practice · "..C.WindowManager:FormatPersonName(person.name,person))
   self.detachedTranscript:SetLines(person.lines,self.owner.frame)
 end
 
@@ -245,7 +246,11 @@ function Practice:Apply(event)
   elseif op=="offline" then r.records[a].online=false;r.onlineCount=r.onlineCount-1;r:FilterRoster();r:LayoutRoomChrome()
   elseif op=="leave" then
     table.insert(r.archives,1,{key="practice"..self.index,startedAt=self.epoch+self.position,
-      lines=r.log,members=r.members,raid=r.kind=="Raid"})
+      lines=r.log,members=r.members,raid=r.kind=="Raid",changes={
+        {kind="baseline",receivedAt=self.epoch+self.position-8,joined=r.members,left={},renamed={}},
+        {receivedAt=self.epoch+self.position-2,joined={},left={r.members[#r.members]},renamed={}},
+        {kind="ended",receivedAt=self.epoch+self.position},
+      }})
     resetRoom(r,"Previous group",0);r:ToggleHistory(true)
   elseif op=="burst" then
     for i=1,32 do message(r,"Caravan","Dispatch "..i.." from the northern road.",false,self.epoch+self.position) end

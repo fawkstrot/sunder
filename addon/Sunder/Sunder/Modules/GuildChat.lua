@@ -26,6 +26,7 @@ Core.Components.InstallRosterRoom(G,{id="guild",frameName="SunderGuildRoom",edit
 
 -- Unread is session-only and driven by incoming guild events, never history replay.
 function G:UpdateUnread()
+  Core.Components.WindowManager:RefreshMinimizedTabs()
   local h=self.room;if not h then return end
   if h.unreadBadge then
     Core.Components.WindowManager:StyleUnreadIndicator(h.unreadBadge,self.unread or 0,h:InterfaceAccent())
@@ -61,7 +62,7 @@ function G:RefreshRoster()
   count=ok and math.max(0,math.min(MAX_MEMBERS,number(count,0))) or 0
   local members,seen={},{};local onlineCount=0;local index=1
   local function chunk()
-    if generation~=self.rosterGeneration or key~=guildKey() or not self.panel or not self.room or not self.room.hub:IsVisible() then return end
+    if generation~=self.rosterGeneration or key~=guildKey() or not self.panel or not self.room or not (self.room.hub:IsVisible() or self.room.tabMinimized) then return end
     local last=math.min(count,index+99)
     for i=index,last do
       -- The officer-note return is deliberately ignored; it never enters our model.
@@ -79,6 +80,7 @@ function G:RefreshRoster()
     index=last+1
     if index<=count then C_Timer.After(0,chunk) else
       self.members=members;self.onlineCount=onlineCount;self.totalCount=#members
+      Core.Components.WindowManager:RefreshMinimizedTabs()
       self.rosterStatus=#members==0 and "Waiting for the guild roster…" or nil
       self:FilterRoster(false)
     end
@@ -87,7 +89,7 @@ function G:RefreshRoster()
 end
 function G:ScheduleRoster(request)
   self.rosterDirty=true
-  if not self.panel or not self.room or not self.room.hub:IsVisible() then return end
+  if not self.panel or not self.room or not (self.room.hub:IsVisible() or self.room.tabMinimized) then return end
   if request and (not self.lastRosterRequest or GetTime()-self.lastRosterRequest>=10) then
     self.lastRosterRequest=GetTime()
     local fetch=C_GuildInfo and C_GuildInfo.GuildRoster or _G.GuildRoster
@@ -95,7 +97,7 @@ function G:ScheduleRoster(request)
   end
   if self.rosterScheduled then return end
   self.rosterScheduled=true
-  C_Timer.After(.2,function()self.rosterScheduled=nil;if self.room and self.room.hub:IsVisible() then self:RefreshRoster() end end)
+  C_Timer.After(.2,function()self.rosterScheduled=nil;if self.room and (self.room.hub:IsVisible() or self.room.tabMinimized) then self:RefreshRoster() end end)
 end
 function G:FilterRoster(resetScroll)
   local list={};local query=(self.query or ""):lower()
@@ -191,7 +193,7 @@ function G:OnWindowClosed(frame)
   self.historyGeneration=(self.historyGeneration or 0)+1
   self:SaveHistory(true);self.rosterGeneration=(self.rosterGeneration or 0)+1
   state().open=false;state().frameID=nil
-  if self.room then self.room.hub:Hide()end
+  if self.room then Core.Components.WindowManager:RemoveMinimizedTab(self.room);self.room.hub:Hide()end
   if self.panel then self.panel:Hide();self.column:Hide();self.surface:Hide()end
   local window=Core:GetModule("UIManager"):GetChatWindow(frame)
   if window then
@@ -267,7 +269,7 @@ Core:RegisterFeature("guildChat",{name="Guild Chat",order=12,buildOptions=functi
     notes={type="toggle",name="Show public notes beside rank",order=4,get=function()return profile().publicNotes end,set=function(_,v)profile().publicNotes=v;refresh()end},
     offline={type="toggle",name="Include offline members",order=5,get=function()return profile().offline end,set=function(_,v)profile().offline=v;refresh()end},
     sort={type="select",name="Member order",order=7,values={rank="Guild rank, then name",name="Player name"},get=function()return profile().sort end,set=function(_,v)profile().sort=v;refresh()end},
-    remember={type="toggle",name="Remember recent guild messages",order=8,get=function()return profile().remember end,set=function(_,v)profile().remember=v;if not v then Core.db.char.guildRoomHistory=nil;G.historyGeneration=(G.historyGeneration or 0)+1;G.restoringHistory=nil end end},
-    help={type="description",order=9,name="Open with /sunder guild or Control-click the minimap button. The room uses one native chat slot and leaves your other chat filters alone. Its header shares Whispers chrome: drag the grip or title anytime; minimize, maximize and restore from the header. Drag the lower-right corner to resize, or use Unlock Sunder windows / Ellesmere Edit UI. Expanded size is capped for readable lines on ultrawide screens. The roster shares the 150 px people-column width and shrinks only in narrow windows. Short windows compact it; Show members restores enough height. Click a member for their detail card, favorite, Whisper and Invite actions; double-click still opens a whisper without sending. Use Guild Info for the overview and roster filters to narrow the list. Roster updates are event-driven and only visible rows create controls. Up to 200 recent guild messages are remembered locally per character (512 KiB text cap), isolated by guild and realm. No offline guild message retrieval is available."},
+    remember={type="toggle",name="Remember recent guild messages",order=8,get=function()return profile().remember end,set=function(_,v)profile().remember=v;if not v then G.historyGeneration=(G.historyGeneration or 0)+1;G.restoringHistory=nil end end},
+    help={type="description",order=9,name="Open with /sunder guild or Control-click the minimap button. The room uses one native chat slot and leaves your other chat filters alone. Its header shares Whispers chrome: drag the grip or title anytime; minimize, maximize and restore from the header. Drag the lower-right corner to resize, or use Unlock Sunder windows / Ellesmere Edit UI. Expanded size is capped for readable lines on ultrawide screens. The roster shares the 150 px people-column width and shrinks only in narrow windows. Short windows compact it; Show members restores enough height. Click a member for their detail card, favorite, Whisper and Invite actions; double-click still opens a whisper without sending. Use Guild Info for the overview and roster filters to narrow the list. Roster updates are event-driven and only visible rows create controls. The room reopens a recent local snapshot for your guild and realm. Open /sunder history for earlier conversations, including Guild messages received with the room closed. No offline guild message retrieval is available."},
   }}
 end})

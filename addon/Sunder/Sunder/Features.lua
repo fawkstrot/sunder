@@ -29,8 +29,10 @@ function Core:BuildOptions()
           if eui.optionsRegistered then return "EllesmereUI detected: settings use its native interface and fonts. Standalone settings remain available in WoW Options." end
           return "Standalone interface active. EllesmereUI is optional; its styling is used automatically when available."
         end},
+        history = {type="execute",name="Browse conversation history",order=4,
+          func=function() Core.Components.ConversationLog:Open() end},
         commands = {type = "description", order = 7,
-          name = "/sunder: open settings\n/sunder appearance: shared chat appearance\n/sunder chat: chat settings\n/sunder whispers: conversations & notifications\n/sunder guild: open Guild Chat room\n/sunder party: open Party Chat room\n/sunder items: bag item protection\n/sunder lock: toggle move/resize mode\n/sunder minimap: show/hide the minimap button"},
+          name = "/sunder: open settings\n/sunder appearance: shared chat appearance\n/sunder chat: chat settings\n/sunder history: browse saved conversations\n/sunder whispers: conversations & notifications\n/sunder guild: open Guild Chat room\n/sunder party: open Party Chat room\n/sunder items: bag item protection\n/sunder lock: toggle move/resize mode\n/sunder minimap: show/hide the minimap button"},
       },
     },
     profile = config.Pages.profile(),

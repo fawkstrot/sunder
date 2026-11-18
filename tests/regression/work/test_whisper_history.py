@@ -78,6 +78,15 @@ for _,frame in ipairs({HistoryFrame7,{chatType="GUILD",GetName=function()return 
  assert(out:find("|cff999999",1,true) and out:find("[%I:%M %p]:1006",1,true),"all-window 12-hour setting was bypassed")
 end
 p.timestampFormat="[%H:%M]";assert(timestampTest("hello",HistoryFrame7,1006):find("[%H:%M]:1006",1,true))
+local oldDate=date
+date=function(fmt,stamp)
+ if fmt=="%Y-%m-%d" then return (stamp==1006 or stamp==nil) and "2026-11-17" or "2026-11-16" end
+ return oldDate(fmt,stamp)
+end
+assert(not timestampTest("today",HistoryFrame7,1006):find("2026-",1,true))
+assert(timestampTest("yesterday",HistoryFrame7,1005):find("2026-11-16",1,true))
+assert(not timestampTest("grouped",HistoryFrame7,1005,true):find("2026-",1,true),"date repeated on every grouped message")
+date=oldDate
 p.timestampsEnabled=false;cfg.timestamps=true;assert(timestampTest("hello",HistoryFrame7,1006)=="hello","master off leaked independent Whispers timestamps")
 p.timestampsEnabled,p.timestampAllWindows,p.timestampFormat,p.timestampColorEnabled=wasEnabled,wasAll,wasFormat,wasColor;cfg.timestamps=true
 Core.db.profile.keepWhisperTabs=true

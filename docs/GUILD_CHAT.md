@@ -17,13 +17,13 @@ The header close button hides the room while retaining its native recipient/hist
 - The caption shows a slightly larger guild name with the bounded message of the day beneath it. The MOTD is excluded from the dedicated transcript/recall. Guild Info opens a responsive body drawer, sharing the window shell.
 - Search matches names, ranks and permitted public notes. Enter leaves search; Escape clears it. Offline inclusion is optional and never changes the native guild roster's global preference.
 - Left-click selects a member/card without opening a whisper. Double-click or an explicit Whisper action opens the recipient without sending. Context actions include identity-checked Inspect when a nearby unit is available. Invite or other explicit actions resolve the current identity when clicked; opening a card performs none of them.
-- All expanded people lists use the single WindowManager 150 px target and shared narrow-window reserve. Short layouts compact the roster; Show members restores enough room instead of silently doing nothing. Clicking the member count while minimized restores the room and reveals the roster.
+- All expanded people lists use the single WindowManager 130 px target and shared narrow-window reserve. Short layouts compact the roster; Show members restores enough room instead of silently doing nothing. Clicking the member count while minimized restores the room and reveals the roster.
 
 Officer notes are discarded at the API boundary and never stored. Roster/note caches are session-only. No automatic roster editing, invitations, inspect requests or messages occur.
 
 ## Recent recall and bounded work
 
-Guild recall is independent from Whispers archives. Up to 200 recent GUILD messages and 512 KiB of text are remembered per character for the latest guild/realm identity. Officer message types, inaccessible text and session-name tokens are excluded. Original timestamps and colors are retained. Replay yields after 12 lines; reopening the same active frame does not replay twice. Native-slot reuse and guild changes cancel old callbacks. Closing during replay merges newly arrived messages with the prior snapshot before native teardown. Opting out clears the guild checkpoint and cancels replay.
+Guild recall is independent from Whispers archives. Up to 200 recent GUILD messages and 512 KiB of text are remembered per character for the latest guild/realm identity. Officer message types, inaccessible text and session-name tokens are excluded. Original timestamps and colors are retained. Replay yields after 12 lines; reopening the same active frame does not replay twice. Native-slot reuse and guild changes cancel old callbacks. Closing during replay merges newly arrived messages with the prior snapshot before native teardown. Turning off recording preserves existing history and cancels replay. For the full conversation across sessions, open /sunder history. Its event receiver also records Guild chat received while the room is closed.
 
 This is recent local recall, not retrieval of guild messages sent while offline. WoW writes the in-memory database to SavedVariables on normal reload/logout; it is not a crash-proof disk journal.
 
@@ -108,9 +108,9 @@ Caption hierarchy: guild name uses the inherited face at body size +2 px and a b
 
 ## Guild information and member cards
 
-Guild Info (circle-info header icon) opens an overview with online/total, your rank, MOTD, available public guild information and a cached online class breakdown. Clicking a member opens a card with level/class, status, zone, rank/public note and explicit Whisper/Invite/Favorite actions. The back arrow returns to the overview; close returns to chat. Cards resolve current roster data, reject stale guild identities, disable offline/combat actions and check party permissions before invite. No action sends on card open.
+Guild Info (circle-info header icon) opens an interactive dashboard with Overview, Members and About tabs. Overview has clickable online/offline/total counts, class-colored distribution bars and current online locations. Class/location clicks open a filtered Members table. Members supports its own search, everyone/online/offline filter, clear filters and ascending/descending name, level, rank and location sorting. About shows guild identity, your rank, MOTD and available public guild information. Clicking a member opens a card with level/class, status, zone, rank/public note and explicit Whisper/Invite/Favorite actions. The back arrow returns to the overview; close returns to chat. Cards resolve current roster data, reject stale guild identities, disable offline/combat actions and check party permissions before invite. No action sends on card open.
 
-The drawer shares the existing body: at wide widths it reserves 280 px beside the transcript; below 520 px of conversation space it temporarily replaces the conversation view. Closing restores chat, draft and readback. Caption and controls do not overlap the drawer. Drawer content scrolls with the shared list affordance.
+The dashboard uses the full conversation column while the native Guild receiver continues operating. Individual member cards retain the responsive drawer: at wide widths they reserve 280 px beside the transcript; below 520 px of conversation space they replace the conversation view. Closing restores chat, draft and readback. Caption and controls do not overlap the drawer. Drawer content scrolls with the shared list affordance.
 
 Member rows now use name plus level/class only, with subtle 1 px separators. Rank/public notes remain in cards and hover tooltips. Compact Online (All when offline display is enabled), Zone and Favorites filters combine with search; Favorites includes offline favorites. Favorites share the per-character Whispers contact store; starring or unstarring here updates Whispers and vice versa, including people without an open conversation. Zone uses native local zone information, not location queries. Filters/drawer state are session-only.
 
@@ -125,9 +125,21 @@ Guild and Whispers now use the same compact row component and balanced vertical 
 2026-11-14 architecture: Guild shell, roster/transcript geometry, native-slot recovery/state restore and bounded recall moved into Components/RosterRoom.lua, shared with Party Chat. Guild retains native filters, guild lifecycle, roster/public notes and Info adapter. Existing user geometry/history and behaviors are preserved; all Guild regressions remain required.
 
 
-Current expanded people-column width is 150 px, owned solely by WindowManager.PEOPLE_SIDEBAR_WIDTH and applied through PeopleSidebarWidth. This supersedes measured-name, saved maximum and percentage sizing; narrow windows still preserve transcript space.
+Current expanded people-column width is 130 px, owned solely by WindowManager.PEOPLE_SIDEBAR_WIDTH and applied through PeopleSidebarWidth. This supersedes measured-name, saved maximum and percentage sizing; narrow windows still preserve transcript space.
 
 
 The shared TextProcessing label adapter removes the redundant native channel label only inside this registered room, retaining sender links and message text. General/other tabs keep their channel context. Saved history remains original native text.
 
 Guild recall stores each available original receipt time. Native entries with a client-clock timestamp are converted to wall time using their age. Reopening, reflowing or saving a room again preserves that time. Older records with no recoverable receipt time show their text without an added timestamp.
+
+GuildDashboard.lua owns the session-only dashboard model, controls and virtualized content. It caches roster aggregates, renders only viewport rows and does not add an idle update loop. Directory filters do not alter the live roster search or saved preferences. Recycled rows resolve current member/guild identity before opening a card; selection never whispers or invites automatically. Officer notes are never read or displayed. Shared surfaces remain visible beneath the dashboard, including edge fades and zero-opacity settings.
+
+Guild Info scroll content is nested inside an explicit clipped viewport, shared by the dashboard and member-card body. Partially visible pooled rows must remain clipped at both viewport edges. Overview count cards explicitly support two lines rather than inheriting single-line action text.
+
+The Guild Info subtitle displays the current MOTD across Overview, Members and About, rather than repeating roster totals. It stays a single bounded line, normalizes announcement line breaks, and clears when no MOTD exists. About retains the complete announcement. Member cards retain their person metadata.
+
+The minus action minimizes Guild into a tab above General. The tab shows online members and a nonzero unread badge; click to restore. The receiver stays active, and bounded event-driven roster scans keep the online count current while tabbed. This differs from directional collapse, which leaves the title bar in place.
+
+Viewport bottom-right anchors use positive Y for inward body/footer padding. Negative bottom Y extends content below the drawer even when clipping is enabled. Keep dashboard and member-card scroll bounds inside the drawer on refresh and tab changes.
+
+Dashboard sections use a title/caption hierarchy and whitespace rather than full-width rules. Overview places Class presence and Where members are side by side when typography and width permit, stacking them in narrow windows. Presence bars show online members divided by each class total; offline-only classes are quieter. Location rows show up to three class-colored member names and a remaining count, with click-through to the full filtered directory. Summary controls separate larger values from small captions. Members adds a contextual result count and subtle alternating rows. About uses the same heading typography. All scrolling remains clipped and pooled.

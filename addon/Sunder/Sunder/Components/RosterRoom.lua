@@ -72,7 +72,7 @@ function G:RenderRoster()
         row:SetScript("OnDoubleClick",function(button,mouse)if mouse=="LeftButton" and not button.cancelDoubleClick then self:OpenWhisper(button.member)end;button.cancelDoubleClick=nil end)
         row:SetScript("OnEnter",function(button)
           local person=button.member;if not person then return end
-          button.accent:Show();GameTooltip:SetOwner(button,"ANCHOR_LEFT");GameTooltip:AddLine(person.name,1,1,1)
+          button.accent:Show();GameTooltip:SetOwner(button,"ANCHOR_LEFT");GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(person.name,person),1,1,1)
           GameTooltip:AddLine(person.rank,.65,.68,.73)
           if profile().publicNotes and person.note~="" then GameTooltip:AddLine(person.note:gsub("|","||"),.65,.68,.73,true)end
           GameTooltip:AddLine((person.level>0 and tostring(person.level).." " or "")..person.class,.8,.82,.85)
@@ -92,7 +92,7 @@ function G:RenderRoster()
       Core.Components.WindowManager:LayoutPersonRow(theme(),row,{identity=member.guildKey..":"..member.key,label=row.name,person=member,selected=selected,separator=first+i-1<#list,
         favorite=self:IsMemberFavorite(member),pinned=self:IsMemberPinned(member),
         onFavorite=function()self:ToggleMemberFavorite(row.member)end,onPin=function()self:ToggleMemberPin(row.member)end})
-      local color=RAID_CLASS_COLORS and RAID_CLASS_COLORS[member.classFile]
+      local color=Core.Components.WindowManager:PersonColor(member.name,member)
       row.name:SetText(member.name);Core.Components.WindowManager:StylePersonName(row.name,color and color.r or .85,color and color.g or .85,color and color.b or .85,member.online)
       local detail=member.rank
       if profile().publicNotes and member.note~="" then detail=detail=="" and member.note or detail.." · "..member.note end
@@ -113,12 +113,14 @@ function G:SelectInput()
 end
 function G:SaveRoomState()
   if not self.room then return end
-  state().open=self.room.hub:IsShown()
+  state().open=self.room.hub:IsShown() or not not self.room.tabMinimized
+  state().tabMinimized=not not self.room.tabMinimized
   state().minimized=not not self.room.minimized
   state().maximized=not not self.room.maximized
 end
 function G:CloseRoom()
   if not self.room then return end
+  Core.Components.WindowManager:RemoveMinimizedTab(self.room)
   self:SaveHistory(true)
   self.room.windowManuallyClosed=true;self.room:StopHubMove()
   if self.room.finishCollapse then self.room.finishCollapse()end
@@ -130,14 +132,14 @@ function G:ToggleRoster()
   local h=self.room;if not h then return end
   local restoring=h.minimized
   if restoring then
-    local cfg=h:HubSettings();local minimum=h:HeaderHeight()+h:HeaderGap()+theme():InterfaceTextSize()*4+theme():BodyPadding()*5+30
+    local cfg=h:HubSettings();local minimum=Core.Components.WindowManager:RosterExpandedHeight(h)
     cfg.hubHeight=math.max(cfg.hubHeight or 400,minimum)
     profile().rosterShown=true;h:SetMinimized(false);if self.CloseGuildInfo then self:CloseGuildInfo()end;return
   end
   local show=self.compact or not profile().rosterShown
   profile().rosterShown=show
   if show then
-    local minimum=h:HeaderHeight()+h:HeaderGap()+theme():InterfaceTextSize()*4+theme():BodyPadding()*5+30
+    local minimum=Core.Components.WindowManager:RosterExpandedHeight(h)
     if h.hub:GetHeight()<minimum then h.hub:SetHeight(minimum);h:SaveHubGeometry()end
   end
   h:LayoutHub();Core.Components.WindowManager:RefreshRoomActions(h)
@@ -154,12 +156,16 @@ function G:EnsureRoom()
     state().roomGeometry=c
   end
   local h=setmetatable({roomController=self,hostId=options.id,hubTabs={},hubOrder={},hubBorders={},minimized=false},{__index=function(_,key)local value=W[key];if type(value)=="function"then return value end end})
-  self.room=h
+  self.room=h;h.isolatedRoom=options.isolated
   function h:WorkspaceName()return options.title(G)end
   function h:HubSettings()return state().roomGeometry end
   function h:SingleRowHeader()return true end
   function h:IsConversationList()return false end
   function h:RoomSidebarWidth()return G.panel and G.panel:IsShown() and G.panel:GetWidth() or 0 end
+  function h:RoomSurfaceLayout()
+    if G.RoomSurfaceLayout then return G:RoomSurfaceLayout() end
+    return self:RoomSidebarWidth(),0
+  end
   function h:SaveMessageWindowState()
     self:ApplyHubAppearance();G:SaveRoomState()
   end
@@ -199,7 +205,8 @@ function G:EnsureRoom()
     end)
   end
   local hub=CreateFrame("Frame",options.frameName,UIParent);h.hub=hub;hub:Hide()
-  hub:SetSize(c.hubWidth,c.hubHeight);hub:SetPoint(c.hubPoint,UIParent,c.hubPoint,c.hubX,c.hubY)
+  hub.sunderWindowHost=h
+  hub:SetSize(Core.Components.WindowManager:ClampWindowSize(c.hubWidth,c.hubHeight,h));hub:SetPoint(c.hubPoint,UIParent,c.hubPoint,c.hubX,c.hubY)
   hub:SetFrameStrata("MEDIUM");hub:SetToplevel(true);hub:SetClampedToScreen(true);hub:SetMovable(true);hub:EnableMouse(true)
   Core.Components.CreateRoomChrome(h,hub)
   local body=CreateFrame("Frame",nil,hub);body:SetAllPoints(hub);h.hubContent=body
@@ -210,14 +217,15 @@ function G:EnsureRoom()
     {"Settings","settings",options.title(G).." settings",function()Core:GetModule("Config"):OpenSettings(options.settings)end},
     {"Windows","window-menu","Window actions",function(owner)h:WorkspaceMenu(owner)end},
     {"Maximize","maximize","Maximize / restore window size",function()self:ToggleMaximized()end},
-    {"Info","info","Guild information",function()options.infoAction(G)end},
+    {options.infoActionID or "Info","info","Guild information",function()options.infoAction(G)end},
     {"Roster","roster","Show / hide members",function()self:ToggleRoster()end},
   }
-  for _,action in ipairs(actions)do if action[1]~="Info" or options.info then h.hubActionButtons[action[1]]=Core.Components.WindowManager:CreateWindowAction(h.hubChrome,action[1],h,action[4],function(b)h:StyleWindowIcon(b)end)end end
+  for _,action in ipairs(actions)do if action[1]~=(options.infoActionID or "Info") or options.info then h.hubActionButtons[action[1]]=Core.Components.WindowManager:CreateWindowAction(h.hubChrome,action[1],h,action[4],function(b)h:StyleWindowIcon(b)end)end end
   Core.Components.WindowManager:CreateCollapseActions(h.hubChrome,h,function(edge)G:CollapseToward(edge)end,function(b)h:StyleWindowIcon(b)end)
   function h:LayoutHeaderStrip()G:LayoutRoomChrome()end
-  if h.hubActionButtons.Info and options.infoTooltip then h.hubActionButtons.Info.windowTooltipOverride=options.infoTooltip end
-  if h.hubActionButtons.Info then h.hubActionButtons.Info.windowSelected=function()return options.infoSelected(G) and not h.minimized end end
+  local info=h.hubActionButtons[options.infoActionID or "Info"]
+  if info and options.infoTooltip then info.windowTooltipOverride=options.infoTooltip end
+  if info then info.windowSelected=function()return options.infoSelected(G) and not h.minimized end end
   h.hubActionButtons.Roster.windowCount=function()return tostring(self.onlineCount or 0).."/"..tostring(self.totalCount or 0)end
   h.hubActionButtons.Roster.windowEnabled=function()return not options.hasRoster or options.hasRoster(G)end
   h.hubActionButtons.Roster.windowSelected=function()return (not options.hasRoster or options.hasRoster(G)) and profile().rosterShown and not h.minimized and not self.autoCompact end
@@ -236,7 +244,7 @@ function G:EnsureRoom()
   h.hubChrome:SetScript("OnDragStart",function()h:BeginHubMove(true)end)
   h.hubChrome:SetScript("OnDragStop",function()h:UpdateHubMove();h:StopHubMove()end)
   hub:SetScript("OnSizeChanged",function()if self.roomReady and not h.collapseAnimation then self:LayoutRoomChrome();h:LayoutHub()end end)
-  hub:SetScript("OnShow",function()self:SaveRoomState();self:ScheduleRoster(true)end)
+  hub:SetScript("OnShow",function()if h.tabMinimized then hub:Hide();return end;self:SaveRoomState();self:ScheduleRoster(true)end)
   hub:SetScript("OnHide",function()
     h:StopHubMove();h.hubResize:FinishResize()
     if h.finishCollapse then h.finishCollapse()end
@@ -263,6 +271,7 @@ function G:LayoutRoomChrome()
   h.hubMark:ClearAllPoints();h.hubMark:SetPoint("LEFT",h.hubGrip,"RIGHT",pad,0);h.hubMark:SetSize(icon,icon)
   h.hubMark:SetShown(Core.db.profile.chatTitleIcons~=false)
   h.hubTitle:ClearAllPoints();h.hubTitle:SetPoint("LEFT",h.hubMark,"RIGHT",pad,0);h.hubTitle:SetPoint("RIGHT",h.hubChrome,"RIGHT",-right-pad,0)
+  h.minimumWorkspaceWidth=right+pad*4+18+icon+h:InterfaceTextSize()*5
   h.hubTitle:SetHeight(math.max(1,height-pad));h.hubTitle:SetWordWrap(false);h:WorkspaceFont(h.hubTitle,h:InterfaceTextSize())
   h.hubRule:ClearAllPoints();h.hubRule:SetPoint("BOTTOMLEFT",h.hubChrome,"BOTTOMLEFT");h.hubRule:SetPoint("BOTTOMRIGHT",h.hubChrome,"BOTTOMRIGHT")
   h:PresentCollapsedHeader();h:ApplyHubAppearance();h.hubBackground:Show();h.hubHeaderFill:Show()
@@ -357,10 +366,11 @@ function G:LayoutWindow(window)
   if h.minimized or h.collapseAnimation then return true end
   self.layingOut=true
   if not self.panel or self.roomFrame~=window.chatFrame then self:CreatePanel(window)end
-  local width,height=h.hub:GetWidth(),h.hub:GetHeight()
+  local width,height=Core.Components.WindowManager:ClampWindowSize(h.hub:GetWidth(),h.hub:GetHeight(),h)
+  if width~=h.hub:GetWidth() or height~=h.hub:GetHeight() then h.hub:SetSize(width,height) end
   local pad,size=theme():BodyPadding(),theme():InterfaceTextSize()
   local header=h:HeaderHeight()+h:HeaderGap()
-  self.autoCompact=height<header+size*4+pad*5+30
+  self.autoCompact=height<Core.Components.WindowManager:RosterExpandedHeight(h)
   self.compact=self.autoCompact or not profile().rosterShown
   local hasRoster=not options.hasRoster or options.hasRoster(G)
   local showCaption=not options.showCaption or options.showCaption(G)
@@ -464,8 +474,10 @@ function G:SaveHistory(allowPartial)
       bytes=bytes+#value
       local tp=Core:GetModule("TextProcessing",true)
       local line={value,number(r,1),number(g,1),number(b,1),typeID=typeID,own=tp and tp.IsOwnChatLine and tp:IsOwnChatLine(value,typeID,lineID) or false}
-      local entry=frame.historyBuffer and frame.historyBuffer:GetEntryAtIndex(count-i+1)
-      line.receivedAt=Utils.getMessageReceipt(entry)
+      line.receivedAt=Utils.frameReceipt(frame,i,count,value)
+      if tp and tp.SenderDetails then line.sender,line.classFile=tp:SenderDetails(value) end
+      local person=Utils.framePerson(frame,i,count,value)
+      if person then line.sender=person.sender or line.sender;line.classFile=person.classFile or line.classFile end
       table.insert(lines,1,line)
     end
   end
@@ -559,7 +571,7 @@ function G:SavedFrame()
 end
 function G:RestoreWindow()
   if not profile().enabled then return end
-  local wasOpen=state().open;local wasMinimized=state().minimized;local frame,recovered=self:SavedFrame()
+  local wasOpen=state().open;local wasMinimized=state().minimized;local wasTabbed=state().tabMinimized;local frame,recovered=self:SavedFrame()
   if recovered then wasOpen=true end
   if not frame then return end
   if InCombatLockdown() and frame:IsProtected() then self.pendingRestore=true;return end
@@ -567,6 +579,7 @@ function G:RestoreWindow()
   frame:SetShown(not not wasOpen)
   local h=self:EnsureRoom();h.hub:SetShown(not not wasOpen)
   if wasMinimized then h:SetMinimized(true,true)end
+  if wasOpen and wasTabbed then Core.Components.WindowManager:SetTabMinimized(h,true)end
 end
 
 end

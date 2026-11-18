@@ -29,6 +29,7 @@ function MainContainerFrameMixin:Init()
     [self] = true
   }
 
+  Core.db.profile.frameWidth,Core.db.profile.frameHeight=Core.Components.WindowManager:ClampWindowSize(Core.db.profile.frameWidth,Core.db.profile.frameHeight)
   self:SetWidth(Core.db.profile.frameWidth)
   self:SetHeight(Core.db.profile.frameHeight)
 
@@ -40,6 +41,7 @@ function MainContainerFrameMixin:Init()
 
   Core:Subscribe(UPDATE_CONFIG, function (key)
     if key == "frameWidth" then
+      Core.db.profile.frameWidth,Core.db.profile.frameHeight=Core.Components.WindowManager:ClampWindowSize(Core.db.profile.frameWidth,Core.db.profile.frameHeight)
       self:SetWidth(Core.db.profile.frameWidth)
     end
 

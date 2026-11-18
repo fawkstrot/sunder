@@ -6,6 +6,94 @@ Core.Components.WindowManager=Manager
 function Manager:BodyPadding()
   return math.max(0, math.min(32, tonumber(Core.db.profile.bodyPadding) or 8))
 end
+-- Shared geometry preferences. Content/header metrics can require more room.
+Manager.WINDOW_MIN_WIDTH=360
+Manager.WINDOW_MIN_HEIGHT=220
+Manager.MINIMUM_WIDTH_FLOOR=280
+Manager.MINIMUM_HEIGHT_FLOOR=160
+function Manager:HeaderGap()
+  return math.max(0,math.min(50,tonumber(Core.db.profile.tabMessageSpacing) or 2))
+end
+function Manager:RosterExpandedHeight(host)
+  local size=host:InterfaceTextSize()
+  return host:HeaderHeight()+self:HeaderGap()+size*4+self:BodyPadding()*5+30
+end
+function Manager:MinimumWindowSize(host)
+  local p=Core.db.profile
+  local size=math.max(tonumber(p.messageFontSize) or 13,tonumber(p.tabFontSize) or 13)
+  local width=math.max(self.MINIMUM_WIDTH_FLOOR,tonumber(p.windowMinWidth) or self.WINDOW_MIN_WIDTH,size*14+self:BodyPadding()*2)
+  local height=math.max(self.MINIMUM_HEIGHT_FLOOR,tonumber(p.windowMinHeight) or self.WINDOW_MIN_HEIGHT,
+    (Constants.DOCK_HEIGHT or 24)+self:HeaderGap()+size*4+self:BodyPadding()*2)
+  if host then
+    width=math.max(width,host.minimumWorkspaceWidth or 0)
+    height=math.max(height,host.minimumContentHeight or 0)
+    if host.roomController then height=math.max(height,self:RosterExpandedHeight(host)) end
+  end
+  return width,height
+end
+function Manager:ClampWindowSize(width,height,host)
+  local minimumWidth,minimumHeight=self:MinimumWindowSize(host)
+  return math.max(minimumWidth,tonumber(width) or minimumWidth),math.max(minimumHeight,tonumber(height) or minimumHeight)
+end
+-- Native detached frames exclude the Sunder header from their height. Keep
+-- engine limits and requested geometry in that coordinate space, from one policy.
+-- Native shells contain input space just like roster/Whispers rooms. The root
+-- remains the visible resize boundary; editor growth consumes transcript space.
+function Manager:ContainedEditorSpace(root,editor)
+  if not root or not root.containsChatEditor or not editor then return 0,0 end
+  local anchor=Core.db.profile.editBoxAnchor
+  local extent=math.max(0,editor:GetHeight()+(anchor.position=="ABOVE" and anchor.yOfs or -anchor.yOfs))
+  if anchor.position=="ABOVE" then return extent,0 end
+  return 0,extent
+end
+function Manager:NativeWindowMinimumSize()
+  local width,height=self:MinimumWindowSize()
+  return width,math.max(1,height-Constants.DOCK_HEIGHT)
+end
+function Manager:ApplyNativeWindowMinimums(frame)
+  if InCombatLockdown() then return end
+  local width,height=self:NativeWindowMinimumSize()
+  if frame.SetResizeBounds then frame:SetResizeBounds(width,height)
+  elseif frame.SetMinResize then frame:SetMinResize(width,height) end
+end
+function Manager:ClampNativeWindowSize(width,height)
+  local minimumWidth,minimumHeight=self:NativeWindowMinimumSize()
+  return math.max(minimumWidth,tonumber(width) or minimumWidth),math.max(minimumHeight,tonumber(height) or minimumHeight)
+end
+function Manager:RefreshWindowMinimums()
+  if InCombatLockdown() then
+    if not self.minimumEvents then
+      self.minimumEvents=CreateFrame("Frame")
+      self.minimumEvents:SetScript("OnEvent",function(frame)frame:UnregisterEvent("PLAYER_REGEN_ENABLED");self:RefreshWindowMinimums()end)
+    end
+    self.minimumEvents:RegisterEvent("PLAYER_REGEN_ENABLED");return
+  end
+  local config=Core:GetModule("Config",true)
+  if config and config.RefreshWindowSizeOptions then config:RefreshWindowSizeOptions() end
+  local ui=Core:GetModule("UIManager",true)
+  local p=Core.db.profile
+  p.frameWidth,p.frameHeight=self:ClampWindowSize(p.frameWidth,p.frameHeight)
+  Core:Dispatch(Constants.ACTIONS.UpdateConfig("frameWidth"));Core:Dispatch(Constants.ACTIONS.UpdateConfig("frameHeight"))
+  local whispers=Core:GetModule("Whispers",true)
+  local hosts={}
+  for _,host in pairs(whispers and whispers.workspaces or {})do hosts[host]=true end
+  for _,room in pairs(self.chatRooms or {})do if room.room then hosts[room.room]=true end end
+  for host in pairs(hosts)do
+    local cfg=host:HubSettings()
+    cfg.hubWidth,cfg.hubHeight=self:ClampWindowSize(cfg.hubWidth,cfg.hubHeight,host)
+    if host.hub and not host.minimized and not host.collapseAnimation then
+      host.hub:SetSize(self:ClampWindowSize(cfg.hubWidth,cfg.hubHeight,host));host:LayoutHub()
+    end
+  end
+  for _,window in pairs(ui and ui.state and ui.state.windows or {})do
+    local frame=window.chatFrame
+    if frame and window.active~=false and not frame.isDocked and not self:GetChatRoom(frame) and not (whispers and whispers.IsGrouped and whispers:IsGrouped(frame)) then
+      self:ApplyNativeWindowMinimums(frame)
+      frame:SetSize(self:ClampNativeWindowSize(frame:GetWidth(),frame:GetHeight()))
+      ui:RefreshChatFrameLayout(frame)
+    end
+  end
+end
 local ICONS="Interface\\AddOns\\Sunder\\Media\\Icons\\"
 -- One surface implementation for every chat type. Adapters supply geometry only.
 function Manager:ApplySurface(root,options)
@@ -14,6 +102,12 @@ function Manager:ApplySurface(root,options)
   if not t then
     local panel=CreateFrame("Frame",nil,root);panel:SetAllPoints();panel:SetFrameLevel(root:GetFrameLevel())
     t={frame=panel,edges={}};root.windowSurface=t
+    -- Native detached docks can construct their grip before registering the surface.
+    -- Its final anchor must follow the body extent that also bounds the scrollbar.
+    if root.windowResizeGrip then
+      root.windowResizeGrip:ClearAllPoints()
+      root.windowResizeGrip:SetPoint("BOTTOMRIGHT",panel,"BOTTOMRIGHT",-2,2)
+    end
     t.bodyFrame=CreateFrame("Frame",nil,panel);t.bodyFrame:SetFrameLevel(panel:GetFrameLevel())
     t.body=t.bodyFrame:CreateTexture(nil,"BACKGROUND",nil,-2);t.body:SetAllPoints()
     t.fade=t.bodyFrame:CreateTexture(nil,"BACKGROUND");t.fade:SetAllPoints();t.bodyFrame.fill=t.fade
@@ -93,9 +187,10 @@ function Manager:ApplyNativeSurface(root,header)
     if header.windowControls.fitMainActions then header.windowControls.fitMainActions() end
     header.windowControls.lock:Refresh()
   end
-  return self:ApplySurface(root,{headerHeight=header:GetHeight(),bottomExtent=not root.mainBodyClipped and root.windowContentExtent,bodyVisible=not root.mainBodyHidden})
+  return self:ApplySurface(root,{headerHeight=header:GetHeight(),bodyTop=header:GetHeight()+self:HeaderGap(),bottomExtent=not root.mainBodyClipped and root.windowContentExtent,bodyVisible=not root.mainBodyHidden})
 end
 function Manager:RegisterNativeSurface(root,header)
+  root.containsChatEditor=true
   if root.windowSurfaceRegistered then return end
   root.windowSurfaceRegistered=true;root.windowHeader=header
   local update=function()self:ApplyNativeSurface(root,header)end
@@ -110,7 +205,7 @@ function Manager:RegisterNativeSurface(root,header)
   end)
   local relevant={chatBackgroundColor=true,headerBackgroundColor=true,backgroundFade=true,
     backgroundFadeLeftPercent=true,backgroundFadeRightPercent=true,frameWidth=true,frameHeight=true,
-    chatHeaderStyle=true,font=true,tabFontSize=true,chatTitleIconSize=true,chatTitleIconOpacity=true,
+    chatHeaderStyle=true,tabMessageSpacing=true,font=true,tabFontSize=true,chatTitleIconSize=true,chatTitleIconOpacity=true,
     chatTitleIcons=true,tabHighlightTextColor=true,tabMessageSeparatorColor=true}
   Core:Subscribe(Constants.EVENTS.UPDATE_CONFIG,function(key)if relevant[key]then update()end end)
 end
@@ -121,10 +216,20 @@ function Manager:UpdateContentExtent(root,height,top)
   root.windowContentExtent=extent
   self:ApplyNativeSurface(root,root.windowHeader)
 end
+function Manager:RaiseWindowResizer(root,content)
+  local handle=root and root.windowResizeGrip
+  if not handle then return end
+  local level=root:GetFrameLevel()+30
+  for _,region in ipairs(content or {})do
+    level=math.max(level,region:GetFrameLevel()+2)
+  end
+  handle:SetFrameStrata(root:GetFrameStrata())
+  handle:SetFrameLevel(level)
+end
 function Manager:CreateWindowResizer(root,options)
   local handle=Core.Components.CreateResizeHandle(root,options)
   root.windowResizeGrip=handle
-  handle:SetAlpha(.4);handle:SetFrameLevel(root:GetFrameLevel()+30)
+  handle:SetAlpha(.4);self:RaiseWindowResizer(root)
   for _,method in ipairs({"GetNormalTexture","GetHighlightTexture","GetPushedTexture"})do
     local texture=handle[method] and handle[method](handle)
     if texture then texture:ClearAllPoints();texture:SetSize(16,16);texture:SetPoint("BOTTOMRIGHT")end
@@ -330,6 +435,9 @@ function Manager:SetRoomMinimized(host, minimized, instant)
   local self=host
   if not self.hub then return end
   minimized = not not minimized
+  if not minimized and host.tabMinimized then
+    Manager:RemoveMinimizedTab(host);host.hub:Show()
+  end
   if self.minimized == minimized and not self.collapseAnimation then return end
   if minimized then self:SaveHubGeometry() end
   self:StopHubMove()
@@ -351,7 +459,8 @@ function Manager:SetRoomMinimized(host, minimized, instant)
   local y = self.hub:GetTop() - UIParent:GetTop() * scale
   self.hub:ClearAllPoints()
   self.hub:SetPoint(anchor, UIParent, anchor, left - UIParent:GetLeft() * scale, y)
-  local target = minimized and self:HeaderHeight() or self:HubSettings().hubHeight
+  local _,restoreHeight=Manager:ClampWindowSize(self:HubSettings().hubWidth,self:HubSettings().hubHeight,self)
+  local target = minimized and self:HeaderHeight() or restoreHeight
   local from = self.hub:GetHeight()
   -- Animate only while transitioning; no idle per-frame handler or new frames.
   local function resize(height)
@@ -417,11 +526,13 @@ end
 -- Semantic window commands are capabilities; glyphs never select behavior.
 Manager.windowActions={
   Close={icon="close",tooltip="Close window"},
+  Minimize={icon="minimize",tooltip="Minimize to General",enabled=function(host)return not host.previewActive end},
   Settings={icon="settings",tooltip="Settings for this window"},
   Windows={icon="window-menu",tooltip="Window and conversation actions"},
   Maximize={icon="maximize",tooltip="Maximize window",enabled=function(host)local cfg=host:HubSettings();return cfg and not cfg.movementLocked end},
   CollapseTop={icon="collapse-up",tooltip="Collapse upward"},
   CollapseBottom={icon="collapse-down",tooltip="Collapse downward"},
+  Archive={icon="archive",tooltip="Previous groups",enabled=function(host)return not host.minimized end},
   Info={icon="info",tooltip="Guild information",enabled=function(host)return not host.minimized end},
   Roster={icon="roster",tooltip="Show / hide member roster",enabled=function()return true end},
   Dock={icon="dock",tooltip="Return to General / main chat tabs"},
@@ -444,6 +555,9 @@ function Manager:CreateWindowAction(parent,id,host,action,style)
   return button
 end
 function Manager:CreateCollapseActions(parent,host,collapse,style)
+  if host.hostId and not host.transientSettings and not host.isolatedRoom then
+    host.hubActionButtons.Minimize=self:CreateWindowAction(parent,"Minimize",host,function()self:SetTabMinimized(host,true)end,style)
+  end
   for _,edge in ipairs({"TOP","BOTTOM"}) do
     local direction=edge
     local id=edge=="TOP" and "CollapseTop" or "CollapseBottom"
@@ -479,7 +593,7 @@ function Manager:RefreshRoomActions(host)
   end
 end
 -- Rightmost first. Missing capabilities and hidden controls reserve no space.
-local headerOrder={"Close","Settings","Lock","Maximize","CollapseTop","CollapseBottom","Windows","Dock","Info","Roster","Detach","Search","Reply"}
+local headerOrder={"Close","Settings","Lock","Maximize","Minimize","CollapseTop","CollapseBottom","Windows","Dock","Info","Archive","Roster","Detach","Search","Reply"}
 function Manager:LayoutHeaderActions(host,parent,right,size,icon,gap,height)
   self:RefreshRoomActions(host)
   for _,id in ipairs(headerOrder)do
@@ -509,7 +623,8 @@ function Manager:CollapseToward(host,edge)
   host:HubSettings().minimizeEdge=edge;host:SetMinimized(true)
 end
 function Manager:MaximizedSize(minWidth)
-  return math.max(minWidth,math.min(1100,UIParent:GetWidth()-32)), math.max(220,math.min(720,UIParent:GetHeight()-64))
+  local width,height=self:MinimumWindowSize()
+  return math.max(width,minWidth or 0,math.min(1100,UIParent:GetWidth()-32)), math.max(height,math.min(720,UIParent:GetHeight()-64))
 end
 function Manager:ToggleMaximized(host,storage)
   if not self:CanMove(host:HubSettings())then return end
@@ -522,12 +637,12 @@ function Manager:ToggleMaximized(host,storage)
     storage.roomRestore={hubPoint=cfg.hubPoint,hubX=cfg.hubX,hubY=cfg.hubY,hubWidth=cfg.hubWidth,hubHeight=cfg.hubHeight}
     host.maximized=true
     host.hub:ClearAllPoints();host.hub:SetPoint("CENTER",UIParent,"CENTER",0,0)
-    host.hub:SetSize(self:MaximizedSize(host.minimumWorkspaceWidth or 480))
+    host.hub:SetSize(self:MaximizedSize(self:MinimumWindowSize(host)))
   else
     local previous=storage.roomRestore;host.maximized=false
     if previous then
       for key,value in pairs(previous)do cfg[key]=value end
-      host.hub:ClearAllPoints();host.hub:SetPoint(cfg.hubPoint,UIParent,cfg.hubPoint,cfg.hubX,cfg.hubY);host.hub:SetSize(cfg.hubWidth,cfg.hubHeight)
+      host.hub:ClearAllPoints();host.hub:SetPoint(cfg.hubPoint,UIParent,cfg.hubPoint,cfg.hubX,cfg.hubY);host.hub:SetSize(self:ClampWindowSize(cfg.hubWidth,cfg.hubHeight,host))
     end
     storage.roomRestore=nil
   end
@@ -578,9 +693,10 @@ function Manager:SidebarWidth(width,preferred,minimum,maximum,reserve)
 end
 
 -- One width for all expanded people lists; narrow roots preserve message space.
-Manager.PEOPLE_SIDEBAR_WIDTH=150
+Manager.PEOPLE_SIDEBAR_WIDTH=130
+Manager.PEOPLE_TRANSCRIPT_RESERVE=220
 function Manager:PeopleSidebarWidth(width)
-  return math.max(1,math.min(self.PEOPLE_SIDEBAR_WIDTH,width-220))
+  return math.max(1,math.min(self.PEOPLE_SIDEBAR_WIDTH,width-self.PEOPLE_TRANSCRIPT_RESERVE))
 end
 
 -- Scroll owners supply a top-origin offset and range. Pointer geometry and
@@ -751,7 +867,7 @@ function Manager:StylePersonDetail(host,label,person)
   local text=level and level>0 and tostring(math.floor(level)) or ""
   if class~="" then text=text~="" and text.." · "..class or class end
   self:ApplyPersonDetailFont(host,label)
-  local color=token and ((_G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS or {})[token])
+  local color=self:PersonColor(person.name,person)
   label:SetText(text:gsub("|","||"));label:SetWordWrap(false);label:SetJustifyH("LEFT");label:SetJustifyV("MIDDLE")
   label:SetTextColor(color and color.r or .6,color and color.g or .65,color and color.b or .7,person.online==false and .4 or .68)
   label:SetShown(text~="")
@@ -762,7 +878,7 @@ function Manager:StyleFilterButton(button,active,hover,r,g,b)
   if button.key=="favorites"then button.icon:SetTexture(ICONS..(active and "favorite-filled" or "favorite")..".tga")end
   button.plate:SetColorTexture(active and r or 1,active and g or 1,active and b or 1,active and .075 or hover and .035 or 0)
   button.indicator:SetColorTexture(r,g,b,active and .8 or 0)
-  button.icon:SetVertexColor(active and r or hover and .9 or .58,active and g or hover and .92 or .63,active and b or hover and .96 or .70)
+  if button.icon then button.icon:SetVertexColor(active and r or hover and .9 or .58,active and g or hover and .92 or .63,active and b or hover and .96 or .70) end
   button:GetFontString():SetTextColor(active and .97 or .68,active and .88 or .72,active and .67 or .78)
 end
 
@@ -773,13 +889,15 @@ function Manager:StyleInsetPanel(panel,host)
   end
   local color=Core.db.profile.chatBackgroundColor or {r=.035,g=.04,b=.05,a=.5}
   if host and not host:UsesChatAppearance()then local cfg=host:Settings();color=cfg.hubBackgroundColor or color end
+  -- Content overlays inherit the root surface; a second fill defeats its fade.
+  panel.insetFill:SetColorTexture(color.r,color.g,color.b,0)
   local opacity=host and not host:UsesChatAppearance() and host:Settings().hubBackgroundOpacity or color.a or .5
-  panel.insetFill:SetColorTexture(color.r,color.g,color.b,opacity)
-  panel.insetRule:SetColorTexture(.7,.75,.8,color.a==0 and 0 or .13)
+  panel.insetRule:SetColorTexture(.7,.75,.8,opacity==0 and 0 or .13)
 end
 
 function Manager:CreateTextAction(parent,label,callback)
   local b=CreateFrame("Button",nil,parent);b:SetNormalFontObject("SunderChatDockFont");b:SetText(label)
+  local text=b:GetFontString();text:ClearAllPoints();text:SetPoint("LEFT",3,0);text:SetPoint("RIGHT",-3,0);text:SetWordWrap(false)
   local plate=b:CreateTexture(nil,"BACKGROUND");plate:SetAllPoints();plate:SetColorTexture(1,1,1,.04)
   b:SetHighlightTexture("Interface\\Buttons\\WHITE8X8");b:GetHighlightTexture():SetVertexColor(1,1,1,.06)
   b:SetScript("OnEnter",function()GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(label,1,1,1);GameTooltip:Show()end)
@@ -895,6 +1013,190 @@ function Manager:AddInspectAction(menu,name)
   end)
   if button and button.SetEnabled then button:SetEnabled(not (InCombatLockdown and InCombatLockdown()) and self:ResolveInspectUnit(name)~=nil)end
 end
+-- Names use a saved class token when present, then current known character metadata.
+-- Unknown names retain the caller's neutral color.
+function Manager:PersonClass(name,person)
+  local token=person and (person.classFile or person.classToken)
+  if (not _G.canaccessvalue or canaccessvalue(token)) and type(token)=="string" and token~="" then return token end
+  local whispers=Core:GetModule("Whispers",true)
+  local known=whispers and whispers.PersonDetails and whispers:PersonDetails(name)
+  return known and (known.classFile or known.classToken)
+end
+function Manager:PersonColor(name,person)
+  local token=self:PersonClass(name,person)
+  return token and ((_G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS or {})[token])
+end
+function Manager:FormatPersonName(name,person)
+  if type(name)~="string" or (_G.canaccessvalue and not canaccessvalue(name)) then return "" end
+  local color=self:PersonColor(name,person)
+  if not color then return name end
+  return string.format("|cff%02x%02x%02x%s|r",
+    math.floor(color.r*255+.5),math.floor(color.g*255+.5),math.floor(color.b*255+.5),name)
+end
+function Manager:RememberSender(name,guid)
+  if type(name)~="string" or (_G.canaccessvalue and (not canaccessvalue(name) or not canaccessvalue(guid))) then return end
+  local whispers=Core:GetModule("Whispers",true)
+  if type(guid)=="string" and guid~="" and GetPlayerInfoByGUID and whispers and whispers.RememberPersonDetails then
+    local ok,class,token=pcall(GetPlayerInfoByGUID,guid)
+    if ok and (not canaccessvalue or canaccessvalue(class) and canaccessvalue(token)) and type(token)=="string" then
+      whispers:RememberPersonDetails(name,{class=class,classFile=token})
+    end
+  end
+  return self:PersonClass(name)
+end
 function Manager:StylePersonName(label,r,g,b,online)
   label:SetTextColor(r,g,b,online==false and .45 or 1)
+end
+
+-- Minimized rooms remain live receivers. This strip owns presentation only;
+-- each host retains its existing geometry, history, editor and unread policy.
+Manager.MINIMIZED_TAB_HEIGHT=26
+Manager.MINIMIZED_TAB_WIDTH=180
+Manager.MINIMIZED_TAB_PADDING=7
+function Manager:RemoveMinimizedTab(host)
+  if self.pendingTabStates then self.pendingTabStates[host]=nil end
+  host.tabMinimized=nil
+  if self.minimizedHosts then self.minimizedHosts[host]=nil end
+  if host.minimizedTab then host.minimizedTab:Hide() end
+  self:RefreshMinimizedTabs()
+end
+function Manager:SetTabMinimized(host,value)
+  if not host or not host.hub or value and (host.previewActive or host.isolatedRoom) then return end
+  if InCombatLockdown() then
+    self.pendingTabStates=self.pendingTabStates or {};self.pendingTabStates[host]=not not value
+    if not self.tabStateEvents then
+      self.tabStateEvents=CreateFrame("Frame")
+      self.tabStateEvents:SetScript("OnEvent",function(frame)
+        frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        local pending=self.pendingTabStates;self.pendingTabStates={}
+        for owner,wanted in pairs(pending)do self:SetTabMinimized(owner,wanted)end
+      end)
+    end
+    self.tabStateEvents:RegisterEvent("PLAYER_REGEN_ENABLED");return
+  end
+  if value then
+    local ui=Core:GetModule("UIManager")
+    if not ui.container then return end
+    if host.finishCollapse then host.finishCollapse()end
+    host:SetMinimized(true,true)
+    host.tabMinimized=true;host.windowManuallyClosed=false
+    self.minimizedHosts=self.minimizedHosts or {};self.minimizedHosts[host]=true
+    local frame=host.roomController and host.roomController.frame or host.selected
+    if frame then ui:ReleaseMessageInput(frame)end
+    host.hub:Hide()
+  else
+    self:RemoveMinimizedTab(host)
+    host:SetMinimized(false,true);host.hub:Show();host.hub:SetAlpha(1);host:LayoutHub()
+    if not host.roomController and host.selected then Core:GetModule("Whispers"):SelectConversation(host.selected,false)end
+  end
+  host:SaveMessageWindowState();self:RefreshMinimizedTabs()
+  if host.UpdateMinimizedWhispers and not host.roomController then host:UpdateMinimizedWhispers()end
+end
+function Manager:RefreshMinimizedTabs()
+  local ui=Core:GetModule("UIManager");local root=ui.container
+  if not root then return end
+  local hosts={}
+  for host in pairs(self.minimizedHosts or {})do if host.tabMinimized then hosts[#hosts+1]=host end end
+  table.sort(hosts,function(a,b)return (a.hostId or "")<(b.hostId or "")end)
+  if #hosts==0 then if self.minimizedStrip then self.minimizedStrip:Hide()end;return end
+  local strip=self.minimizedStrip
+  if not strip then
+    strip=CreateFrame("Frame",nil,UIParent);self.minimizedStrip=strip
+    strip:SetFrameStrata(root:GetFrameStrata())
+    strip:SetPoint("BOTTOMLEFT",root,"TOPLEFT",0,2);strip:SetPoint("BOTTOMRIGHT",root,"TOPRIGHT",0,2)
+    strip:SetFrameLevel(root:GetFrameLevel()+20)
+    if root.AddHoverRegion then root:AddHoverRegion(strip)end
+    root:HookScript("OnSizeChanged",function()self:RefreshMinimizedTabs()end)
+    root:HookScript("OnHide",function()strip:Hide()end)
+    root:HookScript("OnShow",function()self:RefreshMinimizedTabs()end)
+  end
+  local available=math.max(1,root:GetWidth());local size=Core:GetModule("Whispers"):InterfaceTextSize()
+  local height=math.max(self.MINIMIZED_TAB_HEIGHT,size+12)
+  local columns=math.max(1,math.floor(available/self.MINIMIZED_TAB_WIDTH))
+  columns=math.min(columns,#hosts);local width=available/columns
+  local stripHeight=math.ceil(#hosts/columns)*height
+  if strip.layoutHeight~=stripHeight then strip.layoutHeight=stripHeight;strip:SetHeight(stripHeight)end
+  if root:IsShown() and not strip:IsShown()then strip:Show()end
+  local W=Core:GetModule("Whispers")
+  for index,host in ipairs(hosts)do
+    local button=host.minimizedTab
+    if not button then
+      button=CreateFrame("Button",nil,strip);host.minimizedTab=button
+      button:SetNormalFontObject("SunderChatDockFont")
+      button.plate=button:CreateTexture(nil,"BACKGROUND");button.plate:SetAllPoints()
+      button.indicator=button:CreateTexture(nil,"OVERLAY");button.indicator:SetPoint("BOTTOMLEFT");button.indicator:SetPoint("BOTTOMRIGHT");button.indicator:SetHeight(1)
+      button.badge=button:CreateFontString(nil,"OVERLAY","SunderChatDockFont");button.badge:SetPoint("RIGHT",-self.MINIMIZED_TAB_PADDING,0)
+      button:SetScript("OnClick",function()self:SetTabMinimized(host,false)end)
+      button:SetScript("OnEnter",function()
+        GameTooltip:SetOwner(button,"ANCHOR_TOP");GameTooltip:AddLine(host:WorkspaceName(),1,1,1)
+        if (button.unreadCount or 0)>0 then GameTooltip:AddLine(button.unreadCount.." unread messages",1,.8,.4)end
+        GameTooltip:AddLine("Restore window",.75,.8,.85);GameTooltip:Show()
+      end)
+      button:SetScript("OnLeave",function()GameTooltip:Hide()end)
+      button:SetScript("OnHide",function()GameTooltip:Hide()end)
+    end
+    local controller=host.roomController;local unread=controller and controller.unread or 0
+    if not controller then for _,frame in ipairs(host.hubOrder or {})do unread=unread+(W.records[frame] and W.records[frame].unread or 0)end end
+    local label=host:WorkspaceName()
+    if host.hostId=="guild" then label=label.." · "..tostring(controller.onlineCount or 0).." online"end
+    local r,g,b=host:InterfaceAccent()
+    local stamp=table.concat({label,unread,index,width,height,size,r,g,b},":")
+    if button.layoutStamp~=stamp then
+      button.layoutStamp=stamp;button:ClearAllPoints();button:SetPoint("TOPLEFT",(index-1)%columns*width,-math.floor((index-1)/columns)*height);button:SetSize(width-2,height-2)
+      button:SetText(label);button.unreadCount=unread;self:UpdateUnreadBadge(button.badge,unread,size)
+      local pad=self.MINIMIZED_TAB_PADDING
+      local font=button:GetFontString();host:WorkspaceFont(font,size);font:ClearAllPoints();font:SetPoint("LEFT",pad,0);font:SetPoint("RIGHT",-(unread>0 and button.badge:GetWidth()+pad*2 or pad),0);font:SetWordWrap(false);font:SetJustifyH("LEFT")
+      self:StyleFilterButton(button,unread>0,false,host:InterfaceAccent())
+      button.plate:SetColorTexture(.04,.05,.045,.94)
+    end
+    if not button:IsShown()then button:Show()end
+  end
+end
+function Manager:MinimizedToastAnchor(host)
+  if host.tabMinimized and self.minimizedStrip then return self.minimizedStrip end
+  return host.hub
+end
+
+-- One keyboard router for native conversations and read-only transcripts.
+-- Text entry always owns its keys; hidden views cannot retain keyboard control.
+function Manager:KeyboardTranscript(fallback)
+  local target
+  for candidate in pairs(self.keyboardViews or {})do
+    if candidate:IsVisible() and MouseIsOver(candidate) and (not target or candidate:GetFrameLevel()>target:GetFrameLevel())then target=candidate end
+  end
+  target=target or (self.keyboardTranscript and self.keyboardTranscript:IsVisible() and self.keyboardTranscript) or fallback
+  if not target then
+    local ui=Core:GetModule("UIManager",true)
+    target=ui and ui.GetSlidingMessageFrame and ui:GetSlidingMessageFrame(_G.SELECTED_CHAT_FRAME or _G.ChatFrame1)
+  end
+  return target and target:IsVisible() and target or nil
+end
+function Manager:PageActiveTranscript(direction,fallback)
+  if GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus() then return false end
+  local target=self:KeyboardTranscript(fallback)
+  local page=target and self.keyboardViews and self.keyboardViews[target]
+  if not page then return false end
+  self.keyboardTranscript=target;page(direction);return true
+end
+function Manager:RegisterTranscriptKeys(view,page)
+  self.keyboardViews=self.keyboardViews or setmetatable({}, {__mode="k"})
+  self.keyboardViews[view]=page
+  if self.keyboardDriver then return end
+  local driver=CreateFrame("Frame",nil,UIParent)
+  self.keyboardDriver=driver
+  driver:SetAllPoints(UIParent);driver:SetFrameStrata("FULLSCREEN_DIALOG");driver:EnableMouse(false)
+  driver:EnableKeyboard(true);driver:SetPropagateKeyboardInput(true)
+  driver:SetScript("OnKeyDown",function(frame,key)
+    frame:SetPropagateKeyboardInput(true)
+    if InCombatLockdown() or GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus() then return end
+    local target=self:KeyboardTranscript()
+    if not target then return end
+    if key=="PAGEUP" or key=="PAGEDOWN" then
+      frame:SetPropagateKeyboardInput(false)
+      self:PageActiveTranscript(key=="PAGEUP" and -1 or 1,target)
+    elseif key=="F" and IsControlKeyDown() then
+      frame:SetPropagateKeyboardInput(false)
+      Core:GetModule("ChatCopy"):ShowAllSearch()
+    end
+  end)
 end

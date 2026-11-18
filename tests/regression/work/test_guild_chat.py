@@ -66,6 +66,7 @@ RAID_CLASS_COLORS={MAGE={r=.3,g=.7,b=.9},PRIEST={r=1,g=1,b=1},WARRIOR={r=.8,g=.6
 lua.execute(root.joinpath('Components/RosterRoom.lua').read_text(encoding='utf-8'),'Sunder',lua.globals().vars)
 lua.execute(root.joinpath('Modules/GuildChat.lua').read_text(encoding='utf-8'),'Sunder',lua.globals().vars)
 lua.execute(root.joinpath('Modules/GuildInfo.lua').read_text(encoding='utf-8'),'Sunder',lua.globals().vars)
+lua.execute(root.joinpath('Modules/GuildDashboard.lua').read_text(encoding='utf-8'),'Sunder',lua.globals().vars)
 lua.execute("""
 Core.db.profile.guildChat=clone(Core.defaults.profile.guildChat);gp=Core.db.profile.guildChat
 Core.db.char.guildChat={};W:ClearPreviewData();combat=false
@@ -152,18 +153,18 @@ G:OpenWhisper(G.filtered[2]);assert(guildWhisper.target=="Anne Vale")
 W.OpenSavedFavorite=whisper
 local panel=G.panel
 local filtered=G.filtered
-assert(Core.Components.WindowManager:PeopleSidebarWidth(600)==150,"shared width drifted")
+assert(Core.Components.WindowManager:PeopleSidebarWidth(600)==130,"shared width drifted")
 G.room.hub:SetWidth(500);ui:RefreshChatFrameLayout(G.frame)
 assert(not G.compact and G.panel:GetWidth()<=190 and window.slidingMessageFrame.layoutWidth==500-G.panel:GetWidth())
 G:ToggleRoster();assert(G.compact and not gp.rosterShown)
 G:ToggleRoster();assert(not G.compact and gp.rosterShown)
 G.room.hub:SetWidth(340);ui:RefreshChatFrameLayout(G.frame)
-assert(not G.compact and G.panel:GetWidth()<=120)
+assert(not G.compact and G.panel:GetWidth()==130 and G.room.hub:GetWidth()>=Core.Components.WindowManager:MinimumWindowSize(G.room))
 G:ToggleRoster();G:ToggleRoster();assert(not G.compact and gp.rosterShown)
 G.room.hub:SetWidth(760);ui:RefreshChatFrameLayout(G.frame);assert(not G.compact and G.panel==panel)
 local inherit=cfg.hubMatchChat;cfg.hubMatchChat=true;Core.db.profile.tabFontSize=32
-G.room.hub:SetHeight(120);ui:RefreshChatFrameLayout(G.frame);assert(G.compact,"short large-font roster inverted its scroll bounds")
-G:ToggleRoster();assert(not G.compact and G.room.hub:GetHeight()>120,"show roster did not recover a short room")
+G.room.hub:SetHeight(120);ui:RefreshChatFrameLayout(G.frame);assert(not G.compact and G.room.hub:GetHeight()>=Core.Components.WindowManager:RosterExpandedHeight(G.room),"minimum allowed a short large-font roster")
+G:ToggleRoster();G:ToggleRoster();assert(not G.compact and G.room.hub:GetHeight()>120,"show roster did not recover a short room")
 G.room.hub:SetHeight(380);ui:RefreshChatFrameLayout(G.frame);assert(not G.compact)
 cfg.hubMatchChat=inherit;Core.db.profile.tabFontSize=13;ui:RefreshChatFrameLayout(G.frame)
 G.frame.editBox:SetText("keep this draft");G.frame.editBox.inputType="OFFICER";G:Open()
@@ -340,7 +341,7 @@ assert(header:GetFrameStrata()==root:GetFrameStrata())
 local expected=Core.db.profile.chatBackgroundColor.a
 assert(surface.fade.paint.a==expected and surface.fade.paint.fade,"native body did not use shared blended fade")
 local same=manager:ApplyNativeSurface(root,header);assert(same==surface,"repaint duplicated the surface")
-root:SetSize(480,240);assert(surface.bodyFrame:GetHeight()==216,"native resize did not update shared body")
+root:SetSize(480,240);assert(surface.bodyFrame:GetHeight()==240-header:GetHeight()-manager:HeaderGap(),"native resize did not update shared body")
 Core.db.profile.chatBackgroundColor.a=0
 manager:ApplyNativeSurface(root,header);assert(surface.fade.paint.a==0 and surface.body.rgba[4]==0)
 Core.db.profile.chatBackgroundColor.a=expected
@@ -394,11 +395,11 @@ assert(not controls.settings,"unmapped settings cog was displayed")
 controls.dock:GetScript("OnClick")();assert(docking==1)
 manager:RegisterNativeSurface(root,header)
 manager:UpdateContentExtent(root,220,24)
-assert(root.windowContentExtent==44 and root.windowSurface.bodyFrame:GetHeight()==220)
+assert(root.windowContentExtent==44 and root.windowSurface.bodyFrame:GetHeight()==220-manager:HeaderGap())
 assert(root.windowSurface.frame.points.BOTTOMRIGHT.y==-44,"outline did not include renderer overflow")
 local resize=manager:CreateWindowResizer(root,{minWidth=100,minHeight=100,allowed=function()return true end,begin=function()return root,600,200 end,apply=function(w,h)root:SetSize(w,h)end,finish=function()end})
 assert(resize.points.BOTTOMRIGHT.relative==root.windowSurface.frame,"resize grip did not follow visible body")
-manager:UpdateContentExtent(root,150,24);assert(root.windowContentExtent==0 and root.windowSurface.bodyFrame:GetHeight()==176)
+manager:UpdateContentExtent(root,150,24);assert(root.windowContentExtent==0 and root.windowSurface.bodyFrame:GetHeight()==176-manager:HeaderGap())
 local nativeDock,nativeSelect,scheduled=FCF_DockFrame,FCF_SelectDockFrame,ui.ScheduleChatFrameLayout
 local target=CreateFrame("Frame",nil,UIParent);target.isDocked=false
 FCF_DockFrame=function(f)assert(f==target);f.isDocked=true end
@@ -691,11 +692,11 @@ assert(G.rowHeight==W:InterfaceTextSize()+Core.Components.WindowManager:PersonDe
 G.rosterFilters.buttons[2]:GetScript("OnClick")();assert(#G.filtered==1 and G.filtered[1]==a)
 G:ToggleMemberFavorite(c);G:SetRosterFilter("favorites");assert(#G.filtered==1 and G.filtered[1]==c,"offline favorites disappeared")
 G:SetRosterFilter("all");G.room.hub:SetSize(1000,450)
-G:ShowGuildInfo();assert(G.infoDrawer:IsShown() and G.infoDrawer.body:GetText():find("Online by class",1,true))
-assert(G.column:IsShown() and G.infoDrawer:GetWidth()==280)
+G:ShowGuildInfo();assert(G.infoDrawer:IsShown() and G.infoDashboardSpecs[2].label=="Class presence")
+assert(not G.column:IsShown() and G.infoDrawer:GetWidth()==G.room.hub:GetWidth()-G.panel:GetWidth())
 assert(G.room.hubActionButtons.Info.actionSelected)
 local whisper=W.OpenSavedFavorite;local sent=0;W.OpenSavedFavorite=function()sent=sent+1 end
-G:ShowMemberCard(a);assert(sent==0 and G.infoDrawer.title:GetText()=="Alpha")
+G:ShowMemberCard(a);assert(sent==0 and G.infoDrawer.title:GetText()==Core.Components.WindowManager:FormatPersonName("Alpha",a))
 combat=true;G.events:GetScript("OnEvent")(G.events,"PLAYER_REGEN_DISABLED");assert(G.infoDrawer.whisper.disabled and G.infoDrawer.invite.disabled)
 combat=false;G.events:GetScript("OnEvent")(G.events,"PLAYER_REGEN_ENABLED");assert(not G.infoDrawer.whisper.disabled)
 assert(G.infoDrawer.body:GetText():find("Public note",1,true) and G.infoDrawer.body:GetText():find("Officer",1,true))
@@ -867,4 +868,141 @@ W:SetPeopleFilter("all");assert(not W.hubTabs[frame]:IsShown(),"empty starred na
 frame.history={{text="First real message",typeID=ChatTypeInfo.WHISPER.id}}
 W:OnNativeMessage(frame,ChatTypeInfo.WHISPER.id);drain();W:SetPeopleFilter("all")
 assert(W.hubTabs[frame]:IsShown() and not W.hubEmpty:IsShown(),"first real message did not promote contact to conversation")
+""")
+
+
+lua.execute("""
+local wm=Core.Components.WindowManager
+local gap=Core.db.profile.tabMessageSpacing
+local linked=cfg.hubMatchChat
+for _,value in ipairs({0,11})do
+ Core.db.profile.tabMessageSpacing=value;cfg.hubMatchChat=false
+ local root=CreateFrame("Frame",nil,UIParent);root:SetSize(600,320)
+ local header=CreateFrame("Frame",nil,root);header:SetHeight(24)
+ local surface=wm:ApplyNativeSurface(root,header)
+ assert(surface.bodyTop==24+value and surface.bodyFrame.points.TOPLEFT.y==-24-value)
+ assert(W:HeaderGap()==value and G.room:HeaderGap()==value,"room used a different spacing setting")
+ G.room:ApplyHubAppearance();assert(G.room.roomStructure.bodyTop==G.room:HeaderHeight()+value)
+end
+Core.db.profile.tabMessageSpacing=gap;cfg.hubMatchChat=linked
+local members,filtered,index=G.members,G.filtered,G.memberByName
+local query=G.query
+G.members={};G.memberByName={};G.infoQuery="";G.query="unchanged roster query"
+for i=1,1000 do
+ local name=string.format("Person %04d",i)
+ local person={name=name,key=name:lower(),class=i%2==0 and "Mage" or "Warrior",classFile=i%2==0 and "MAGE" or "WARRIOR",level=i%60+1,
+ rank="Rank "..i%5,rankIndex=i%5,zone=i%3==0 and "City" or "Forest",online=i%4~=0,note="Public note",guildKey=G.currentGuild}
+ G.members[i]=person;G.memberByName[person.key]=person
+end
+G.infoTab="overview";G.room.hub:SetSize(800,500);G:ShowGuildInfo()
+local p=G.infoDrawer;local model=G:GuildDashboardModel()
+assert(model.total==1000 and model.online==750 and #model.classes==2 and #model.zones==2)
+assert(p.insetFill.rgba[4]==0 and not p.insetRule:IsShown(),"dashboard painted over the root fade")
+assert(not G.column:IsShown() and p.tabs[1].selected)
+-- Resolve the bottom-up anchor geometry rather than merely echoing an offset.
+local padding=Core.db.profile.bodyPadding
+for _,pad in ipairs({0,8,19})do
+ Core.db.profile.bodyPadding=pad
+ for _,tab in ipairs({"overview","members","about"})do
+  G:SetGuildDashboardTab(tab)
+  local bottom=p.viewport.points.BOTTOMRIGHT.y
+  local top=-p.viewport.points.TOPLEFT.y
+  local viewportBottom=p:GetHeight()-top-p.viewport:GetHeight()
+  assert(bottom>=0 and math.abs(viewportBottom-bottom)<.01,"scroll viewport extends below the drawer")
+  assert(p.viewport:GetHeight()<=p:GetHeight()-top,"viewport exceeds available drawer height")
+ end
+ G:SetGuildDashboardTab("overview")
+end
+Core.db.profile.bodyPadding=padding;G.room:LayoutHub()
+
+assert(p.viewport.clipsChildren and p.scroll:GetParent()==p.viewport and p.viewport:GetParent()==p,"dashboard rows must be inside a dedicated clipped viewport")
+assert(p.viewport.points.BOTTOMRIGHT.y==W:BodyPadding(),"dashboard clip must stop above the window bottom")
+for _,b in ipairs(p.dashboardRows[1].stats)do assert(b.value:GetHeight()>W:InterfaceTextSize() and b.caption:GetText()~="" and b.value.points.TOPLEFT and b.caption.points.BOTTOMLEFT,"summary needs separate prominent value and caption")end
+local classRow
+for _,row in ipairs(p.dashboardRows)do if row.spec and row.spec.kind=="class" then classRow=row;break end end
+local heading
+for _,row in ipairs(p.dashboardRows)do if row.spec and row.spec.kind=="heading" then heading=row;break end end
+assert(heading and not heading.rule:IsShown() and heading.sub:IsShown() and heading.spec.height>classRow.spec.height,"section needs a title/caption hierarchy without another rule")
+assert(heading.sub.points.TOPLEFT.y<heading.labels[1].points.TOPLEFT.y,"heading caption overlaps its title")
+assert(classRow.track:IsShown() and not classRow.rule:IsShown(),"class presence retained spreadsheet rules")
+local _,headingSize=heading.labels[1]:GetFont();assert(headingSize==W:InterfaceTextSize()+2,"linked chat font erased heading hierarchy")
+local _,valueSize=p.dashboardRows[1].stats[1].value:GetFont();assert(valueSize==W:InterfaceTextSize()+7,"linked chat font erased summary hierarchy")
+assert(classRow and classRow.bar:IsShown());classRow:GetScript("OnClick")()
+assert(G.infoTab=="members" and G.infoClass)
+for _,row in ipairs(G.infoDashboardSpecs)do assert(row.kind=="member" and row.person.classFile==G.infoClass and row.person.online)end
+p.clearFilter:GetScript("OnClick")();assert(#G.infoDashboardSpecs==1000)
+p.sortButtons[2]:GetScript("OnClick")();assert(G.infoDashboardSpecs[1].person.level==1)
+p.sortButtons[2]:GetScript("OnClick")();assert(G.infoDashboardSpecs[1].person.level==60)
+p.search:SetText("Person 0007");p.search:GetScript("OnTextChanged")(p.search);assert(#G.infoDashboardSpecs==1 and G.infoDashboardSpecs[1].person.name=="Person 0007")
+assert(p.dashboardRows[1].labels[1]:GetText():find("|cff",1,true))
+assert(p.directorySummary:IsShown() and p.directorySummary:GetText():find("1 result",1,true),"filtered directory lost its result count")
+local row=p.dashboardRows[1];local person=G.infoDashboardSpecs[1].person
+G.memberByName[person.key]=nil;row:GetScript("OnClick")();assert(G.infoMode=="guild","stale table row selected a replacement")
+G.memberByName[person.key]=person
+local whisper=W.OpenSavedFavorite;W.OpenSavedFavorite=function()error("table selection sent a whisper")end
+row:GetScript("OnClick")();assert(G.infoMode=="member" and p.body:IsShown() and not p.search:IsShown())
+assert(p.viewport.points.BOTTOMRIGHT.y==38 and p.viewport:GetHeight()<=p:GetHeight()+p.viewport.points.TOPLEFT.y-38,"member scroll overlaps its footer")
+p.back:GetScript("OnClick")();assert(G.infoMode=="guild" and G.infoTab=="members")
+W.OpenSavedFavorite=whisper
+p.clearFilter:GetScript("OnClick")()
+local specs=G.infoDashboardSpecs
+p.scroll:SetVerticalScroll(12000)
+assert(G.infoDashboardSpecs==specs and #p.dashboardRows<40,"scroll rebuilt data or created a full roster of controls")
+assert(not p:GetScript("OnUpdate") and not p.scroll:GetScript("OnUpdate"))
+G:SetGuildDashboardTab("overview")
+local stats=p.dashboardRows[1];assert(stats.spec.kind=="stats");stats.stats[3]:GetScript("OnClick")()
+assert(G.infoScope==nil and #G.infoDashboardSpecs==1000,"total card incorrectly applied online-only filtering")
+G:SetGuildDashboardTab("overview")
+local headings={}
+for _,spec in ipairs(G.infoDashboardSpecs)do if spec.kind=="heading" then headings[spec.section]=spec end end
+assert(headings.classes and headings.locations and headings.locations.x>0 and headings.locations.top==headings.classes.top,"wide overview did not form two sections")
+assert(headings.classes.width<headings.locations.x,"overview columns overlap")
+local wideWidth=p.child:GetWidth();p.child:SetWidth(360);G:RefreshGuildDashboard()
+local classBottom=0
+for _,spec in ipairs(G.infoDashboardSpecs)do
+ if spec.section=="classes" then classBottom=math.max(classBottom,spec.top+spec.height)end
+ if spec.section=="locations" then assert(spec.x==0 and spec.top>=classBottom,"narrow sections overlap")end
+end
+p.child:SetWidth(wideWidth);G:RefreshGuildDashboard()
+local zoneSpec;for _,spec in ipairs(G.infoDashboardSpecs)do if spec.kind=="zone" then zoneSpec=spec;break end end
+p.scroll:SetVerticalScroll(zoneSpec.top)
+local zoneRow;for _,r in ipairs(p.dashboardRows)do if r.spec==zoneSpec then zoneRow=r;break end end
+assert(zoneRow and zoneRow.sub:IsShown() and zoneRow.sub:GetText():find("|cff",1,true) and not zoneRow.bar:IsShown(),"location card lacks class-colored people preview");zoneRow:GetScript("OnClick")();assert(G.infoZone==zoneSpec.entry.key)
+for _,spec in ipairs(G.infoDashboardSpecs)do assert(spec.person.zone==G.infoZone and spec.person.online)end
+p.scope:GetScript("OnClick")();assert(G.infoScope=="offline")
+for _,spec in ipairs(G.infoDashboardSpecs)do if spec.kind=="member"then assert(not spec.person.online)end end
+local motd,info=GetGuildRosterMOTD,GetGuildInfoText
+GetGuildRosterMOTD=function()return "Guild announcement"end;GetGuildInfoText=function()return "Public guild information"end
+G:SetGuildDashboardTab("overview");assert(p.detail:GetText()=="Guild announcement")
+G:SetGuildDashboardTab("members");assert(p.detail:GetText()=="Guild announcement","directory refresh replaced the MOTD")
+GetGuildRosterMOTD=function()return "Updated\\nannouncement"end;G:RefreshGuildDashboard();assert(p.detail:GetText()=="Updated announcement" and p.detail.wrap==false)
+GetGuildRosterMOTD=function()return ""end;G:RefreshGuildDashboard();assert(p.detail:GetText()=="","missing MOTD retained stale text")
+GetGuildRosterMOTD=function()return "Guild announcement"end
+G:SetGuildDashboardTab("about")
+local all="";for _,spec in ipairs(G.infoDashboardSpecs)do all=all..spec.label end
+assert(all:find("Guild announcement",1,true) and all:find("Public guild information",1,true))
+GetGuildRosterMOTD,GetGuildInfoText=motd,info
+assert(G.query=="unchanged roster query","dashboard modified the live roster search")
+G:CloseGuildInfo();assert(G.column:IsShown() and not p:IsShown())
+G.members,G.filtered,G.memberByName,G.query=members,filtered,index,query;G:FilterRoster()
+""")
+print("Shared design passed: zero/nondefault native/room gap, transparent Guild dashboard, interactive class/location/stat filters, sorting/search, safe member cards, About content, 1000-member virtualization and no idle drivers.")
+
+
+bar_source=root.joinpath('Components/CombatLogBar.lua').read_text(encoding='utf-8')
+bar_layout=bar_source[bar_source.index('function CombatLogBarMixin:UpdateLayout()'):bar_source.index('function CombatLogBarMixin:SetSunderParent')]
+lua.execute('CombatLogBarMixin={};getPosition=function()return Core.db.profile.combatLogBarPosition end')
+lua.execute(bar_layout)
+lua.execute("""
+local p=Core.db.profile;local gap,position,x,y=p.tabMessageSpacing,p.combatLogBarPosition,p.combatLogBarXOffset,p.combatLogBarYOffset
+local frame=CreateFrame("Frame",nil,UIParent);frame.sunderParent=UIParent;frame.useParentWidth=true
+frame.UpdateBackground=function()end;frame.UpdateVisibility=function()end
+p.combatLogBarXOffset,p.combatLogBarYOffset=4,6
+for _,spacing in ipairs({0,13})do
+ p.tabMessageSpacing=spacing;p.combatLogBarPosition="BELOW";CombatLogBarMixin.UpdateLayout(frame)
+ assert(frame.points.TOPLEFT.y==-Constants.DOCK_HEIGHT-spacing+6)
+ p.combatLogBarPosition="ABOVE";CombatLogBarMixin.UpdateLayout(frame)
+ assert(frame.points.BOTTOMLEFT.y==6,"shared gap changed the native above-filter offset")
+end
+p.tabMessageSpacing,p.combatLogBarPosition,p.combatLogBarXOffset,p.combatLogBarYOffset=gap,position,x,y
 """)

@@ -40,7 +40,7 @@ Party:Open();drain()
 local frame=Party.frame;local h=Party.room;local window=ui:GetChatWindow(frame)
 assert(frame and h.hub:IsShown() and not Party:CanSend() and not window.editBox:IsShown())
 assert(not ui:SelectMessageInput(frame),"solo room accepted message input")
-assert(h.hubActionButtons.CollapseTop and h.hubActionButtons.CollapseBottom and h.roomResize and h.hubActionButtons.Info)
+assert(h.hubActionButtons.CollapseTop and h.hubActionButtons.CollapseBottom and h.roomResize and h.hubActionButtons.Archive)
 assert(Core.Components.WindowManager:GetChatRoom(frame)==Party and Core.Components.WindowManager:GetChatRoom(G.frame)==G)
 Party:CloseRoom();cfg.autoOpen=true
 local selected=SELECTED_CHAT_FRAME
@@ -181,18 +181,18 @@ InspectUnit,CanInspect,CheckInteractDistance=oldInspect,oldCan,oldDistance
 
 lua.execute("""
 local wm=Core.Components.WindowManager
-assert(wm:PeopleSidebarWidth(600,100)==150 and wm:PeopleSidebarWidth(600,300)==150)
+assert(wm:PeopleSidebarWidth(600,100)==130 and wm:PeopleSidebarWidth(600,300)==130)
 assert(wm:PeopleSidebarWidth(340,190)==120,"narrow sidebar consumed conversation reserve")
-assert(wm:PeopleSidebarWidth(600,100,170)==150,"legacy maximum defeated shared minimum")
+assert(wm:PeopleSidebarWidth(600,100,170)==130,"legacy maximum defeated shared minimum")
 partyActive=true;partyRaid=false;Party:RefreshRoster();Party:Open()
 local oldWidth=W.hub:GetWidth();W.hub:SetWidth(600)
 for _,room in ipairs({Party,G})do
  room.room.hub:SetWidth(600);room.room.hub:SetHeight(400)
  local options=Core.db.profile[room==Party and "partyChat" or "guildChat"]
  options.rosterShown=true;room:LayoutWindow(ui:GetChatWindow(room.frame))
- assert(room.panel:GetWidth()==150,"room bypassed shared list minimum")
+ assert(room.panel:GetWidth()==130,"room bypassed shared list minimum")
 end
-assert(W:ConversationListWidth()==150,"Whispers bypassed Guild-sized minimum")
+assert(W:ConversationListWidth()==130,"Whispers bypassed Guild-sized minimum")
 W.hub:SetWidth(oldWidth)
 """)
 
@@ -236,12 +236,13 @@ Party:SaveHistory()
 local records=Party:HistoryRecords();assert(#records==1 and #records[1].lines==2)
 local oldKey=records[1].key
 partyActive=false;Party:RefreshRoster();partyActive=true;Party:RefreshRoster()
-assert(#records==1 and records[1].key==oldKey and #records[1].lines==2,"new party erased archive")
+assert(#records==2 and records[2].key==oldKey and #records[2].lines==2,"new party erased archive")
+assert(records[2].endedAt and records[1].changes[1].kind=="baseline","roster-only group was not recorded")
 Party.frame.history={{text="New group",typeID=50}};Party:SaveHistory()
 assert(#records==2 and records[1].key~=oldKey and #records[2].lines==2)
 Party.groupInitialized=nil;Party:RefreshRoster();assert(#records==2,"reload duplicated archived session")
 for i=1,40 do Party.currentGuild="bounded:"..i;Party.sessionKey=Party.currentGuild;Party.frame.history={{text="Bounded",typeID=51}};Party:SaveHistory()end
-assert(#records==30,"archive record cap failed")
+assert(#records>=40,"older group records were evicted")
 Party.historyMode=true;assert(not Party:CanSend(),"archive allowed live input")
 Party.room.hub:Show();Party.room.minimized=false;Party.unread=0
 Party:OnGroupMessage("CHAT_MSG_PARTY","OtherGUID");assert(Party.unread==1,"archive browsing acknowledged live messages")
@@ -328,7 +329,7 @@ while practice.index<#practice.events do
    r:ShowMemberCard(r.records.Elowen);assert(editor:GetText()=="Unsent practice draft")
  elseif practice.lastEvent=="archive" then assert(r.historyMode and r.historyPanel:IsShown())
  elseif practice.lastEvent=="message" and r.historyMode then
-   assert(#r.log==2 and #r.archives[1].lines==2 and r.historyPanel.transcript.lines==r.archives[1].lines)
+   assert(#r.log==2 and #r.archives[1].lines==2 and r.historyPanel.transcript.lines==r:HistoryTimeline(r.archives[1]) and #r.historyPanel.transcript.lines==5)
  elseif practice.lastEvent=="offline" then assert(#r.members==40 and r.onlineCount==39 and #r.log==3)
  elseif practice.lastEvent=="burst" then assert(#r.log==33)
  end
@@ -347,3 +348,161 @@ assert(SELECTED_CHAT_FRAME==liveFocus and liveEditor:GetText()=="An unrelated li
 SendChatMessage=liveSend
 """)
 print("Chat practice passed: complete timed script, single-step, stale timers, isolated toast selection, background group log, raid roster, burst, exit and SavedVariables equality.")
+
+
+lua.execute("""
+Core.db.profile.partyChat.remember=true
+partyActive=true;partyRaid=false;Party.rosterRecordingReset=true;Party.leftSinceRefresh=true
+Party:RefreshRoster()
+local record=Party:HistoryRecords()[1]
+local baseline=#record.changes
+assert(record.changes[baseline].kind=="baseline")
+local wm=Core.Components.WindowManager
+assert(Party.room.hubActionButtons.Archive.actionKey=="archive" and not Party.room.hubActionButtons.Info)
+assert(wm:FormatPersonName(record.members[1].name,record.members[1]):find("|cff",1,true),"archived roster lost class")
+Party:RefreshRoster();Party:RefreshRoster();assert(#record.changes==baseline,"unchanged refresh duplicated roster events")
+units.party2.online=true;Party:RefreshRoster();assert(#record.changes==baseline,"presence became a membership change")
+local priorName=units.party1.name
+units.party1.name="Renamed Tank";Party:RefreshRoster()
+local rename=record.changes[#record.changes]
+assert(#record.changes==baseline+1 and #rename.renamed==1 and #rename.joined==0 and #rename.left==0)
+assert(rename.renamed[1].before.name==priorName and rename.renamed[1].after.name=="Renamed Tank")
+local fingerprint=Core.db.char.partyChat.fingerprint
+local retained=units.party2;units.party2=nil;Party:RefreshRoster()
+assert(Core.db.char.partyChat.fingerprint==fingerprint,"partial roster corrupted reload identity")
+assert(#record.changes==baseline+1,"partial roster produced a false departure")
+units.party2={name="New Mage",guid="NewGUID"};Party:RefreshRoster()
+local changed=record.changes[#record.changes]
+assert(#changed.joined==1 and #changed.left==1 and changed.joined[1].classFile=="MAGE")
+assert(changed.left[1].name==retained.name and #changed.renamed==0)
+local count=#record.changes
+Party.groupInitialized=nil;Party:RefreshRoster();assert(#record.changes==count,"reload duplicated roster observation")
+Core.features.partyChat.buildOptions().args.remember.set(nil,false)
+units.party2.name="Unrecorded name";Party:RefreshRoster();assert(#record.changes==count)
+Core.features.partyChat.buildOptions().args.remember.set(nil,true)
+Party:RefreshRoster();assert(record.changes[#record.changes].kind=="baseline","recording gap invented a timed join")
+Party:ToggleHistory(true);Party:SelectHistory(record.key)
+assert(Party.historyPanel.details:GetText():find("|cff",1,true) and Party.historyPanel.rows[1].detail:GetText():find("|cff",1,true))
+local timeline=Party:HistoryTimeline(record);assert(#timeline==#record.lines+#record.changes)
+assert(Party:HistoryTimeline(record)==timeline,"unchanged archive rebuilt timeline")
+assert(timeline[#timeline].groupChange,"roster events were absent from the transcript")
+Party:ToggleHistory(false)
+""")
+print("Party archive changes passed: shared archive action, class-colored archived names, GUID rename, batched join/leave, no presence/partial-roster false events, stable refresh/reload, recording gaps and cached timeline.")
+
+lua.execute("""
+local wm=Core.Components.WindowManager
+local lookup=GetPlayerInfoByGUID
+GetPlayerInfoByGUID=function(guid)assert(guid=="ClassGUID");return "Mage","MAGE" end
+wm:RememberSender("Stored Class Person","ClassGUID")
+assert(Core.db.char.whisperPersonDetails["stored class person"].classFile=="MAGE")
+GetPlayerInfoByGUID=lookup
+""")
+
+
+lua.execute("""
+local saved=Core.db.char.partyRoomArchive
+local realm=GetRealmName;GetRealmName=function()return "Local Realm"end
+local record={key="self-filter",startedAt=1000,lines={{"Local Hero: retained message"}},members={
+ {name="Former Self",guid="LocalGUID",classFile="MAGE"},
+ {name="Local Hero",classFile="MAGE"},
+ {name="Local Hero-LocalRealm",classFile="MAGE"},
+ {name="Local Hero-OtherRealm",classFile="MAGE"},
+ {name="Companion",guid="CompanionGUID",classFile="MAGE"},
+}}
+Core.db.char.partyRoomArchive={record}
+Party:EnsureHistory();Party:SelectHistory(record.key)
+local function verify()
+ local detail=Party.historyPanel.details:GetText()
+ local preview=Party.historyPanel.rows[1].detail:GetText()
+ for _,text in ipairs({detail,preview})do
+  assert(not text:find("Former Self",1,true) and not text:find("Local Hero-LocalRealm",1,true))
+  assert(not text:find("Local Hero|r",1,true),"legacy self leaked into member summary")
+  assert(text:find("Local Hero-OtherRealm",1,true) and text:find("Companion",1,true))
+ end
+ assert(detail:find("2 other names seen",1,true))
+end
+verify();Party:RenderHistoryList();Party:SelectHistory(record.key);verify()
+local tooltip=GameTooltip;local shown={}
+GameTooltip={SetOwner=function()end,AddLine=function(_,text)shown[#shown+1]=text end,Show=function()end}
+Party.historyPanel.rows[1]:GetScript("OnEnter")()
+assert(#shown==3 and table.concat(shown):find("Companion",1,true) and not table.concat(shown):find("Former Self",1,true))
+GameTooltip=tooltip
+assert(#record.members==5 and record.members[1].name=="Former Self" and record.lines[1][1]=="Local Hero: retained message","display filtering mutated history")
+record.members={{name="Former Self",guid="LocalGUID"}}
+Party:SelectHistory(record.key)
+assert(Party.historyPanel.details:GetText():find("No other members recorded.",1,true))
+assert(Party.historyPanel.rows[1].detail:GetText()=="1 messages")
+Core.db.char.partyRoomArchive=saved;GetRealmName=realm
+""")
+print("Archive self filtering passed: both member summaries, refresh/reselect, tooltip, GUID rename, legacy realm-aware names, self-only state and unchanged saved roster/messages.")
+
+
+lua.execute("""
+Party:ToggleHistory(true)
+local h=Party.room
+assert(not Party.historyPanel.insetFill,"archive installed a second solid body")
+for _,value in ipairs({0,9})do
+ local old=Core.db.profile.tabMessageSpacing;Core.db.profile.tabMessageSpacing=value
+ Party:LayoutHistory();h:ApplyHubAppearance();Party:LayoutHistory()
+ local surface=h.roomStructure
+ assert(surface.bodyTop==h:HeaderHeight()+value and surface.sidebar:GetWidth()==129)
+ assert(surface.fade.paint.fade and surface.fade.points.TOPLEFT.x==130,"archive refresh lost shared surface geometry")
+ assert(surface.fade.points.TOPLEFT.y==-36,"archive toolbar entered transcript fade")
+ Core.db.profile.tabMessageSpacing=old
+end
+Party:ToggleHistory(false)
+""")
+
+
+lua.execute("""
+local wm=Core.Components.WindowManager
+local methods=getmetatable(UIParent).__index
+function methods:UnregisterEvent(event) self.unregisteredEvent=event end
+local ui=Core:GetModule("UIManager");local main=ui.container
+ui.container=CreateFrame("Frame",nil,UIParent);ui.container:SetSize(610,340)
+local W=Core:GetModule("Whispers");local G=Core:GetModule("GuildChat")
+local guild,party=G.room,Party.room
+assert(guild.hubActionButtons.Minimize and party.hubActionButtons.Minimize and W.hubActionButtons.Minimize)
+if guild.minimized then guild:SetMinimized(false,true)end
+guild.hub:Show();local width,height=guild.hub:GetWidth(),guild.hub:GetHeight()
+wm:SetTabMinimized(guild,true)
+assert(guild.tabMinimized and guild.minimized and not guild.hub:IsShown())
+assert(Core.db.char.guildChat.open and Core.db.char.guildChat.tabMinimized,"minimize was saved as close")
+assert(guild.minimizedTab:IsShown() and wm.minimizedStrip.points.BOTTOMLEFT.relative==ui.container)
+G.unread=8;G.onlineCount=12;G:UpdateUnread()
+assert(guild.minimizedTab.badge:GetText()=="8" and guild.minimizedTab:GetText():find("12 online",1,true))
+assert(guild.minimizedTab:GetFontString().points.RIGHT.x==-(guild.minimizedTab.badge:GetWidth()+wm.MINIMIZED_TAB_PADDING*2),"tab label overlaps its unread badge")
+guild.hub:Show();assert(not guild.hub:IsShown(),"automatic presentation escaped the minimized tab")
+local stamp=guild.minimizedTab.layoutStamp;wm:RefreshMinimizedTabs();assert(stamp==guild.minimizedTab.layoutStamp)
+wm:RemoveMinimizedTab(guild);G:RestoreWindow();assert(guild.tabMinimized and not guild.hub:IsShown(),"reload restore lost minimized tab state")
+assert(wm.minimizedStrip:GetParent()==UIParent,"General collapse would clip the tab strip")
+wm:SetTabMinimized(party,true);Party.unread=3;Party:UpdateUnread()
+assert(party.minimizedTab.badge:GetText()=="3")
+assert(Party:FilterMessage(ChatFrame1,"CHAT_MSG_PARTY")==not not Party.grouped,"tab minimization changed duplicate suppression")
+local oldSelected=W.selected;W.selected=nil
+wm:SetTabMinimized(W,true)
+assert(W.tabMinimized and not W.hub:IsShown() and wm:MinimizedToastAnchor(W)==wm.minimizedStrip)
+assert(Core.db.char.messageWindowStates.messages.tabMinimized,"Whispers did not persist its tab state")
+W:BeginMessageWindowRestore();wm:RemoveMinimizedTab(W);W:RestoreMessageWindows()
+assert(W.tabMinimized and not W.hub:IsShown(),"Whispers reload restore expanded the tab")
+W:StartMessageSimulation();W:StopPreview();assert(W.tabMinimized and not W.hub:IsShown(),"simulation lost real minimized tab state")
+W:EnsureMinimizedWhisperTray();W:UpdateMinimizedWhispers()
+assert(W.minimizedWhisperTray.anchorWindow==wm.minimizedStrip,"toasters did not follow General")
+ui.container:SetWidth(300);wm:RefreshMinimizedTabs()
+assert(wm.minimizedStrip:GetHeight()>=3*wm.MINIMIZED_TAB_HEIGHT,"narrow General clipped minimized tabs")
+local oldCombat=InCombatLockdown;InCombatLockdown=function()return true end
+wm:SetTabMinimized(guild,false);assert(guild.tabMinimized and wm.pendingTabStates[guild]==false)
+InCombatLockdown=oldCombat;wm.tabStateEvents:GetScript("OnEvent")(wm.tabStateEvents)
+assert(not guild.tabMinimized and guild.hub:IsShown() and not guild.minimized)
+assert(guild.hub:GetWidth()==width and guild.hub:GetHeight()==height,"restore lost full-size geometry")
+assert(G.unread==0 and not guild.minimizedTab:IsShown())
+wm:SetTabMinimized(W,false);W.selected=oldSelected
+assert(W.minimizedWhisperTray.anchorWindow==W.hub,"restored toasters retained the General anchor")
+Party:CloseRoom();assert(not party.tabMinimized and not party.minimizedTab:IsShown())
+assert(not wm.minimizedStrip:IsShown() and not wm.minimizedStrip:GetScript("OnUpdate"))
+local extra=W:CreateWorkspace("Tab cleanup");wm:SetTabMinimized(extra,true);W:RemoveWorkspace(extra.hostId)
+assert(not extra.tabMinimized and not extra.minimizedTab:IsShown() and not wm.minimizedHosts[extra],"deleted workspace retained a ghost tab")
+ui.container=main
+""")
+print("Minimized tabs passed: shared actions, saved open state, automatic-show guard, unread/online labels, General toaster anchor, narrow wrapping, combat deferral, exact restoration, close cleanup and no idle driver.")

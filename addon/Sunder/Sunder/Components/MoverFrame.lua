@@ -16,7 +16,6 @@ local EDIT_MODE_FILL_ALPHA = 0.35
 local EDIT_MODE_HOVER_ALPHA = 0.5
 local EDIT_MODE_BORDER_ALPHA = 1
 local EDIT_MODE_BORDER_SIZE = 2
-local LEGACY_EDIT_BOX_MARGIN = 35
 
 -- WoW provides these globals at runtime, so suppress Luacheck's undefined-global warning while localizing them.
 -- luacheck: push ignore 113
@@ -154,6 +153,7 @@ function MoverFrameMixin:UpdateLayoutBounds()
     attachedExtent = math.max(0, editBoxHeight - editBoxOffset)
   end
 
+  if self.layoutContainer.containsChatEditor then attachedExtent=0 end
   self:SetHeight(Core.db.profile.frameHeight + attachedExtent)
   self.layoutContainer.mainTopOffset = editBoxPosition == "ABOVE" and -attachedExtent or 0
   if not self.nativeDragTarget then Core.Components.WindowManager:AnchorMainContainer(self.layoutContainer,self) end
@@ -233,8 +233,8 @@ function MoverFrameMixin:Init()
     Core.db.profile.positionAnchor.yOfs
   )
   self:SetWidth(Core.db.profile.frameWidth)
-  -- Use the former fixed reserve until the edit box is available and its actual extent can be measured.
-  self:SetHeight(Core.db.profile.frameHeight + LEGACY_EDIT_BOX_MARGIN)
+  -- The visible root owns the complete height, including input space.
+  self:SetHeight(Core.db.profile.frameHeight)
 
   self.boundsFrame = CreateFrame("Frame", nil, self)
   self.boundsFrame:SetAllPoints(self)
@@ -276,7 +276,7 @@ function MoverFrameMixin:Init()
 
   self.resizeOptions = {
     settings=function()return Core.Components.WindowManager:Settings("main")end,
-    minWidth = 100, minHeight = 100,
+
     allowed = function () return Core.sunderMoverUnlocked and self:IsShown() and not (self.layoutContainer and self.layoutContainer.mainBodyClipped) end,
     begin = function ()
       self:StopDragging()
@@ -344,7 +344,7 @@ function MoverFrameMixin:Init()
         end
 
         if key == "frameHeight" and self.layoutEditBox == nil then
-          self:SetHeight(Core.db.profile.frameHeight + LEGACY_EDIT_BOX_MARGIN)
+          self:SetHeight(Core.db.profile.frameHeight)
         end
 
         if key == "framePosition" then

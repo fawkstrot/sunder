@@ -16,10 +16,8 @@ The open-tab checkpoint and durable archive have different limits:
 | --- | --- | --- |
 | Recent lines loaded into a reopened native pane | 100 per person | 20–200 |
 | Conversations reopened after reload | 20 | 5–50 |
-| Retained archive lines | 500 per person | 20–1,000 |
-| Retained archived people, including open people | 100 | 5–200 |
 
-Archive accounting has an 8 MiB budget for text plus a fixed per-line allowance. This is a storage budget, not a measurement of exact Lua heap usage. Older lines are trimmed at the per-person cap; older ordinary conversations are evicted before favorites when the people or byte budget is reached. Favorites are prioritized, not exempt from all limits. A persistent notice in Whispers history settings reports that trimming occurred. These are durable bounded transcripts, not unlimited permanent storage.
+The durable Whisper archive keeps people and messages until confirmed deletion. At an estimated 4 MiB Sunder offers a storage review and continues recording. The two settings above control the cost of reopening native windows.
 
 The renderer remains unchanged: only recently reopened panes create native/rendered messages. Closed transcripts are plain saved tables. Replay yields after at most 12 messages. Message-driven saves are coalesced over 0.2 seconds; the larger transcript is reread only for dirty/new native frames and unchanged transcript byte counts are cached, with an additional 10-second checkpoint and shutdown save. Archive merge preserves overlapping message sequences and genuine repeated messages. Original receive time and direction distinguish otherwise identical lines where the client supplies metadata.
 
@@ -36,7 +34,7 @@ WoW writes SavedVariables on normal reload/logout. Checkpoints update the in-mem
 
 ## Validation
 
-The CLI runs `tests/regression/work/test_archive.py` for startup-save ordering, timestamp restore, close/reopen, replay idempotence, separate archive/checkpoint limits, overlapping/repeated messages, confirmed deletion, favorite-first trimming, byte bounds and saved-history search. People-list coverage checks closed-person discovery, Favorites retention and identity-based reopening. Existing native input, routing, Battle.net, renderer and migration coverage remains enabled.
+The CLI runs `tests/regression/work/test_archive.py` for startup-save ordering, timestamp restore, close/reopen, replay idempotence, separate archive/checkpoint limits, overlapping/repeated messages, confirmed deletion, retention beyond former count and byte limits and saved-history search. People-list coverage checks closed-person discovery, Favorites retention and identity-based reopening. Existing native input, routing, Battle.net, renderer and migration coverage remains enabled.
 
 Live WoW Forever verification is still required: exchange messages, reload twice, close and reopen ordinary and favorite people, browse older saved messages, receive a new whisper from a closed person, and cancel/accept deletion. Repeat with detached/grouped and Battle.net conversations. Check that restored history neither generates toasters nor sends/focuses chat, timestamps and directions remain correct, and login/gameplay stays responsive. Automated mocks do not prove those native-client outcomes.
 
@@ -104,3 +102,19 @@ WhisperWorkspace owns the open/minimized checkpoint for each workspace. Startup 
 Use `/sunder practice` and choose Whispers for a short, repeatable two-person exchange with quiet intervals, a background toaster, collapse and detachment. Use the labeled practice reply field for local drafts. The separate five-minute Whispers stress test remains in Samples & testing.
 
 The Whispers header reserves only the unread counter and conversation picker beside its window actions. Use the wheel or people-list scrollbar to browse, or click the counter to search and jump to a person. The same controls apply to sample conversations.
+
+Battle.net conversation labels resolve the current online WoW character through the account API and refresh on friend presence events. Offline and other-game accounts use the BattleTag label. Naming changes preserve the Battle.net recipient and stable archive key. Character and Battle.net conversations remain distinct routes.
+
+## Calendar dates in conversations
+
+Native conversations and read-only transcripts use centered muted date labels between short rules. A new day shows Today or Yesterday plus the month/day, or a weekday and calendar date. Older years include the year. A pause of at least one hour within a day inserts a time separator. Individual message times follow the existing display settings. The top visible message determines the pinned calendar date during history reading; returning to the newest messages hides it. Undated legacy messages form a Date unknown group. Dividers are presentation and never create saved messages, unread counts or native message IDs.
+
+Known character names use the shared class-color policy in conversation labels, picker rows, cards, previews, tooltips and saved-history views. New checkpoints retain sender/class tokens per message and class metadata on archived contacts, separately from original text and receipt times. Native backfill carries these fields into the next save and renderer. Unknown legacy classes stay neutral. Class coloring does not change conversation identity, recipients, native link payloads or the plain-text copy action.
+
+Expanded people panes use the shared 130 px target. Header/content spacing comes from WindowManager:HeaderGap even with optional custom Whispers typography/surfaces. Shared configurable minimum dimensions apply to normal and detached windows, restore and edit-mode sizing; large headers/content may require additional room. Collapsed title bars keep their compact height.
+
+Whispers workspaces can minimize into tabs above General with the shared minus action. Tabs show nonzero unread counts and restore their original window. Whispers toasters anchor above General and its tab strip while tabbed, then return to the Whispers window on restore. Per-character window state preserves tab minimization across reload; simulation restores the prior real tab state.
+
+## Search across saved conversations
+
+Use /sunder search, Ctrl+F over a visible transcript, or All saved conversations in the existing search window. Search covers this character's conversation log, saved Whisper archives, Guild recall and current/previous groups, plus currently retained native Combat Log messages. Combat events remain session-only. Results carry source/date labels, with Date unknown for legacy missing receipts. Sources are traversed newest-first within each source; exact text/receipt duplicates across sources are suppressed; repeated messages within a source remain distinct. Previous/Next navigate result pages (up to 200 matches and 60,000 display bytes each); stored history is not truncated. Searches yield after 200 records and cancel on query changes/close. Existing per-conversation search remains available.

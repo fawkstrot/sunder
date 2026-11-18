@@ -71,15 +71,19 @@ local function readLines(chatFrame,archive)
   local lines = {}
   local count = chatFrame:GetNumMessages()
   local cfg = Core.db.profile.whispers
-  local limit = archive and math.max(20,math.min(1000,cfg and cfg.archiveLines or 500)) or cfg and math.max(20, math.min(200, cfg.historyLines or SAVED_LINES)) or SAVED_LINES
+  local limit = archive and count or cfg and math.max(20, math.min(200, cfg.historyLines or SAVED_LINES)) or SAVED_LINES
   for index = math.max(1, count - limit + 1), count do
     local text, red, green, blue, typeID = chatFrame:GetMessageInfo(index)
+    local original=text
     text=storageText(text)
     if text and text ~= "" then
       local line = {text, canAccess(red) and type(red)=="number" and red or 1, canAccess(green) and type(green)=="number" and green or 1, canAccess(blue) and type(blue)=="number" and blue or 1}
       if canAccess(typeID) and type(typeID)=="number" then line.typeID=typeID end
-      local entry = chatFrame.historyBuffer and chatFrame.historyBuffer:GetEntryAtIndex(count - index + 1)
-      line.receivedAt=Utils.getMessageReceipt(entry)
+      line.receivedAt=Utils.frameReceipt(chatFrame,index,count,original)
+      local tp=Core:GetModule("TextProcessing",true)
+      if tp and tp.SenderDetails then line.sender,line.classFile=tp:SenderDetails(text) end
+      local person=Utils.framePerson(chatFrame,index,count,original)
+      if person then line.sender=person.sender or line.sender;line.classFile=person.classFile or line.classFile end
       lines[#lines + 1] = line
     end
   end
@@ -97,7 +101,9 @@ local function rendererLines(frame)
     local text=storageText(message.sourceText)
     if text then
       local color=message.sourceColor or {1,1,1}
-      local line={text,color[1],color[2],color[3],receivedAt=message.receivedAt,typeID=message.sourceTypeID}
+      local line={text,color[1],color[2],color[3],receivedAt=message.receivedAt,typeID=message.sourceTypeID,sender=message.sender,classFile=message.classFile}
+      local tp=Core:GetModule("TextProcessing",true)
+      if not line.sender and tp and tp.SenderDetails then line.sender,line.classFile=tp:SenderDetails(text) end
       lines[#lines+1]=line
     end
   end
@@ -120,7 +126,7 @@ function WhisperTabs:Save()
     table.sort(candidates, function (a, b) return a.lastActivity > b.lastActivity end)
     local cfg = Core.db.profile.whispers
     local limit = cfg and math.max(5, math.min(50, cfg.historyConversations or 20)) or 20
-    for index = 1, math.min(200,#candidates) do
+    for index = 1, #candidates do
       local entry = candidates[index]
       local ok,lines=pcall(readLines,entry.frame)
       if not ok or #lines==0 then
@@ -154,6 +160,8 @@ function WhisperTabs:Save()
           layout=layout,favorite=record and whispers:IsFavorite(entry.frame) or false,
           selected=host and host.selected==entry.frame or false,unread=record and record.unread or 0,order=position,
           scrollIndex=state and state.scrollIndex or 1,messageOffset=state and state.messageOffset or 0}
+        local wm=Core.Components.WindowManager
+        saved.classFile=entry.kind=="WHISPER" and wm and wm.PersonClass and wm:PersonClass(whispers:ConversationName(entry.frame)) or nil
         if index<=limit then tabs[#tabs+1]=saved end
         local archiveEntry={};for k,v in pairs(saved) do archiveEntry[k]=v end
         self.archiveCaptured=self.archiveCaptured or {}
@@ -351,21 +359,6 @@ function WhisperTabs:ArchiveKey(frame)
     if info then return identity({kind="BN_WHISPER",battleTag=info.battleTag}) end
   end
 end
-local function sameLine(a,b)
-  return a and b and a[1]==b[1] and a.receivedAt==b.receivedAt and a.typeID==b.typeID
-end
-local function mergeLines(old,new)
-  if #old==0 then return copy(new) end
-  local overlap=0
-  for count=math.min(#old,#new),1,-1 do
-    local match=true
-    for i=1,count do if not sameLine(old[#old-count+i],new[i]) then match=false;break end end
-    if match then overlap=count;break end
-  end
-  local lines=copy(old)
-  for i=overlap+1,#new do lines[#lines+1]=copy(new[i]) end
-  return lines
-end
 function WhisperTabs:UpdateArchive(tabs)
   if not Core.db.profile.keepWhisperTabs then return end
   local archive=self:ImportArchive()
@@ -375,44 +368,35 @@ function WhisperTabs:UpdateArchive(tabs)
     if not (self.deletedHistory and self.deletedHistory[key]) and (not self.loadingArchive or not self.loadingArchive[key]) then
       -- Empty native windows must not erase a durable transcript.
       if #tab.lines>0 or not old then
-        local entry=copy(tab);entry.closed=false;entry.updatedAt=now
-        entry.unchanged=nil
-        if old then
-          entry.lines=tab.unchanged and old.lines or mergeLines(old.lines or {},tab.lines)
-          entry.lineBytes=tab.unchanged and old.lineBytes or nil
-          if #entry.lines==#old.lines and sameLine(entry.lines[#entry.lines],old.lines[#old.lines]) then entry.updatedAt=old.updatedAt or now end
+        local entry={}
+        for k,v in pairs(tab) do
+          if k~="lines" and k~="unchanged" then entry[k]=copy(v) end
         end
+        entry.lines=old and old.lines or {}
+        entry.lineBytes=old and old.lineBytes or nil
+        entry.closed=false
+        local count=#entry.lines
+        if not tab.unchanged or not old then
+          local added=Utils.appendHistoryTail(entry.lines,tab.lines)
+          if entry.lineBytes then entry.lineBytes=entry.lineBytes+added end
+        end
+        entry.updatedAt=old and #entry.lines==count and old.updatedAt or now
         archive[key]=entry
       elseif old then old.closed=false end
     end
   end
-  -- Hard budgets include all archived text. Favorites are retained before
-  -- ordinary entries; oldest messages/conversations are trimmed visibly.
-  local entries={};local bytes=0
-  local cfg=Core.db.profile.whispers or {}
-  local lineLimit=math.max(20,math.min(1000,tonumber(cfg.archiveLines) or 500))
-  local conversationLimit=math.max(5,math.min(200,tonumber(cfg.archiveConversations) or 100))
-  for key,entry in pairs(archive) do
-    entry.lines=entry.lines or {}
-    while #entry.lines>lineLimit do table.remove(entry.lines,1);entry.lineBytes=nil;self.trimmedArchive=true end
-    local size=entry.lineBytes
-    if not size then
-      size=0;for _,line in ipairs(entry.lines) do size=size+#(line[1] or "")+64 end
+  local bytes=0
+  for _,entry in pairs(archive) do
+    if not entry.lineBytes then
+      local size=0
+      for _,line in ipairs(entry.lines or {}) do size=size+#line[1]+64 end
       entry.lineBytes=size
     end
-    bytes=bytes+size;entries[#entries+1]={key=key,entry=entry,bytes=size}
+    bytes=bytes+entry.lineBytes
   end
-  table.sort(entries,function(a,b)
-    if not not a.entry.favorite~=not not b.entry.favorite then return not not a.entry.favorite end
-    return (a.entry.updatedAt or 0)>(b.entry.updatedAt or 0)
-  end)
-  for i=#entries,1,-1 do
-    if i>conversationLimit or bytes>8*1024*1024 then
-      local item=entries[i];archive[item.key]=nil;bytes=bytes-item.bytes;self.trimmedArchive=true
-    end
-  end
-  Core.db.char.whisperArchiveTrimmed=Core.db.char.whisperArchiveTrimmed or self.trimmedArchive or nil
   self.archiveBytes=bytes
+  Utils.warnHistorySize(bytes,"Whispers","Review saved people in Whispers to clear individual conversations.")
+
 end
 function WhisperTabs:BeforeClose(frame)
   if not Core.db.profile.keepWhisperTabs then return end
@@ -500,6 +484,7 @@ function WhisperTabs:RequestDelete(key)
       for frame in pairs(whispers.records or {}) do if self:ArchiveKey(frame)==archiveKey then close[#close+1]=frame end end
       for _,frame in ipairs(close) do FCF_Close(frame) end
       self:ImportArchive()[archiveKey]=nil
+      if Core.Components.ConversationLog then Core.Components.ConversationLog:ForgetPeer(archiveKey) end
       for i=#(Core.db.char.whisperTabs or {}),1,-1 do
         if identity(Core.db.char.whisperTabs[i])==archiveKey then table.remove(Core.db.char.whisperTabs,i) end
       end

@@ -9,7 +9,6 @@ local getMessageTopInset = Helpers.getMessageTopInset
 local getScrollbackLimit = Helpers.getScrollbackLimit
 local getRenderedMessageLimit = Helpers.getRenderedMessageLimit
 local getReceivedAt = Helpers.getReceivedAt
-local getHistoryEntry = Helpers.getHistoryEntry
 local isCombatLogHidden = Helpers.isCombatLogHidden
 local keepCombatLogTracking = Helpers.keepCombatLogTracking
 local getMessageFrameHeight = Helpers.getMessageFrameHeight
@@ -154,7 +153,36 @@ function SlidingMessageFrameMixin:ConfigureScrollback(chatFrame)
   end
 end
 
+-- Alpha-zero native children still receive clicks. Retire only the stock
+-- scrolling controls; Combat Log filters and native event receipt stay alive.
+function SlidingMessageFrameMixin:DisableNativeScrollInput(chatFrame)
+  local function disable(control)
+    if not control then return end
+    if control.SetMouseClickEnabled then control:SetMouseClickEnabled(false)end
+    if control.SetMouseMotionEnabled then control:SetMouseMotionEnabled(false)end
+    if control.EnableMouse then control:EnableMouse(false)end
+    if control.EnableMouseWheel then control:EnableMouseWheel(false)end
+  end
+  local bar=chatFrame.ScrollBar or chatFrame.scrollBar
+  if bar then
+    disable(bar);disable(bar.Track);disable(bar.Thumb);disable(bar.Back);disable(bar.Forward)
+    if bar.Track then disable(bar.Track.Thumb)end
+  end
+  disable(chatFrame.ScrollToBottomButton)
+end
+function SlidingMessageFrameMixin:BridgeNativePaging(chatFrame)
+  for method,direction in pairs({PageUp=-1,PageDown=1})do
+    if type(chatFrame[method])=="function" then
+      self:SecureHook(chatFrame,method,function()
+        if self.chatFrame~=chatFrame or not self:IsShown() then return end
+        Core.Components.WindowManager:PageActiveTranscript(direction,self)
+      end)
+    end
+  end
+end
 function SlidingMessageFrameMixin:ConfigureNativeLayout(chatFrame)
+  self:DisableNativeScrollInput(chatFrame)
+  self:BridgeNativePaging(chatFrame)
   _G[chatFrame:GetName().."ButtonFrame"]:Hide()
 
   chatFrame:SetClampRectInsets(0,0,0,0)
@@ -277,11 +305,10 @@ function SlidingMessageFrameMixin:InitializeScrollFrame()
     end
 
     -- Show hidden messages
-    self:CancelMessageHideTimer(true)
-    for _, message in ipairs(self.state.messages) do
-      message:Show()
-    end
+    self:RevealScrollHistory()
   end)
+
+  Core.Components.WindowManager:RegisterTranscriptKeys(self,function(direction)self:PageTranscript(direction)end)
 
   -- Mouse clickthrough
   self:EnableMouse(false)
@@ -294,10 +321,11 @@ end
 
 function SlidingMessageFrameMixin:HookNativeMessages(chatFrame, chatFrameWasShown)
   local hookMessage = Constants.ENV == "retail" and self.SecureHook or self.Hook
-  hookMessage(self, chatFrame, "AddMessage", function (...)
-    -- On Forever this hook runs before native insertion. Index 1 still belongs to the previous line.
-    local inserted = Constants.ENV=="retail" and self.historyBuffer and self.historyBuffer:GetEntryAtIndex(1)
-    local queued = self:AddMessageAt(getReceivedAt(inserted) or GetServerTime(), ...)
+  self:SecureHook(chatFrame, "AddMessage", function (...)
+    local inserted=self.historyBuffer and self.historyBuffer:GetEntryAtIndex(1)
+    local receipt=getReceivedAt(inserted) or GetServerTime()
+    if not self.state.isCombatLog then Utils.trackReceipt(chatFrame,select(2,...),receipt) end
+    local queued = self:AddMessageAt(receipt, ...)
     local tab = queued and not self.state.isCombatLog and _G[chatFrame:GetName().."Tab"]
     if tab and tab.AddUnreadMessage then tab:AddUnreadMessage() end
     local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
@@ -307,9 +335,10 @@ function SlidingMessageFrameMixin:HookNativeMessages(chatFrame, chatFrameWasShow
       local args=self.state.incomingMessages[#self.state.incomingMessages]
       whispers:OnNativeMessage(chatFrame, select(6, ...), args)
     end
-  end, true)
+  end)
 
   hookMessage(self, chatFrame, "Clear", function ()
+    Utils.clearFrameReceipts(chatFrame)
     self:ClearMessages()
   end, true)
 
@@ -374,7 +403,7 @@ function SlidingMessageFrameMixin:LoadInitialMessages(chatFrame)
     local firstMessage = math.max(1, messageCount - getRenderedMessageLimit() + 1)
     for i = firstMessage, messageCount do
       local text, r, g, b, typeID = chatFrame:GetMessageInfo(i)
-      self:AddMessageAt(getReceivedAt(getHistoryEntry(chatFrame, i)), chatFrame, text, r, g, b, typeID)
+      self:AddMessageAt(Utils.frameReceipt(chatFrame,i,messageCount,text), chatFrame, text, r, g, b, typeID)
     end
   end
 end

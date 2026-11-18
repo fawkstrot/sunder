@@ -28,8 +28,9 @@ Core.Components.CreateResizeHandle = function (overlay, options)
       return
     end
     local x, y = GetCursorPosition()
-    local width = math.max(options.minWidth, math.min(9999, math.floor(state.width + (x - state.x) / state.scale + 0.5)))
-    local height = math.max(options.minHeight, math.min(9999, math.floor(state.height - (y - state.y) / state.scale + 0.5)))
+    local minWidth,minHeight=Core.Components.WindowManager:MinimumWindowSize(state.target.sunderWindowHost)
+    local width = math.max(minWidth, math.min(9999, math.floor(state.width + (x - state.x) / state.scale + 0.5)))
+    local height = math.max(minHeight, math.min(9999, math.floor(state.height - (y - state.y) / state.scale + 0.5)))
     if width ~= state.lastWidth or height ~= state.lastHeight then
       state.lastWidth, state.lastHeight = width, height
       options.apply(width, height)
@@ -49,7 +50,7 @@ Core.Components.CreateResizeHandle = function (overlay, options)
     target:SetPoint("TOPLEFT", UIParent, "TOPLEFT",
       left - UIParent:GetLeft() * parentScale, top - UIParent:GetTop() * parentScale)
     local x, y = GetCursorPosition()
-    handle.resizeState = {x = x, y = y, scale = scale, width = width, height = height,
+    handle.resizeState = {target=target,x = x, y = y, scale = scale, width = width, height = height,
       lastWidth = width, lastHeight = height}
     handle:SetScript("OnUpdate", function () handle:UpdateResize() end)
   end)

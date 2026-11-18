@@ -1,6 +1,6 @@
 exec(open('work/test_history075.py',encoding='utf-8').read())
 source=root.joinpath('Modules/TextProcessing.lua').read_text(encoding='utf-8')
-style=source[source.index('function TP:RememberChatSender'):source.index('function TP:ProcessText(')]
+style=source[source.index('function TP:SenderDetails'):source.index('function TP:ProcessText(')]
 lua.execute('TP={};canaccessvalue=_G.canaccessvalue;ChatTypeInfo.WHISPER_INFORM={id=80};ChatTypeInfo.BN_WHISPER_INFORM={id=81}')
 lua.execute(style)
 lua.execute('''
@@ -66,3 +66,19 @@ compact=TP:CompactMessageLabels(flat,{roomId="guild"},40)
 assert(compact=="|cff40ff40|r"..sender..": "..body,"flattened colored prefix survived")
 Core.Components.WindowManager=previous
 """)
+
+
+lua.execute("""
+local wm=Core.Components.WindowManager
+local custom=CUSTOM_CLASS_COLORS
+CUSTOM_CLASS_COLORS={MAGE={r=.2,g=.4,b=.6}}
+local text="|Hplayer:Class Person:123|h[Class Person]|h: Class Person said |Hitem:1|h[Item]|h"
+local colored=TP:ColorPersonNames(text,{sender="Class Person",classFile="MAGE"})
+assert(colored=="|Hplayer:Class Person:123|h|cff336699[Class Person]|r|h: Class Person said |Hitem:1|h[Item]|h","class coloring altered payload/body")
+assert(TP:ColorPersonNames("Unknown: Class Person") == "Unknown: Class Person")
+assert(TP:ColorPersonNames("[2026-11-17 12:30] [Guild] Class Person: body",{sender="Class Person",classFile="MAGE"}):find("|cff336699Class Person|r",1,true))
+assert(TP:ColorPersonNames("[Whisper to Class Person] hi",{sender="Class Person",classFile="MAGE"}):find("|cff336699Class Person|r",1,true))
+assert(wm:FormatPersonName("Unknown",{classFile="NOT_A_CLASS"})=="Unknown")
+CUSTOM_CLASS_COLORS=custom
+""")
+print("Shared name colors passed: saved class tokens, custom palette, native link payloads, plain/datestamped headers, unknown fallback and unchanged message bodies.")

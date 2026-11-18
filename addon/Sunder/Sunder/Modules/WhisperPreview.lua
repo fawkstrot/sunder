@@ -304,7 +304,7 @@ function W:ConfigurePreviewTab(tab, c, index)
   tab:ClearAllPoints(); tab:SetPoint("TOPLEFT", self.previewTabChild, "TOPLEFT", (index - 1) * self:TabStep(), 0)
   tab:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   tab:SetScript("OnEnter", function ()
-    GameTooltip:SetOwner(tab, "ANCHOR_TOPLEFT"); GameTooltip:AddLine(c.name, 1, 1, 1)
+    GameTooltip:SetOwner(tab, "ANCHOR_TOPLEFT"); GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(c.name,c), 1, 1, 1)
     GameTooltip:AddLine("Right-click: conversation actions  •  Drag: move to another group", 0.75, 0.75, 0.75)
     GameTooltip:Show()
   end)
@@ -437,6 +437,7 @@ function W:StopPreview()
   end
   stopOnePreview(self)
   if simulation then
+    W.startingSimulation=true
     for id, host in pairs(W.workspaces or {}) do
       local state = simulation.windows[id]
       if host.hub then
@@ -444,8 +445,10 @@ function W:StopPreview()
         host.hub:SetAlpha(state and state.alpha or 1)
         host.hub:SetShown(state and state.open or false)
         host.windowManuallyClosed = state and state.closed or nil
+        if state and state.tabMinimized then Core.Components.WindowManager:SetTabMinimized(host,true)end
       end
     end
+    W.startingSimulation=nil
   end
 end
 
@@ -456,7 +459,7 @@ function W:StartMessageSimulation()
   W:ClearPreviewData()
   local windows = {}
   for id, host in pairs(W.workspaces or {}) do
-    windows[id] = {open = host.hub and host.hub:IsShown() or false, minimized = not not host.minimized,
+    windows[id] = {open = host.hub and host.hub:IsShown() or false, minimized = not not host.minimized, tabMinimized=not not host.tabMinimized,
       alpha = host.hub and host.hub:GetAlpha() or 1, closed = host.windowManuallyClosed}
   end
   W.startingSimulation = true

@@ -241,7 +241,7 @@ local function getTimestampColorHex(color)
   return cachedTimestampHex
 end
 
-local function timestampProcessor(text, frame, receivedAt)
+local function timestampProcessor(text, frame, receivedAt, grouped)
   if type(text)~="string" or type(receivedAt)~="number" or receivedAt<=0 then return text end
   local profile=Core.db.profile
   if profile.timestampAllWindows==true and not profile.timestampsEnabled then return text end
@@ -264,6 +264,8 @@ local function timestampProcessor(text, frame, receivedAt)
   end
   local format=whisperOnly and whisper.timestampFormat or profile.timestampFormat
   local stamp=date(format,receivedAt)
+  local day=date("%Y-%m-%d",receivedAt)
+  if not grouped and day~=date("%Y-%m-%d") then stamp=day.." "..stamp end
   if whisperOnly then return "|cff999999"..stamp.."|r "..text end
   -- The all-window option is deliberately subdued even without a color override.
   if not profile.timestampColorEnabled then return (all and "|cff999999"..stamp.."|r" or stamp).." "..text end
@@ -309,7 +311,56 @@ end
 
 -- Sender line IDs come from native chat filters. History may retain a structured
 -- sender player-link instead; never infer authorship from message body substrings.
-function TP:RememberChatSender(lineID,guid)
+-- Only structured player links and the sender header are eligible; message bodies stay intact.
+function TP:SenderDetails(text)
+  if type(text)~="string" or canaccessvalue and not canaccessvalue(text) then return end
+  local sender=text:match("|Hplayer:([^:|]+)")
+  if not sender then
+    local plain=text:gsub("|c%x%x%x%x%x%x%x%x",""):gsub("|r","")
+    while plain:match("^%[[^%]]+%]%s+") do plain=plain:gsub("^%[[^%]]+%]%s+", "",1) end
+    local function escape(value)return (value:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])","%%%1"))end
+    for _,key in ipairs({"CHAT_SAY_GET","CHAT_YELL_GET","CHAT_WHISPER_GET","CHAT_WHISPER_INFORM_GET"}) do
+      local format=_G[key]
+      if type(format)=="string" then
+        format=format:gsub("%%1%$s","%%s")
+        local first,last=format:find("%%s")
+        if first and last<#format and not format:sub(last+1):find("%%s") then
+          sender=plain:match("^"..escape(format:sub(1,first-1)).."(.-)"..escape(format:sub(last+1)))
+          if sender then break end
+        end
+      end
+    end
+    sender=sender or plain:match("^([^:|]+): ")
+    if sender then sender=sender:gsub(" whispers$",""):gsub("^To ",""):gsub("^%[(.-)%]$","%1") end
+  end
+  local wm=Core.Components and Core.Components.WindowManager
+  local token=sender and wm and wm:PersonClass(sender)
+  return sender,token
+end
+function TP:ColorPersonNames(text,metadata)
+  local wm=Core.Components and Core.Components.WindowManager
+  if not wm or not wm.FormatPersonName or type(text)~="string" then return text end
+  local sender,token=self:SenderDetails(text)
+  if metadata and metadata.sender then sender,token=metadata.sender,metadata.classFile end
+  local linked=false
+  text=text:gsub("(|Hplayer:([^:|]+)[^|]*|h)(.-)(|h)",function(open,name,label,close)
+    linked=true
+    return open..wm:FormatPersonName(label,{classFile=(name==sender and token) or wm:PersonClass(name)})..close
+  end)
+  if not linked and sender then
+    local start,finish=text:find(sender,1,true)
+    -- Reject matches after the sender/body delimiter or arbitrary body mentions.
+    local delimiter=text:find(": ",1,true)
+    local target=text:find("[Whisper to ",1,true)==1
+    if start and (delimiter and finish<delimiter or target and start==13) then
+      text=text:sub(1,start-1)..wm:FormatPersonName(sender,{classFile=token})..text:sub(finish+1)
+    end
+  end
+  return text
+end
+function TP:RememberChatSender(lineID,guid,sender)
+  local wm=Core.Components and Core.Components.WindowManager
+  if wm and wm.RememberSender then wm:RememberSender(sender,guid) end
   if canaccessvalue and (not canaccessvalue(lineID) or not canaccessvalue(guid))then return end
   if type(lineID)~="number" or lineID<=0 or not UnitGUID then return end
   self.ownLineIDs=self.ownLineIDs or {};self.ownLineOrder=self.ownLineOrder or {}
@@ -321,7 +372,7 @@ function TP:IsOwnChatLine(text,typeID,lineID)
   if canaccessvalue and (not canaccessvalue(text) or not canaccessvalue(typeID) or not canaccessvalue(lineID))then return false end
   if self.ownLineIDs and lineID and self.ownLineIDs[lineID]~=nil then return self.ownLineIDs[lineID]end
   local supported=false
-  for _,kind in ipairs({"SAY","YELL","EMOTE","TEXT_EMOTE","GUILD","OFFICER","PARTY","PARTY_LEADER","RAID","RAID_LEADER","RAID_WARNING","INSTANCE_CHAT","INSTANCE_CHAT_LEADER","CHANNEL"})do
+  for _,kind in ipairs({"WHISPER","WHISPER_INFORM","SAY","YELL","EMOTE","TEXT_EMOTE","GUILD","OFFICER","PARTY","PARTY_LEADER","RAID","RAID_LEADER","RAID_WARNING","INSTANCE_CHAT","INSTANCE_CHAT_LEADER","CHANNEL"})do
     local info=ChatTypeInfo and ChatTypeInfo[kind];if info and info.id==typeID then supported=true;break end
   end
   if not supported or type(text)~="string"then return false end
@@ -351,8 +402,12 @@ function TP:OnEnable()
   local util=_G.ChatFrameUtil
   local add=util and util.AddMessageEventFilter or _G.ChatFrame_AddMessageEventFilter
   if not add or self.senderFilter then return end
-  self.senderFilter=function(_,_,...)self:RememberChatSender(select(11,...),select(12,...))end
-  for _,kind in ipairs({"SAY","YELL","EMOTE","TEXT_EMOTE","GUILD","OFFICER","PARTY","PARTY_LEADER","RAID","RAID_LEADER","RAID_WARNING","INSTANCE_CHAT","INSTANCE_CHAT_LEADER","CHANNEL"})do
+  self.senderFilter=function(_,event,...)
+    local sender=select(2,...)
+    if event=="CHAT_MSG_WHISPER_INFORM" then sender=nil end
+    self:RememberChatSender(select(11,...),select(12,...),sender)
+  end
+  for _,kind in ipairs({"WHISPER","WHISPER_INFORM","SAY","YELL","EMOTE","TEXT_EMOTE","GUILD","OFFICER","PARTY","PARTY_LEADER","RAID","RAID_LEADER","RAID_WARNING","INSTANCE_CHAT","INSTANCE_CHAT_LEADER","CHANNEL"})do
     add("CHAT_MSG_"..kind,self.senderFilter)
   end
 end
@@ -423,15 +478,15 @@ function TP:CompactMessageLabels(text,frame,typeID,own)
   return text
 end
 
-function TP:ProcessText(text, frame, receivedAt, typeID, lineID, own)
+function TP:ProcessText(text, frame, receivedAt, typeID, lineID, own, grouped, metadata)
   -- Retail can supply protected text. Pass it directly to the native FontString without parsing it.
   if canaccessvalue and not canaccessvalue(text) then return text, text end
-  local processedText = self:CompactMessageLabels(text,frame,typeID,own)
+  local processedText = self:ColorPersonNames(self:CompactMessageLabels(text,frame,typeID,own),metadata)
   if frame and (frame.chatType=="WHISPER" or frame.chatType=="BN_WHISPER") and self:WhisperReplyStyle(frame,typeID,own,text,lineID) and Core.db.profile.whispers.replyMarker then
     processedText="› "..processedText
   end
   if Core.db.profile.timestampsEnabled or Core.db.profile.whispers and Core.db.profile.whispers.enabled then
-    processedText = processSafely(timestampProcessor, processedText, frame, receivedAt)
+    processedText = processSafely(timestampProcessor, processedText, frame, receivedAt, grouped)
   end
   if Core.db.profile.emojisEnabled then
     processedText = processSafely(emojiProcessor, processedText)

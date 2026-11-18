@@ -42,7 +42,7 @@ local function getBaseMessageTopInset(isCombatLog)
 end
 
 local function getMessageTopInset(isCombatLog)
-  local offset = tonumber(Core.db.profile.tabMessageSpacing) or Core.defaults.profile.tabMessageSpacing
+  local offset = Core.Components.WindowManager:HeaderGap()
   return getBaseMessageTopInset(isCombatLog) + offset
 end
 
@@ -66,16 +66,6 @@ local function getEditBoxEasing()
 end
 
 local getReceivedAt = Utils.getMessageReceipt
-
-local function getHistoryEntry(chatFrame, messageIndex)
-  local historyBuffer = chatFrame and chatFrame.historyBuffer
-  if historyBuffer == nil then
-    return nil
-  end
-
-  local entryIndex = chatFrame:GetNumMessages() - messageIndex + 1
-  return historyBuffer:GetEntryAtIndex(entryIndex)
-end
 
 local function isCombatLogHidden()
   return Core.db.profile.combatLogHidden
@@ -124,7 +114,6 @@ Core.Components.SlidingMessageFrameHelpers = {
   getSlideEasing = getSlideEasing,
   getEditBoxEasing = getEditBoxEasing,
   getReceivedAt = getReceivedAt,
-  getHistoryEntry = getHistoryEntry,
   isCombatLogHidden = isCombatLogHidden,
   keepCombatLogTracking = keepCombatLogTracking,
   getMessageFrameHeight = getMessageFrameHeight,
@@ -135,6 +124,9 @@ Core.Components.SlidingMessageFrameHelpers = {
 function SlidingMessageFrameMixin:LayoutMessages()
   local messages = self.state.messages
   if #messages == 0 then return end
+  for index,message in ipairs(messages) do
+    message:SetDateBoundary(message.receivedAt,index>1 and messages[index-1].receivedAt or nil,index==1)
+  end
   local anchorIndex = #messages - self.state.scrollIndex + 1
   local function getLink(index)
     if index == anchorIndex then return nil, nil, "BOTTOMLEFT" end
@@ -154,10 +146,27 @@ function SlidingMessageFrameMixin:LayoutMessages()
   for index = anchorIndex + 1, #messages do link(index) end
 end
 
+function SlidingMessageFrameMixin:UpdatePinnedDate()
+  local messages=self.state.messages
+  local index=#messages-self.state.scrollIndex+1
+  local remaining=self.slider:GetHeight()+(self.state.slideOffset or 0)-(self.state.messageOffset or 0)
+  local visible=not self.state.scrollAtBottom and #messages>0
+  while visible and index>0 do
+    local height=messages[index].sunderHeight
+    if not height then visible=false;break end
+    remaining=remaining-height
+    if remaining<=0 or index==1 then break end
+    index=index-1
+  end
+  local message=messages[index]
+  Core.Components.TranscriptDates:Pinned(self,self.viewport,message and message.receivedAt,visible,self:GetLayoutWidth())
+end
+
 function SlidingMessageFrameMixin:SetSlideOffset(offset)
   self.state.slideOffset = offset
   self.slider:ClearAllPoints()
   self.slider:SetPoint("TOPLEFT", self.viewport, "TOPLEFT", 0, offset - (self.state.messageOffset or 0))
+  self:UpdatePinnedDate()
 end
 
 -- Distance from the pinned message to the newest one, or nil when a secret row hides it.
@@ -350,9 +359,14 @@ function SlidingMessageFrameMixin:CreateMessageFrame(messageArgs)
   blue = blue or 1
 
   local message = self.messageFramePool:Acquire()
+  -- Acquired frames are visible by default. A batch is presented only after
+  -- every row has its final chain anchor (including pooled reuse).
+  message:Hide()
   message.text:ClearText()
   message.text:SetFontObject("SunderMessageFont")
-  local processedText, sourceText = TP:ProcessText(text, frame, messageArgs.receivedAt, messageArgs[6],messageArgs[8])
+  local processedText, sourceText = TP:ProcessText(text, frame, messageArgs.receivedAt, messageArgs[6],messageArgs[8],nil,true,messageArgs)
+  message.sender,message.classFile=messageArgs.sender,messageArgs.classFile
+  if not message.sender and TP.SenderDetails then message.sender,message.classFile=TP:SenderDetails(text) end
   message.sourceColor={red,green,blue}
   message.sourceTypeID=messageArgs[6]
   message.sourceLineID=messageArgs[8]
@@ -494,7 +508,7 @@ function SlidingMessageFrameMixin:ReloadMessagesFromChatFrame()
     local text, r, g, b = self.chatFrame:GetMessageInfo(index)
     if text then
       self:AddMessageAt(
-        getReceivedAt(getHistoryEntry(self.chatFrame, index)),
+        Utils.frameReceipt(self.chatFrame,index,messageCount,text),
         self.chatFrame,
         text,
         r,
@@ -688,6 +702,13 @@ function SlidingMessageFrameMixin:Update(incoming, reverse)
   if not retainedSelected then self.state.messageOffset = 0 end
   self.state.scrollAtBottom = self.state.scrollIndex == 1 and self.state.messageOffset == 0
   self:LayoutMessages()
+  if canSlide then
+    addedHeight=0
+    for _,message in ipairs(newMessages) do
+      if not message.sunderHeight then canSlide=false;break end
+      addedHeight=addedHeight+message.sunderHeight
+    end
+  end
 
   if reverse then
     -- Older history lands above the view and never moves the pinned row.
@@ -786,10 +807,13 @@ local function CreateSlidingMessageFramePool(parent)
       end
 
       if smf.chatFrame then
+        smf:Unhook(smf.chatFrame, "PageUp")
+        smf:Unhook(smf.chatFrame, "PageDown")
         smf:Unhook(smf.chatFrame, "SetPoint")
         smf:Unhook(smf.chatFrame, "SetMaxLines")
         smf:Unhook(smf.chatFrame, "SetSize")
         smf:Unhook(smf.chatFrame, "SetWidth")
+        Utils.clearFrameReceipts(smf.chatFrame)
         smf:Unhook(smf.chatFrame, "AddMessage")
         smf:Unhook(smf.chatFrame, "BackFillMessage")
         smf:Unhook(smf.chatFrame, "Clear")

@@ -32,3 +32,33 @@ cfg.enabled=false;History:Restore();assert(Core.db.char.whisperTabs==snapshot,"d
 cfg.enabled=true
 ''')
 print('Battle.net reload checks passed: stable identity, changed session ID, safe text, delayed roster, pending saves, disabled retention.')
+
+lua.execute('''
+local savedAPI=C_BattleNet
+local info={battleTag="Fixture#1234",gameAccountInfo={isOnline=true,clientProgram="WoW",characterName="Fixture Character"}}
+C_BattleNet={GetAccountInfoByID=function()return info end}
+local frame={chatType="BN_WHISPER",chatTarget=42}
+assert(W:ConversationName(frame)=="Fixture Character")
+info.gameAccountInfo.characterName="Another Character"
+assert(W:ConversationName(frame)=="Another Character","cached Battle.net character survived an alt switch")
+info.gameAccountInfo.isOnline=false
+assert(W:ConversationName(frame)=="Fixture","offline Battle.net account kept stale character label")
+info.gameAccountInfo.isOnline=true;info.gameAccountInfo.clientProgram="Other"
+assert(W:ConversationName(frame)=="Fixture")
+assert(frame.chatType=="BN_WHISPER" and frame.chatTarget==42,"display naming changed reply routing")
+C_BattleNet=savedAPI
+''')
+
+
+lua.execute("""
+local frame=BNHistory
+local utils=vars[3]
+frame.history={}
+local saved={"Stored Person: old message",1,1,1,sender="Stored Person",classFile="MAGE",receivedAt=1000}
+utils.restoreChatLine(frame,saved)
+local person=utils.framePerson(frame,1,frame:GetNumMessages(),saved[1])
+assert(person and person.sender=="Stored Person" and person.classFile=="MAGE","native replay discarded sender class")
+History:Save()
+local lines=Core.db.char.whisperTabs[1].lines
+assert(lines[#lines].classFile=="MAGE" and lines[#lines].sender=="Stored Person","second save discarded sender class")
+""")

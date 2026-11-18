@@ -6,7 +6,7 @@ Sunder is a modular World of Warcraft addon focused on clear messaging today and
 
 ![Sunder emblem](assets/branding/Sunder-project-icon.png)
 
-Current preview: **0.10.0-alpha.2**, an Alpha for WoW Forever 1.60.1. See the [changelog](addon/Sunder/CHANGELOG.md) and [release guide](docs/RELEASING.md) for status and limits.
+Current preview: **0.10.0-alpha.3**, an Alpha for WoW Forever 1.60.1. See the [changelog](addon/Sunder/CHANGELOG.md) and [release guide](docs/RELEASING.md) for status and limits.
 
 To try the chat windows solo, type `/sunder practice`. Choose Whispers, Groups, or Windows, then pause or step through the sample messages. Use the same command to return to normal chat.
 

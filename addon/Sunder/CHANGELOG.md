@@ -1,5 +1,20 @@
 # Unreleased
 
+# 0.10.0-alpha.3 (2026-11-18)
+
+For WoW Forever 1.60.1.
+
+- Fixed Combat Log's unresponsive resize grip by separating native content from Sunder's mouse controls. Native filters and links remain available.
+- Stabilized incoming message layout and pooled row reuse; improved shared minimum sizes, editor containment and scrollbar clearance.
+- Added searchable conversation recording across saved chats, excluding combat events. At about 4 MiB, Sunder offers a storage review instead of automatically deleting history.
+- Added subtle day and one-hour pause dividers, with a pinned date while browsing conversation history. Older messages without recorded dates remain explicitly undated.
+- Added minimize-to-General tabs for Whispers, Guild and Party, with unread counts and Guild online counts. Whisper notifications follow the minimized tab's host window.
+- Redesigned Guild information with Overview, Members and About views, class presence and location summaries, and improved clipping and layout.
+- Improved group archives with class-colored member names and recorded join/leave/name changes; your own character is omitted from the member summaries.
+- Added shared adjustable minimum window sizes and narrower people panes. Improved Battle.net character-name resolution and shared keyboard navigation.
+
+Known alpha limits: only WoW Forever is validated. Combat Log retains native formatting and filter timestamp options; conversation date dividers apply to ordinary chat history. Legacy records may lack dates or character details.
+
 - Scrollbars leave the resize corner clear and keep a steady thumb size when you reach the newest chat message.
 
 - Chat transcripts, member lists, archives and chat tools now use the Guild-style scrollbar. Drag down to move toward the bottom, or click the track to jump.

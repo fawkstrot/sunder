@@ -6,7 +6,6 @@ local LSM = Core.Libs.LSM
 local SettingsValues = C.SettingsValues
 
 local MAX_TAB_MESSAGE_OFFSET = SettingsValues.maxTabMessageOffset
-local MIN_FRAME_HEIGHT = SettingsValues.minFrameHeight
 local MAX_TEXT_LEFT_PADDING = SettingsValues.maxTextLeftPadding
 local MAX_EDIT_BOX_VERTICAL_PADDING = SettingsValues.maxEditBoxVerticalPadding
 
@@ -176,38 +175,39 @@ local function getGeneralOptions()
           frameWidth = {
             name = "Width",
             desc = "Sets the width of the chat frame in pixels.\nDefault: "..Core.defaults.profile.frameWidth..
-              "\nMin: 100\nMax: 9999",
+              "\nUses the shared minimum window width.",
             type = "range",
             order = 4.4,
-            min = 100,
+            min = (Core.Components.WindowManager:MinimumWindowSize()),
             max = 9999,
-            softMin = 300,
+            softMin = (Core.Components.WindowManager:MinimumWindowSize()),
             softMax = 800,
             step = 1,
             get = function ()
               return Core.db.profile.frameWidth
             end,
             set = function (info, input)
-              Core.db.profile.frameWidth = input
+              Core.db.profile.frameWidth = (Core.Components.WindowManager:ClampWindowSize(input,Core.db.profile.frameHeight))
               Core:Dispatch(UpdateConfig("frameWidth"))
             end
           },
           frameHeight = {
             name = "Height",
             desc = "Sets the height of the chat frame in pixels.\nDefault: "..Core.defaults.profile.frameHeight..
-              "\nMin: "..MIN_FRAME_HEIGHT.."\nMax: 9999",
+              "\nUses the shared minimum window height.",
             type = "range",
             order = 4.5,
-            min = MIN_FRAME_HEIGHT,
+            min = select(2,Core.Components.WindowManager:MinimumWindowSize()),
             max = 9999,
-            softMin = 200,
+            softMin = select(2,Core.Components.WindowManager:MinimumWindowSize()),
             softMax = 800,
             step = 1,
             get = function ()
               return Core.db.profile.frameHeight
             end,
             set = function (info, input)
-              Core.db.profile.frameHeight = input
+              local _,height=Core.Components.WindowManager:ClampWindowSize(Core.db.profile.frameWidth,input)
+              Core.db.profile.frameHeight = height
               Core:Dispatch(UpdateConfig("frameHeight"))
             end
           },
@@ -231,7 +231,7 @@ local function getGeneralOptions()
             end
           },
           frameYOfs = {
-            name = "Vertical offset",
+            name = "Header / content gap",
             desc = "Moves the chat frame vertically from its selected screen anchor. Positive values move it up; negative values move it down.\nDefault: "..
               Core.defaults.profile.positionAnchor.yOfs.."\nMin: -9999\nMax: 9999",
             type = "range",
@@ -329,7 +329,7 @@ local function getTabOptions()
           },
           keepWhisperTabs = {
             name = "Keep whisper tabs",
-            desc = "Reopen character whisper tabs, with their last 100 messages, after a reload or login. Battle.net whispers are not kept.\nDefault: on",
+            desc = "Reopen recent character and Battle.net conversations after reload or login. Older saved messages remain available in history.\nDefault: on",
             type = "toggle",
             order = 1.72,
             get = function ()
@@ -370,8 +370,8 @@ local function getTabOptions()
             end,
           },
           tabMessageSpacing = {
-            name = "Vertical offset",
-            desc = "Adds space below the chat tabs while keeping the bottom of the message area fixed.\nDefault: "..
+            name = "Header / content gap",
+            desc = "Shared space between the title bar and content across every chat window. Keeps the bottom of the message area fixed.\nDefault: "..
               Core.defaults.profile.tabMessageSpacing.." px\nMin: 0\nMax: "..MAX_TAB_MESSAGE_OFFSET,
             type = "range",
             order = 1.6,
@@ -554,7 +554,7 @@ local function getEditBoxOptions()
             end
           },
           editBoxAnchorYOfs = {
-            name = "Vertical offset",
+            name = "Header / content gap",
             desc = "Moves the chat entry field vertically. Positive values move it up; negative values move it down.\nDefault: -2\nMin: -9999\nMax: 9999",
             type = "range",
             order = 2.2,

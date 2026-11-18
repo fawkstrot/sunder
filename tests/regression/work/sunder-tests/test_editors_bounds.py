@@ -46,7 +46,8 @@ local function editBox()
 end
 mainBox, guildBox = editBox(), editBox()
 ChatFrame1 = {isDocked = true, editBox = mainBox, GetName = function() return "ChatFrame1" end}
-guild = {isDocked = false, GetName = function() return "ChatFrame4" end}
+guild = {isDocked = false, GetName = function() return "ChatFrame4" end,
+ GetWidth=function()return 420 end,GetHeight=function()return 220 end,SetSize=function(self,w,h)self.width,self.height=w,h end}
 ChatFrame4EditBox = guildBox -- Exercise clients exposing the named edit box only.
 local function smf()
   return {SetLayout = function(self,parent,w,h,input,detached)

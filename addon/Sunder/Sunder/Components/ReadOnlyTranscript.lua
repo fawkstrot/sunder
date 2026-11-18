@@ -13,12 +13,23 @@ function Core.Components.CreateReadOnlyTranscript(parent, source)
   end
   local pool = Core.Components.CreateMessageLinePool(child, owner)
   local lines, tops = {}, {}
-  local renderedWidth
+  local renderedWidth,renderedDay
+
+  local function updateDate()
+    local maximum=math.max(0,child:GetHeight()-scroll:GetHeight())
+    local index=1
+    while index<#tops and tops[index+1]<=scroll:GetVerticalScroll() do index=index+1 end
+    local line=lines[index]
+    Core.Components.TranscriptDates:Pinned(scroll,scroll,line and line.receivedAt,
+      line~=nil and maximum>0 and scroll:GetVerticalScroll()<maximum,owner:GetLayoutWidth())
+  end
+  scroll:SetScript("OnVerticalScroll",updateDate)
 
   local function updateScroll(offset)
     local maximum = math.max(0, child:GetHeight() - scroll:GetHeight())
     scroll:SetVerticalScroll(math.max(0, math.min(offset, maximum)))
     manager:UpdateListScrollIndicator(scroll, child, scroll:IsVisible())
+    updateDate()
   end
 
   local function appendRow(index, line, top, pad)
@@ -28,14 +39,39 @@ function Core.Components.CreateReadOnlyTranscript(parent, source)
     row.text:SetFontObject("SunderMessageFont")
     local r, g, b = tp:WhisperReplyStyle(source, line.typeID, line.own, line[1])
     row.text:SetTextColor(r or line[2] or 1, g or line[3] or 1, b or line[4] or 1, 1)
-    row:SetDisplayText(tp:ProcessText(line[1], source, line.receivedAt, line.typeID, nil, line.own))
+    row:SetDisplayText(tp:ProcessText(line[1], source, line.receivedAt, line.typeID, nil, line.own, true, line))
+    row.sunderDateLabel=Core.Components.TranscriptDates:Boundary(line.receivedAt,index>1 and lines[index-1].receivedAt or nil,index==1,source)
     row:UpdateFrame()
     tops[index] = top
-    row.text:ClearAllPoints()
-    row.text:SetPoint("TOPLEFT", child, "TOPLEFT", pad, -top - row.sunderTextPadding)
+    if row.sunderHeight then
+      row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -top)
+    else
+      row.text:ClearAllPoints()
+      row.text:SetPoint("TOPLEFT", child, "TOPLEFT", pad, -top - row.sunderTextPadding-(row.sunderDateHeight or 0))
+    end
     local height = row.sunderHeight or 18
     row:SetBackgroundCoverage(1)
     row:SetScript("OnMouseDown", nil)
+    row:SetScript("OnEnter",nil);row:SetScript("OnLeave",nil)
+    if line.groupChange then
+      row:SetScript("OnEnter",function()
+        GameTooltip:SetOwner(row,"ANCHOR_RIGHT")
+        local change=line.groupChange
+        GameTooltip:AddLine(change.kind=="baseline" and "Recorded roster" or "Group change",.75,.78,.82)
+        for _,group in ipairs({{change.joined,"Joined"},{change.left,"Left"}}) do
+          for _,person in ipairs(group[1] or {}) do
+            local suffix=change.kind=="baseline" and "" or " · "..group[2]
+            GameTooltip:AddLine(manager:FormatPersonName(person.name,person)..suffix,.65,.7,.75)
+          end
+        end
+        for _,rename in ipairs(change.renamed or {}) do
+          GameTooltip:AddLine(manager:FormatPersonName(rename.before.name,rename.before).." → "..manager:FormatPersonName(rename.after.name,rename.after),.65,.7,.75)
+        end
+        GameTooltip:Show()
+      end)
+      row:SetScript("OnLeave",function()GameTooltip:Hide()end)
+    end
     row:SetAlpha(1)
     row:Show()
     return height
@@ -45,7 +81,8 @@ function Core.Components.CreateReadOnlyTranscript(parent, source)
     self:SetScript("OnUpdate", nil)
     local width = owner:GetLayoutWidth()
     local offset = self:GetVerticalScroll()
-    if width ~= renderedWidth then
+    local day=Core.Components.TranscriptDates:Day(GetServerTime())
+    if width ~= renderedWidth or renderedDay~=day then
       -- Keep the same message in view when earlier lines gain or lose wraps.
       local anchor = #tops
       while anchor > 0 and tops[anchor] > offset do anchor = anchor - 1 end
@@ -60,7 +97,7 @@ function Core.Components.CreateReadOnlyTranscript(parent, source)
         top = top + height
       end
       child:SetHeight(math.max(1, top + pad))
-      renderedWidth = width
+      renderedWidth,renderedDay = width,day
     end
     updateScroll(offset)
   end
@@ -80,7 +117,7 @@ function Core.Components.CreateReadOnlyTranscript(parent, source)
     end
     local offset = self:GetVerticalScroll()
     local follow = offset >= child:GetHeight() - self:GetHeight() - 1
-    if renderedWidth ~= owner:GetLayoutWidth() then
+    if renderedWidth ~= owner:GetLayoutWidth() or renderedDay~=Core.Components.TranscriptDates:Day(GetServerTime()) then
       self:Render()
       if follow then updateScroll(child:GetHeight()) end
       return
@@ -101,6 +138,7 @@ function Core.Components.CreateReadOnlyTranscript(parent, source)
       scroll:SetScript("OnUpdate", scroll.Render)
     end
   end
+  manager:RegisterTranscriptKeys(scroll,function(direction)updateScroll(scroll:GetVerticalScroll()+direction*math.max(1,scroll:GetHeight()-24))end)
   scroll:EnableMouseWheel(true)
   scroll:SetScript("OnMouseWheel", function(_, delta)
     updateScroll(scroll:GetVerticalScroll() - delta * 36)

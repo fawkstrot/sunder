@@ -50,3 +50,12 @@ table.insert(Core.NewsEntries,1,{name="Sunder 0.10.0-alpha.2 (2026-11-16)",items
 - Improved transcript wrapping, restored sidebar backgrounds and clicks between adjacent chat windows.
 - Try /sunder practice for timed sample conversations and groups. Pause or step through them without using real chat.
 ]]}})
+
+table.insert(Core.NewsEntries,1,{name="Sunder 0.10.0-alpha.3 (2026-11-18)",items={[[
+- Fixed Combat Log grip input and improved message flow, shared window bounds and scrolling.
+- Review searchable saved conversations with day and pause dividers. Combat events remain session-only.
+- Minimize Whispers, Guild or Party into tabs above General; notifications follow the minimized Whispers host.
+- Explore the redesigned Guild dashboard and group archives with class colors and roster changes.
+- Conversation storage offers a review near 4 MiB instead of automatically deleting history.
+- WoW Forever 1.60.1 alpha. Legacy records may lack dates or character details.
+]]}})

@@ -29,7 +29,13 @@ handle:UpdateResize()
 assert(target.width == 700 and target.height == 300, 'scaled resize delta incorrect')
 cursorX, cursorY = -10000, 10000
 handle:UpdateResize()
-assert(target.width == 100 and target.height == 100, 'minimum dimensions ignored')
+local minWidth,minHeight=Core.Components.WindowManager:MinimumWindowSize()
+assert(target.width == minWidth and target.height == minHeight, 'minimum dimensions ignored')
+Core.db.profile.windowMinWidth,Core.db.profile.windowMinHeight=520,340
+handle:UpdateResize()
+assert(target.width==520 and target.height==340,"held resize did not pick up the shared settings")
+Core.db.profile.windowMinWidth,Core.db.profile.windowMinHeight=nil,nil
+
 cursorX, cursorY = 10000, -10000
 handle:UpdateResize()
 assert(target.width == 9999 and target.height == 9999)
@@ -151,4 +157,64 @@ handle.scripts.OnMouseDown(handle,"LeftButton");assert(not handle.resizeState an
 locked.movementLocked=false
 handle.scripts.OnMouseDown(handle,"LeftButton");assert(handle.resizeState);handle:FinishResize()
 Core.sunderMoverUnlocked=true
+""")
+
+# Detached native frames must honor the same visible minimum as Whispers,
+# even when the client starts with a larger engine-level minimum.
+native_src = base.joinpath('Components/DetachedChatDock.lua').read_text()
+native_callbacks = native_src[native_src.index('  local resizeOptions = {'):native_src.index('  overlay:Hide()', native_src.index('  local resizeOptions = {'))]
+lua.execute("""
+Constants.DOCK_HEIGHT=24
+local manager=Core.Components.WindowManager
+combat=false;down=true;cursorX,cursorY=100,100
+nativeTarget=target;nativeTarget.width,nativeTarget.height=600,400
+nativeTarget.engineWidth,nativeTarget.engineHeight=400,400
+function nativeTarget:GetWidth()return self.width end
+function nativeTarget:GetHeight()return self.height end
+function nativeTarget:SetMinResize(w,h)self.engineWidth,self.engineHeight=w,h end
+function nativeTarget:SetSize(w,h)self.width=math.max(w,self.engineWidth);self.height=math.max(h,self.engineHeight)end
+function nativeTarget:IsProtected()return true end
+function nativeTarget:GetName()return 'ChatFrame2' end
+nativeTarget.isDocked=false
+self={tab={chatFrame=nativeTarget},StopWindowDrag=function()end,WindowSettings=function()return {}end}
+overlay=MakeFrame();parent=MakeFrame()
+""")
+lua.execute(native_callbacks)
+lua.execute("""
+for _,handle in ipairs({self.resizeHandle,self.roomResize})do
+  for _,limits in ipairs({{360,220},{480,300}})do
+    Core.db.profile.windowMinWidth,Core.db.profile.windowMinHeight=unpack(limits)
+    cursorX,cursorY=100,100
+    handle.scripts.OnMouseDown(handle,'LeftButton')
+    cursorX,cursorY=-10000,10000;handle:UpdateResize()
+    assert(nativeTarget.width==limits[1] and nativeTarget.height+Constants.DOCK_HEIGHT==limits[2], 'native held resize differs from shared visible bounds')
+    assert(nativeTarget.engineHeight==limits[2]-Constants.DOCK_HEIGHT,'stale native engine minimum')
+    handle:FinishResize()
+  end
+end
+local modern={SetResizeBounds=function(self,w,h)self.width,self.height=w,h end}
+Core.Components.WindowManager:ApplyNativeWindowMinimums(modern)
+assert(modern.width==480 and modern.height==276,'modern engine bounds not synchronized')
+combat=true;modern.height=999;Core.Components.WindowManager:ApplyNativeWindowMinimums(modern)
+assert(modern.height==999,'engine minimum changed in combat')
+combat=false
+Core.db.profile.windowMinWidth,Core.db.profile.windowMinHeight=nil,nil
+""")
+print('Native minimum regression passed: legacy/modern engine limits, both held grips, shared settings and combat guard.')
+
+# Main mover consumes the same complete root height as detached/Whispers shells.
+lua.execute(src[src.index('function MoverFrameMixin:UpdateLayoutBounds()'):src.index('function MoverFrameMixin:ScheduleLayoutBoundsUpdate()')])
+lua.execute("""
+local wm=Core.Components.WindowManager;local oldAnchor=wm.AnchorMainContainer
+wm.AnchorMainContainer=function()end
+local mover={layoutContainer={containsChatEditor=true},layoutEditBox={GetHeight=function()return 64 end},
+ SetHeight=function(self,h)self.height=h end,ScheduleBoundsUpdate=function()end}
+local anchor=Core.db.profile.editBoxAnchor;local height=Core.db.profile.frameHeight
+Core.db.profile.frameHeight=220
+for _,position in ipairs({"ABOVE","BELOW"})do
+ Core.db.profile.editBoxAnchor={position=position,yOfs=-2}
+ MoverFrameMixin.UpdateLayoutBounds(mover)
+ assert(mover.height==220 and mover.layoutContainer.mainTopOffset==0,"main mover added external editor height")
+end
+Core.db.profile.editBoxAnchor=anchor;Core.db.profile.frameHeight=height;wm.AnchorMainContainer=oldAnchor
 """)

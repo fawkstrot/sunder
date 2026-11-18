@@ -18,7 +18,7 @@ local function canonical(frame)
 end
 local function refresh(key)Core:Dispatch(Constants.ACTIONS.UpdateConfig(key))end
 
-function E:AddEditElement(key,label,frame,section,setWidth,setHeight,save,load,apply,hidden,live,locked)
+function E:AddEditElement(key,label,frame,section,setWidth,setHeight,save,load,apply,hidden,live,locked,clampSize)
   local api=_G.EllesmereUI
   if api._ELEMENT_SETTINGS_MAP and api.GetPluginModuleKey then
     local module=api.GetPluginModuleKey("Sunder","chat")
@@ -32,11 +32,13 @@ function E:AddEditElement(key,label,frame,section,setWidth,setHeight,save,load,a
     end
     return
   end
+  local manager=Core.Components.WindowManager
+  clampSize=clampSize or function(w,h)return manager:ClampWindowSize(w,h,frame.sunderWindowHost)end
   local element={key=key,label=label,group="Sunder",order=700,ownsPosition=true,noSpecLayout=true,
     getFrame=function()return frame end,getSize=function()return frame:GetWidth(),frame:GetHeight()end,
     isHidden=hidden or function()return false end,
-    setWidth=function(_,value)if not InCombatLockdown() and not (locked and locked())then setWidth(math.max(100,math.min(UIParent:GetWidth(),tonumber(value) or 100)))end end,
-    setHeight=function(_,value)if not InCombatLockdown() and not (locked and locked())then setHeight(math.max(100,math.min(UIParent:GetHeight(),tonumber(value) or 100)))end end,
+    setWidth=function(_,value)if not InCombatLockdown() and not (locked and locked())then setWidth((clampSize(math.min(UIParent:GetWidth(),tonumber(value) or 0),frame:GetHeight())))end end,
+    setHeight=function(_,value)if not InCombatLockdown() and not (locked and locked())then local _,height=clampSize(frame:GetWidth(),math.min(UIParent:GetHeight(),tonumber(value) or 0));setHeight(height)end end,
     savePosition=function(_,point,relPoint,x,y)
       if InCombatLockdown() or locked and locked()then return end
       place(frame,{point=point,relPoint=relPoint,x=x,y=y});save(canonical(frame))
@@ -87,7 +89,7 @@ function E:RefreshEditElements()
     local key="Sunder_Chat";seen[key]=true
     self:AddEditElement(key,"Chat",main,"Chat windows",
       function(value)Core.db.profile.frameWidth=value;refresh("frameWidth");main:UpdateLayoutBounds()end,
-      function(value)local extra=main:GetHeight()-Core.db.profile.frameHeight;Core.db.profile.frameHeight=math.max(100,value-extra);refresh("frameHeight");main:UpdateLayoutBounds()end,
+      function(value)local extra=main:GetHeight()-Core.db.profile.frameHeight;local _,minimum=Core.Components.WindowManager:MinimumWindowSize();Core.db.profile.frameHeight=math.max(minimum,value-extra);refresh("frameHeight");main:UpdateLayoutBounds()end,
       function(p)Core.db.profile.positionAnchor={point=p.point,xOfs=p.x,yOfs=p.y};refresh("framePosition")end,
       function()local p=Core.db.profile.positionAnchor;return {point=p.point,relPoint=p.point,x=p.xOfs,y=p.yOfs}end,
       function()refresh("framePosition")end,nil,nil,function()return Core.Components.WindowManager:Settings("main").movementLocked end)
@@ -113,7 +115,8 @@ function E:RefreshEditElements()
         function(value)frame:SetWidth(value);ui:RefreshChatFrameLayout(frame);save(canonical(frame))end,
         function(value)frame:SetHeight(value);ui:RefreshChatFrameLayout(frame);save(canonical(frame))end,
         save,function()return position(frame)end,function()ui:RefreshChatFrameLayout(frame)end,
-        function()return not self:IsDetachedEditWindow(window) end,nil,function()return Core.Components.WindowManager:Settings(frame:GetName()).movementLocked end)
+        function()return not self:IsDetachedEditWindow(window) end,nil,function()return Core.Components.WindowManager:Settings(frame:GetName()).movementLocked end,
+        function(w,h)Core.Components.WindowManager:ApplyNativeWindowMinimums(frame);return Core.Components.WindowManager:ClampNativeWindowSize(w,h)end)
       self.editElements[key].element.getInsets=function()
         local dock=window.detachedLayout and window.detachedLayout.dock
         local overlay=dock and dock.moverOverlay
@@ -140,8 +143,8 @@ function E:RefreshEditElements()
         if host.minimized then host:SetMinimized(false,true)end
       end
       self:AddEditElement(key,host:WorkspaceName(),frame,room and room.roomLabel or "Whispers",
-        function(value)frame:SetWidth(math.max(host.minimumWorkspaceWidth or 480,value));host:SaveHubGeometry();host:LayoutHub()end,
-        function(value)frame:SetHeight(math.max(220,value));host:SaveHubGeometry();host:LayoutHub()end,
+        function(value)frame:SetWidth((Core.Components.WindowManager:ClampWindowSize(value,frame:GetHeight(),host)));host:SaveHubGeometry();host:LayoutHub()end,
+        function(value)local _,height=Core.Components.WindowManager:ClampWindowSize(frame:GetWidth(),value,host);frame:SetHeight(height);host:SaveHubGeometry();host:LayoutHub()end,
         function(p)place(frame,p);host:SaveHubGeometry()end,
         function()local c=host:HubSettings();return {point=c.hubPoint,relPoint=c.hubPoint,x=c.hubX,y=c.hubY}end,
         function()local c=host:HubSettings();place(frame,{point=c.hubPoint,x=c.hubX,y=c.hubY});host:LayoutHub()end,

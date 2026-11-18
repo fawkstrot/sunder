@@ -216,7 +216,7 @@ function EditBoxMixin:UpdateDynamicMessageArea()
     local reusableHeight = self:GetReusableMessageHeight()
     self.dynamicMessageArea:SetWidth(self:GetLayoutWidth())
     self.dynamicMessageArea:SetHeight(math.max(1, reusableHeight))
-    self.dynamicMessageArea:SetShown(reusableHeight > 0)
+    self.dynamicMessageArea:SetShown(reusableHeight > 0 and not (self.sunderParent and self.sunderParent.containsChatEditor))
     Core:Dispatch(EditBoxLayoutChanged())
   end)
 end
@@ -230,7 +230,13 @@ end
 
 function EditBoxMixin:UpdateAnchor()
   self:ClearAllPoints()
-  if Core.db.profile.editBoxAnchor.position == "ABOVE" then
+  if self.sunderParent and self.sunderParent.containsChatEditor then
+    if Core.db.profile.editBoxAnchor.position=="ABOVE" then
+      self:SetPoint("TOPLEFT",self.sunderParent,"TOPLEFT",0,-Constants.DOCK_HEIGHT-Core.Components.WindowManager:HeaderGap()-Core.db.profile.editBoxAnchor.yOfs)
+    else
+      self:SetPoint("BOTTOMLEFT",self.sunderParent,"BOTTOMLEFT",0,0)
+    end
+  elseif Core.db.profile.editBoxAnchor.position == "ABOVE" then
     self:SetPoint("BOTTOMLEFT", self.sunderParent, "TOPLEFT", 0, Core.db.profile.editBoxAnchor.yOfs)
   else
     self:SetPoint("TOPLEFT", self.sunderParent, "BOTTOMLEFT", 0, Core.db.profile.editBoxAnchor.yOfs)

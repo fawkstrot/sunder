@@ -4,9 +4,13 @@
 
 Sunder brings smooth chat, clear conversations and useful tools together in a modular interface built to feel at home in Azeroth.
 
+Sunder includes the Ace3 libraries it uses. Install Sunder on its own. EllesmereUI integration is optional.
+
 ## Sunder Chat
 
 Compact tabs, smooth scrolling, horizontal background fades, shared content padding and individual growing chat editors. Move and resize your windows with Sunder's standalone layout editor or optional Ellesmere Edit UI integration.
+
+Open **/sunder history** for a dated, per-character conversation log, including General and Trade. Combat events are excluded. At about 4 MiB, Sunder offers a storage review and continues recording. Clearing the log requires confirmation.
 
 ## Whispers, together
 
@@ -14,7 +18,7 @@ Keep conversations in one Whispers window with All, Unread and Favorites views. 
 
 ## Guild and Party/Raid rooms
 
-Dedicated rooms share the same compact window controls, backgrounds and member rows as Whispers. See class/level details and online counts, mark favorites across views, and keep Guild information and the message of the day nearby. Party Chat follows your group into raids, opens automatically by default, and offers a local Previous groups log browser. History is bounded and saved per character; older logs may lack member details.
+Dedicated rooms share the same compact window controls, backgrounds and member rows as Whispers. See class/level details and online counts, mark favorites across views, and keep Guild information and the message of the day nearby. Party Chat follows your group into raids, opens automatically by default, and offers a local Previous groups log browser. Group conversations stay on the character until you clear them. Older logs may lack member details.
 
 ## Item protection
 

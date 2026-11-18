@@ -1,7 +1,7 @@
 ## Title: Sunder
 ## Plain Title: Sunder
 ## Author: Sunder contributors; based on Glassy by Solessfir and Glass by mixxorz
-## Version: 0.10.0-alpha.2
+## Version: 0.10.0-alpha.3
 ## X-Curse-Project-ID: 1798860
 ## Notes: Modular messaging and quality-of-life tools. Sunder Chat, Whispers, item protection, and optional Ellesmere integration.
 ## IconTexture: Interface\AddOns\Sunder\Media\Brand\SunderIcon
@@ -20,6 +20,7 @@
 ## Category-zhTW: 對話
 
 ## SavedVariables: SunderDB
+## SavedVariablesPerCharacter: SunderConversationLog
 ## OptionalDeps: EllesmereUI, ROTBOTForever, Runestone, Glassy
 
 # Libs
@@ -74,11 +75,13 @@ Sunder\Components\ScrollOverlayFrame.lua
 Sunder\Components\SlidingMessageFrame.lua
 Sunder\Components\SlidingMessageFrameLayout.lua
 Sunder\Components\SlidingMessageFrameNative.lua
+Sunder\Components\NativeCombatLog.lua
 
 # Modules
 Sunder\Modules\Ellesmere.lua
 Sunder\Modules\EllesmereOptions.lua
 Sunder\Modules\ChatCopy.lua
+Sunder\Modules\ConversationLog.lua
 Sunder\Modules\Demo.lua
 Sunder\Modules\ProfileTransfer.lua
 Sunder\Modules\Config.lua
@@ -118,6 +121,7 @@ Sunder\Components\ReadOnlyTranscript.lua
 Sunder\Components\RosterRoom.lua
 Sunder\Modules\GuildChat.lua
 Sunder\Modules\GuildInfo.lua
+Sunder\Modules\GuildDashboard.lua
 Sunder\Modules\PartyChat.lua
 Sunder\Modules\PartyHistory.lua
 Sunder\Modules\ChatPractice.lua

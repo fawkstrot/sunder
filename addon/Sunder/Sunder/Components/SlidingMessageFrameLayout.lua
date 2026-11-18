@@ -97,7 +97,8 @@ end
 
 function SlidingMessageFrameMixin:GetMessageFrameHeight()
   local dockInset = self.whisperDock and math.max(0, self.whisperDock:GetHeight() - Constants.DOCK_HEIGHT) or 0
-  return math.max(1, getMessageFrameHeight(self.state.isCombatLog, self:GetLayoutHeight(), self.layoutEditBox) - dockInset)
+  local top,bottom=Core.Components.WindowManager:ContainedEditorSpace(self:GetParent(),self.layoutEditBox)
+  return math.max(1, getMessageFrameHeight(self.state.isCombatLog, self:GetLayoutHeight(), self.layoutEditBox) - dockInset-top-bottom)
 end
 
 function SlidingMessageFrameMixin:SetSunderShown(shown)
@@ -111,7 +112,12 @@ local function scrollRowHeight(row)
   -- Restricted rows have no measurable height. Use one font line for rail travel.
   return row.sunderHeight or Core.db.profile.messageFontSize or 13
 end
+function SlidingMessageFrameMixin:RevealScrollHistory()
+  self:CancelMessageHideTimer(true)
+  for _,message in ipairs(self.state.messages)do message:Show()end
+end
 local function setTranscriptOffset(renderer,offset)
+  renderer:RevealScrollHistory()
   local remaining=renderer.scrollRail.maximum-offset
   local messages=renderer.state.messages
   local index=1
@@ -124,6 +130,12 @@ local function setTranscriptOffset(renderer,offset)
   renderer:SetScrollPosition(index,remaining)
 end
 
+function SlidingMessageFrameMixin:PageTranscript(direction)
+  local rail=self.scrollRail
+  if not rail then return end
+  local page=math.max(1,self.config.height-24-Core.Components.WindowManager:BodyPadding()*2)
+  setTranscriptOffset(self,math.max(0,math.min(rail.maximum,rail.offset+direction*page)))
+end
 function SlidingMessageFrameMixin:ScrollTranscriptWheel(delta)
   local rail=self.scrollRail
   if not rail or not rail:IsShown() then return false end
@@ -191,6 +203,7 @@ function SlidingMessageFrameMixin:UpdateViewportHeight(unreadRowHeight)
     local page=total<=fullPage and fullPage or math.max(1,readbackHeight-padding)
     Core.Components.WindowManager:UpdateScrollRail(self,room,readbackHeight,total,page,total-page-newer-(self.state.messageOffset or 0),setTranscriptOffset)
   end
+  self:UpdatePinnedDate()
 end
 
 function SlidingMessageFrameMixin:ApplyDynamicEditBoxHeight(nextHeight)
@@ -225,6 +238,9 @@ function SlidingMessageFrameMixin:CancelDynamicEditBoxLayout(applyTarget)
 end
 
 function SlidingMessageFrameMixin:UpdateDynamicEditBoxLayout()
+  if self:GetParent() and self:GetParent().containsChatEditor and Core.db.profile.editBoxAnchor.position=="ABOVE" and self:IsShown() then
+    self:RefreshLayoutGeometry();return
+  end
   local nextHeight = self:GetMessageFrameHeight()
   self:CancelDynamicEditBoxLayout(false)
 
@@ -272,7 +288,8 @@ function SlidingMessageFrameMixin:RefreshLayoutGeometry()
 
   self:ClearAllPoints()
   local dockInset = self.whisperDock and math.max(0, self.whisperDock:GetHeight() - Constants.DOCK_HEIGHT) or 0
-  self:SetPoint("TOPLEFT", 0, -getMessageTopInset(self.state.isCombatLog) - dockInset)
+  local editorTop=Core.Components.WindowManager:ContainedEditorSpace(self:GetParent(),self.layoutEditBox)
+  self:SetPoint("TOPLEFT", 0, -getMessageTopInset(self.state.isCombatLog) - dockInset-editorTop)
   self:SetWidth(self.config.width)
 
   self.slider:SetWidth(self.config.width)
@@ -289,7 +306,7 @@ function SlidingMessageFrameMixin:RefreshLayout(reprocessText)
 
   for _, message in ipairs(self.state.messages) do
     if reprocessText and message.sourceText then
-      local processedText = TP:ProcessText(message.sourceText, message.sourceFrame, message.receivedAt, message.sourceTypeID,message.sourceLineID,message.sunderOwnMessage)
+      local processedText = TP:ProcessText(message.sourceText, message.sourceFrame, message.receivedAt, message.sourceTypeID,message.sourceLineID,message.sunderOwnMessage,true,message)
       local r,g,b=TP:WhisperReplyStyle(message.sourceFrame,message.sourceTypeID,message.sunderOwnMessage,message.sourceText,message.sourceLineID)
       if not r and message.sourceColor then r,g,b=unpack(message.sourceColor) end
       if r then message.text:SetTextColor(r,g,b,1) end

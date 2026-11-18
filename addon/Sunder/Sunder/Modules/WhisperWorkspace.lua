@@ -32,7 +32,7 @@ function W:GetWorkspace(id)
     host.selected, host.lastTitle = nil, nil
     W.workspaces[id] = host
     if host.hub then
-      host.hub:SetSize(saved.hubWidth, saved.hubHeight)
+      host.hub:SetSize(Core.Components.WindowManager:ClampWindowSize(saved.hubWidth,saved.hubHeight,host))
       host.hub:ClearAllPoints(); host.hub:SetPoint(saved.hubPoint, UIParent, saved.hubPoint, saved.hubX, saved.hubY)
     end
     host:LayoutHub()
@@ -89,6 +89,7 @@ function W:RemoveWorkspace(id)
   for _, r in pairs(W.records or {}) do if r.workspace == id then r.workspace = "messages" end end
   for _, saved in pairs(Core.db.char.whisperLayouts or {}) do if saved.workspace == id then saved.workspace = "messages" end end
   if host.hub then host.hub:Hide() end
+  Core.Components.WindowManager:RemoveMinimizedTab(host)
   -- Reuse retired window shells instead of leaking new frames on repeated create/remove.
   W.retiredWorkspaces = W.retiredWorkspaces or {}
   W.retiredWorkspaces[id] = host
@@ -229,7 +230,8 @@ function W:ConversationLabelColor(selected,person)
     token=W.whisperClasses and W.whisperClasses[record.key]
     if not token and W.PersonDetails then local known=W:PersonDetails(record.target or record.key);token=known and known.classFile end
   end
-  local classColor=token and ((_G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS or {})[token])
+  local name=record and W:ConversationName(person) or type(person)=="table" and person.name
+  local classColor=Core.Components.WindowManager:PersonColor(name,{classFile=token})
   if classColor then return classColor.r,classColor.g,classColor.b,1 end
   local color = self:UsesChatAppearance() and Core.GetThemeColor and Core:GetThemeColor(selected and "tabHighlightTextColor" or "tabTextColor")
   if color then return color.r, color.g, color.b, color.a or 1 end
@@ -591,7 +593,10 @@ function W:ApplyHubAppearance()
   if self.hubTitle then self.hubTitle:SetTextColor(r,g,b)end
   if self.hubEmptyIcon then self.hubEmptyIcon:SetVertexColor(r,g,b)end
   if self.previewBackground then self.previewBackground:SetColorTexture(0,0,0,0)end
-  self:ApplyRoomStructure(self.RoomSidebarWidth and self:RoomSidebarWidth() or self.IsConversationList and self:IsConversationList() and self:ConversationListWidth() or 0)
+  local sidebar,toolbar
+  if self.RoomSurfaceLayout then sidebar,toolbar=self:RoomSurfaceLayout()
+  else sidebar=self.RoomSidebarWidth and self:RoomSidebarWidth() or self.IsConversationList and self:IsConversationList() and self:ConversationListWidth() or 0 end
+  self:ApplyRoomStructure(sidebar,toolbar)
 end
 
 
@@ -746,7 +751,7 @@ function W:RefreshConversationPicker()
     if entry then
       local flags = (entry.favorite and "|TInterface\\AddOns\\Sunder\\Media\\Icons\\favorite.tga:12|t " or "")
         ..(entry.pinned and "|TInterface\\AddOns\\Sunder\\Media\\Icons\\pin.tga:12|t " or "")
-      row:SetText(flags..entry.name..(entry.unread > 0 and "  |cffffcc66("..entry.unread..")|r" or ""))
+      row:SetText(flags..Core.Components.WindowManager:FormatPersonName(entry.name)..(entry.unread > 0 and "  |cffffcc66("..entry.unread..")|r" or ""))
     end
   end
   Core.Components.WindowManager:UpdateScrollRail(picker,#matches>9,9*28,#matches,9,picker.offset,picker.setRailOffset,62)
@@ -767,11 +772,12 @@ function W:SaveMessageWindowState()
     or W.startingSimulation or W.previewSimulation or self.previewActive or not W:Settings().enabled or not UIParent:IsShown() then return end
   Core.db.char.messageWindowStates = Core.db.char.messageWindowStates or {}
   Core.db.char.messageWindowStates[self.hostId or "messages"] = {
-    open = self.hub:IsShown() or self.windowManuallyClosed == false, minimized = not not self.minimized,
+    open = self.hub:IsShown() or self.tabMinimized or self.windowManuallyClosed == false, minimized = not not self.minimized, tabMinimized=not not self.tabMinimized,
   }
 end
 
 function W:CloseMessages()
+  Core.Components.WindowManager:RemoveMinimizedTab(self)
   self.windowManuallyClosed = true
   if self.hub then self.hub:Hide() end
   self:SaveMessageWindowState()
@@ -782,7 +788,7 @@ function W:BeginMessageWindowRestore()
   W.restoringWindowState = true
   W.pendingWindowStates = {}
   for id, state in pairs(Core.db.char.messageWindowStates) do
-    W.pendingWindowStates[id] = {open = state.open, minimized = state.minimized}
+    W.pendingWindowStates[id] = {open = state.open, minimized = state.minimized, tabMinimized=state.tabMinimized}
   end
 end
 
@@ -808,6 +814,7 @@ function W:RestoreMessageWindows()
         host.windowManuallyClosed = not state.open
         if state.open then
           host:ShowRememberedWindow(state.minimized)
+          if state.tabMinimized then Core.Components.WindowManager:SetTabMinimized(host,true)end
         elseif host.hub then host.hub:Hide() end
       end
     end
@@ -834,12 +841,12 @@ function W:HeaderPadding()
   return self:UsesChatAppearance() and math.max(4, math.min(12, tonumber(Core.db.profile.textLeftPadding) or 4)) or metric("headerPadding", 7, 4, 16)
 end
 function W:HeaderGap()
-  return self:UsesChatAppearance() and math.max(0, math.min(50, tonumber(Core.db.profile.tabMessageSpacing) or 2)) or 0
+  return Core.Components.WindowManager:HeaderGap()
 end
 function W:SingleRowHeader() return self:UsesChatAppearance() and self:Settings().singleRowHeader ~= false end
 function W:ContentTop() return self:SingleRowHeader() and math.max(0, self:HeaderHeight() - self:ConversationTabHeight()) or self:HeaderHeight() end
 function W:PreviewTop() return self:SingleRowHeader() and 0 or self:HeaderHeight() end
-function W:PreviewBodyTop() return (self:SingleRowHeader() and self:HeaderHeight() or self:ConversationTabHeight()) + (self:UsesChatAppearance() and self:HeaderGap() or 8) end
+function W:PreviewBodyTop() return (self:SingleRowHeader() and self:HeaderHeight() or self:ConversationTabHeight()) + self:HeaderGap() end
 function W:NavigationWidth() return W.CONVERSATION_NAV_WIDTH end
 
 function W:LayoutConversationStrip(preview)

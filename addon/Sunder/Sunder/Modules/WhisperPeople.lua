@@ -283,6 +283,10 @@ function W:PersonDetails(name)
   if known then return known end
   local saved=Core.db.char.whisperPersonDetails and Core.db.char.whisperPersonDetails[key]
   if saved then return saved end
+  local archive=Core.db.char.whisperArchive or {}
+  local realm=GetRealmName and GetRealmName()
+  local entry=archive["WHISPER:"..key] or realm and archive["WHISPER:"..key.."-"..realm:gsub("%s",""):lower()]
+  if entry and entry.classFile then return {classFile=entry.classFile} end
   local token=W.whisperClasses and W.whisperClasses[key]
   if token then return {classFile=token,class=(_G.LOCALIZED_CLASS_NAMES_MALE or {})[token] or token}end
 end
@@ -297,8 +301,7 @@ function W:LayoutPersonDetails(row,name,person)
   local onPin=preview and function()self:PreviewAction("Pin",preview)end or frame and function()W:ToggleConversationPin(frame)end or row.savedPinAction
   person=person or preview or self:PersonDetails(name)
   local label=row:GetFontString()
-  local token=person and (person.classFile or person.classToken)
-  local color=token and ((_G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS or {})[token])
+  local color=Core.Components.WindowManager:PersonColor(name,person)
   if label then
     local r,g,b=self:ConversationLabelColor(row.rowSelected,frame or preview)
     Core.Components.WindowManager:StylePersonName(label,color and color.r or r,color and color.g or g,color and color.b or b,person and person.online)
@@ -345,6 +348,7 @@ function W:QueuePersonRefresh()
   W.personRefreshPending=true
   C_Timer.After(0,function()
     W.personRefreshPending=nil
+    W:UpdateBadges()
     for _,host in pairs(W.workspaces or {W})do if host.hub and host.hub:IsShown()then host:LayoutPeopleRows(not not host.previewActive)end end
   end)
 end
@@ -352,6 +356,9 @@ function W:EnablePersonMetadata()
   if self.personMetadataEvents then return end
   local events=CreateFrame("Frame");self.personMetadataEvents=events
   events:RegisterEvent("FRIENDLIST_UPDATE")
+  for _,event in ipairs({"BN_CONNECTED","BN_FRIEND_INFO_CHANGED","BN_FRIEND_LIST_SIZE_CHANGED","BN_FRIEND_ACCOUNT_ONLINE","BN_FRIEND_ACCOUNT_OFFLINE"}) do
+    pcall(events.RegisterEvent,events,event)
+  end
   events:SetScript("OnEvent",function()W:RefreshPersonMetadata()end)
   self:RefreshPersonMetadata()
 end

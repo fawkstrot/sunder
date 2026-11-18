@@ -194,7 +194,7 @@ function W:RenderSavedPersonRow(contact,child,y,savedRowIndex,isFavorite)
       else W:OpenSavedFavorite(button.contact) end
     end)
     b:SetScript("OnEnter",function(button)
-      GameTooltip:SetOwner(button,"ANCHOR_RIGHT");GameTooltip:AddLine(button.contact.target,1,1,1)
+      GameTooltip:SetOwner(button,"ANCHOR_RIGHT");GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(button.contact.target,button.contact),1,1,1)
       GameTooltip:AddLine("Click to open this conversation without sending a message.",.7,.75,.8)
       if button.contact.archiveKey then GameTooltip:AddLine("Right-click for saved history, search or confirmed deletion.",.7,.75,.8) end
       GameTooltip:Show()

@@ -45,12 +45,12 @@ end
 
 function UIManager:GetVisibleSlidingMessageFrame(preferredChatFrame)
   local preferred = self:GetSlidingMessageFrame(preferredChatFrame)
-  if preferred and preferred:IsShown() then
+  if preferred and preferred.PreviewAnimations and preferred:IsShown() then
     return preferred
   end
 
   for _, window in pairs(self.state.windows) do
-    if window.active and window.slidingMessageFrame:IsShown() then
+    if window.active and window.slidingMessageFrame.PreviewAnimations and window.slidingMessageFrame:IsShown() then
       return window.slidingMessageFrame
     end
   end
@@ -112,8 +112,13 @@ function UIManager:CreateChatWindow(chatFrame, temporary)
     return existing
   end
 
-  local slidingMessageFrame = self.slidingMessageFramePool:Acquire()
-  slidingMessageFrame:Init(chatFrame)
+  local slidingMessageFrame
+  if Core.Components.CanHostNativeCombatLog and Core.Components.CanHostNativeCombatLog(chatFrame) then
+    slidingMessageFrame = Core.Components.CreateNativeCombatLog(self.container, chatFrame)
+  else
+    slidingMessageFrame = self.slidingMessageFramePool:Acquire()
+    slidingMessageFrame:Init(chatFrame)
+  end
   local window = self.state.windows[chatFrame:GetName()] or {}
   window.active = true
   window.chatFrame = chatFrame
@@ -199,6 +204,7 @@ function UIManager:RefreshChatFrameLayout(chatFrame)
     return
   end
 
+  if window.slidingMessageFrame.DisableNativeScrollInput then window.slidingMessageFrame:DisableNativeScrollInput(chatFrame)end
   local room=Core.Components.WindowManager:GetChatRoom(chatFrame)
   if room and room.LayoutWindow and room:LayoutWindow(window) then return end
   local whispers = Core:GetModule("Whispers", true)
@@ -218,6 +224,11 @@ function UIManager:RefreshChatFrameLayout(chatFrame)
     return
   end
 
+  if not InCombatLockdown() then
+    Core.Components.WindowManager:ApplyNativeWindowMinimums(chatFrame)
+    local width,height=Core.Components.WindowManager:ClampNativeWindowSize(chatFrame:GetWidth(),chatFrame:GetHeight())
+    if width~=chatFrame:GetWidth() or height~=chatFrame:GetHeight() then chatFrame:SetSize(width,height) end
+  end
   if layout == nil then
     layout = self:CreateDetachedLayout(window)
   else

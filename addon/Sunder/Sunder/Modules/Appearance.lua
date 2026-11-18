@@ -20,7 +20,7 @@ end
 local function field(key, kind, name, order, extra)
   local option = {type = kind, name = name, order = order,
     get = function () return Core.db.profile[key] end,
-    set = function (_, value) Core.db.profile[key] = value; refresh() end}
+    set = function (_, value) Core.db.profile[key] = value; if key=="windowMinWidth" or key=="windowMinHeight" then Core.Components.WindowManager:RefreshWindowMinimums() else refresh() end end}
   for k, v in pairs(extra or {}) do option[k] = v end
   return option
 end
@@ -35,7 +35,7 @@ function Core:BuildAppearanceOptions(chat, whispers)
   local windows = whispers.args.appearance
   windows.name, windows.order = "Whisper windows", 4
   windows.args.shared = nil
-  windows.args.intro.name = "Whispers and custom groups follow chat by default: compact labels and icons, shared fading surfaces, a subtle header/body gap and no outer border. Unlink below to use separate window typography and surfaces. The default people list uses a 30 / 70 split below the title. Choose tabs below to restore the previous layout. Your previous custom values are retained."
+  windows.args.intro.name = "Whispers and custom groups follow chat by default: compact labels and icons, shared fading surfaces, a subtle header/body gap and no outer border. Unlink below to use separate window typography and surfaces. The people list uses one compact shared width below the title. Choose tabs below to restore the previous layout. Your previous custom values are retained."
   windows.args.follow = {type = "toggle", name = "Match chat styling (default)", order = 0.1, width = "full",
     desc = "Use shared header fonts, icon sizes, colors, background opacity, edge fades and header/body spacing. Keeps groups, favorites, drag, resize and minimize controls.",
     get = function () return Core:GetModule("Whispers"):UsesChatAppearance() end,
@@ -77,7 +77,7 @@ function Core:BuildAppearanceOptions(chat, whispers)
   surfaces.args.viewport=group("Shared content spacing",2.5,{
     intro=explain("One inset for message bodies, Whispers people lists, samples and notification text. Headers and small toolbar controls retain their compact spacing.",0),
     bodyPadding={type="range",name="Content padding",order=1,min=0,max=32,step=1,
-      desc="Distance from content edges in pixels. Default: 12 px. Applies across chat and Whispers.",
+      desc="Distance from content edges in pixels. Default: 8 px. Applies across every chat window.",
       get=function()return Core.db.profile.bodyPadding end,
       set=function(_,value)Core.db.profile.bodyPadding=value;Core:Dispatch(Constants.ACTIONS.UpdateConfig("bodyPadding"))end},
   })
@@ -104,6 +104,8 @@ function Core:BuildAppearanceOptions(chat, whispers)
     indicator = field("chatSelectionIndicator", "toggle", "Thin selected-tab accent", 5),
     wash = field("chatHoverWash", "toggle", "Subtle hover background", 6),
     spacing = group("Header spacing", 7, take(tabs, {"tabMessageSpacing"})),
+    minimumWidth = field("windowMinWidth","range","Minimum window width",7.1,{min=Core.Components.WindowManager.MINIMUM_WIDTH_FLOOR,max=1200,step=10,desc="Shared lower width limit for every chat window. Headers may require more space at larger font sizes."}),
+    minimumHeight = field("windowMinHeight","range","Minimum window height",7.2,{min=Core.Components.WindowManager.MINIMUM_HEIGHT_FLOOR,max=800,step=10,desc="Shared lower height limit for expanded chat windows. Collapsed title bars remain compact."}),
     customize = group("Individual chat icons", 8, {
       target = {type = "select", name = "Chat tab", order = 1,
         values = function ()

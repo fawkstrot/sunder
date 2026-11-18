@@ -74,7 +74,8 @@ function G:EnsureGuildInfo()
   panel.detail=panel:CreateFontString(nil,"OVERLAY","SunderChatDockFont")
   panel.close=theme():IconButton(panel,"close","Close guild information",function()self:CloseGuildInfo()end)
   panel.back=theme():IconButton(panel,"left","Guild overview",function()self:ShowGuildInfo()end)
-  local scroll=CreateFrame("ScrollFrame",nil,panel);panel.scroll=scroll;scroll:SetClipsChildren(true)
+  local viewport=CreateFrame("Frame",nil,panel);panel.viewport=viewport;viewport:SetClipsChildren(true)
+  local scroll=CreateFrame("ScrollFrame",nil,viewport);panel.scroll=scroll;scroll:SetAllPoints(viewport);scroll:SetClipsChildren(true)
   local child=CreateFrame("Frame",nil,scroll);panel.child=child;scroll:SetScrollChild(child)
   panel.body=child:CreateFontString(nil,"OVERLAY","SunderChatDockFont");panel.body:SetJustifyH("LEFT");panel.body:SetWordWrap(true);panel.body:SetTextColor(.68,.72,.78)
   scroll:EnableMouseWheel(true)
@@ -107,6 +108,7 @@ function G:InviteMember(member)
 end
 function G:ShowGuildInfo()
   if not self.room then return end
+  Core:GetModule("UIManager"):ReleaseMessageInput(self.frame)
   self.infoMode="guild";self.infoMember=nil;self:EnsureGuildInfo();self.infoDrawer.scroll:SetVerticalScroll(0);self.room:LayoutHub();wm():RefreshRoomActions(self.room)
 end
 function G:ShowMemberCard(member)
@@ -128,7 +130,8 @@ function G:RefreshGuildInfo()
     value=safe(value,4096);if value~=""then lines[#lines+1]="|cffc0c7d0"..label.."|r\n"..value end
   end
   if self.infoMode=="member"then
-    p.title:SetText(person and safe(person.name) or "Member unavailable")
+    self:HideGuildDashboard();p.body:Show()
+    p.title:SetText(person and wm():FormatPersonName(safe(person.name),person) or "Member unavailable")
     wm():StylePersonDetail(theme(),p.detail,person)
     if person then
       section("Status",person.online and "Online" or "Offline")
@@ -136,21 +139,7 @@ function G:RefreshGuildInfo()
       if Core.db.profile.guildChat.publicNotes then section("Public note",person.note)end
     else section("Roster changed","This member is no longer in the current guild roster.")end
   else
-    local name,rank=GetGuildInfo("player");p.title:SetText("Guild info")
-    p.detail:SetText(tostring(self.onlineCount or 0).." online / "..tostring(self.totalCount or 0).." members");p.detail:SetTextColor(.65,.7,.76);p.detail:SetWordWrap(false);p.detail:SetJustifyH("LEFT");p.detail:Show()
-    section("Guild",name);section("Your rank",rank)
-    local motd=GetGuildRosterMOTD and GetGuildRosterMOTD() or C_GuildInfo and C_GuildInfo.GetMOTD and C_GuildInfo.GetMOTD()
-    section("Message of the day",motd)
-    local get=GetGuildInfoText or C_GuildInfo and C_GuildInfo.GetGuildInfoText
-    if get then local ok,value=pcall(get);if ok then section("Guild information",value)end end
-    if self.infoClassSource~=self.members then
-      local classes={};for _,member in ipairs(self.members or {})do if member.online and member.class~=""then classes[member.class]=(classes[member.class] or 0)+1 end end
-      local sorted={};for class,count in pairs(classes)do sorted[#sorted+1]={class=class,count=count}end
-      table.sort(sorted,function(a,b)if a.count~=b.count then return a.count>b.count end;return a.class<b.class end)
-      local summary={};for _,entry in ipairs(sorted)do summary[#summary+1]=entry.class.."  ·  "..entry.count end
-      self.infoClassSource,self.infoClassSummary=self.members,table.concat(summary,"\n")
-    end
-    section("Online by class",self.infoClassSummary)
+    self:RefreshGuildDashboard();return
   end
   p.back:SetShown(self.infoMode=="member")
   p.whisper:SetShown(self.infoMode=="member");p.invite:SetShown(self.infoMode=="member");p.favorite:SetShown(self.infoMode=="member")
@@ -163,10 +152,11 @@ function G:RefreshGuildInfo()
   wm():UpdateListScrollIndicator(p.scroll,p.child,true)
 end
 function G:LayoutGuildInfo(sidebar,top,height)
-  if not self.infoMode then if self.infoDrawer then self.infoDrawer:Hide()end;return 0,false end
+  if not self.infoMode then self.room.minimumContentHeight=nil;if self.infoDrawer then self.infoDrawer:Hide()end;return 0,false end
   self:EnsureGuildInfo()
   local p=self.infoDrawer;wm():StyleInsetPanel(p,self.room);local room=self.room.hub:GetWidth()-sidebar
-  local replace=room<520;local width=replace and room or 280
+  local replace=self.infoMode=="guild" or room<520;local width=replace and room or 280
+  p.insetRule:SetShown(not replace)
   local pad=theme():BodyPadding();local size=theme():InterfaceTextSize()
   p:ClearAllPoints();p:SetPoint("TOPRIGHT",self.room.hubContent,"TOPRIGHT",0,-top);p:SetSize(math.max(1,width),math.max(1,height-top));p:Show()
   p.close:ClearAllPoints();p.close:SetPoint("TOPRIGHT",-pad,-pad);p.close:SetSize(22,22)
@@ -175,7 +165,7 @@ function G:LayoutGuildInfo(sidebar,top,height)
   p.title:ClearAllPoints();p.title:SetPoint("TOPLEFT",titleLeft,-pad);p.title:SetPoint("TOPRIGHT",-pad-26,-pad);p.title:SetHeight(size+4);theme():WorkspaceFont(p.title,size)
   p.detail:ClearAllPoints();p.detail:SetPoint("TOPLEFT",pad,-pad-size-8);p.detail:SetPoint("TOPRIGHT",-pad,-pad-size-8);p.detail:SetHeight(size+3);wm():ApplyPersonDetailFont(theme(),p.detail)
   local footer=self.infoMode=="member" and 38 or pad
-  p.scroll:ClearAllPoints();p.scroll:SetPoint("TOPLEFT",pad,-pad-size*2-18);p.scroll:SetPoint("BOTTOMRIGHT",-pad,-footer)
+  p.viewport:ClearAllPoints();p.viewport:SetPoint("TOPLEFT",pad,-pad-size*2-18);p.viewport:SetPoint("BOTTOMRIGHT",-pad,footer)
   p.child:SetWidth(math.max(1,width-pad*2));p.body:ClearAllPoints();p.body:SetPoint("TOPLEFT");p.body:SetWidth(math.max(1,width-pad*2-wm():ScrollRightInset(0)))
   p.whisper:ClearAllPoints();p.whisper:SetPoint("BOTTOMLEFT",pad,pad);p.whisper:SetSize(math.max(1,(width-pad*2-34)/2),24)
   p.invite:ClearAllPoints();p.invite:SetPoint("LEFT",p.whisper,"RIGHT",4,0);p.invite:SetSize(math.max(1,(width-pad*2-34)/2),24)
@@ -183,6 +173,9 @@ function G:LayoutGuildInfo(sidebar,top,height)
   for _,button in ipairs({p.whisper,p.invite})do
     local label=button:GetFontString();theme():WorkspaceFont(label,size);label:ClearAllPoints();label:SetPoint("LEFT",3,0);label:SetPoint("RIGHT",-3,0);label:SetWordWrap(false)
   end
+  self:LayoutGuildDashboard(width,pad,size)
+  local minimum=self.room.minimumContentHeight
+  if minimum and height<minimum then self.room.hub:SetHeight(minimum);p:SetHeight(minimum-top) end
   self:RefreshGuildInfo()
   if p.scroll.UpdateScrollChildRect then p.scroll:UpdateScrollChildRect()end
   return replace and 0 or width,replace

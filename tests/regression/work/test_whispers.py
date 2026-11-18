@@ -52,6 +52,8 @@ function methods:SetAlpha(v) self.alpha=v end
 function methods:GetAlpha() return self.alpha end
 function methods:IsMouseOver() return self.hovered or false end
 function methods:GetFrameLevel() return 2 end
+function methods:SetFrameStrata(value)self.strata=value end
+function methods:GetFrameStrata()return self.strata or (self.parent and self.parent:GetFrameStrata()) or "MEDIUM" end
 function methods:GetEffectiveScale() return 1 end
 function methods:SetSize(w,h) local change=w~=self.width or h~=self.height;self.width,self.height=w,h;if change and self.scripts.OnSizeChanged then self.scripts.OnSizeChanged(self) end end
 function methods:SetWidth(w) self:SetSize(w,self:GetHeight()) end

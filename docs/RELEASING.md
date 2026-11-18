@@ -1,6 +1,6 @@
 # Releasing Sunder
 
-CurseForge project: **1798860** (approval/visibility last reported pending). Current alpha: **0.10.0-alpha.2**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
+CurseForge project: **1798860** (approval/visibility last reported pending). Prepared alpha: **0.10.0-alpha.3**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
 
 The user confirmed green CI, a draft GitHub release and a successful CurseForge upload on 2026-11-11. Do not upload 0.9.11 again. See [session context](CONTEXT.md) for remaining launch checks.
 
@@ -9,7 +9,7 @@ The user confirmed green CI, a draft GitHub release and a successful CurseForge 
 1. Create an empty GitHub repository, without an initial README/license/gitignore, to preserve this repository's history. Add its real URL as `origin`, push the existing branch, and make that branch the GitHub default. Set `githubRepository` in `release.json` to the actual `owner/repository`.
 2. Enable GitHub Issues. Point CurseForge's Source and Issues links to the repository and its `/issues` page. Local issue forms and the pull-request template become available after pushing the default branch.
 3. Create a GitHub Actions environment named `release`. Add a secret there named `CURSEFORGE_API_TOKEN`, using your CurseForge upload token. Never paste it into chat, commit it, or put it in command arguments. Optionally require a reviewer for this environment if your GitHub plan supports it.
-4. Confirm actual supported clients in-game. The tested target is WoW Forever 1.60.1. `gameVersionNames` in `release.json` records that selection. During upload, the workflow queries CurseForge’s live game-version list to resolve the selected names to IDs. It fails on missing or ambiguous names; it never silently selects a newer, untested patch. Numeric IDs remain an optional override. Inherited TOC numbers do not establish Retail/Classic compatibility.
+4. Confirm actual supported clients in-game. The tested target is WoW Forever 1.60.1. `gameVersionNames` in `release.json` records that selection. During upload, the workflow queries CurseForgeâ€™s live game-version list to resolve the selected names to IDs. It fails on missing or ambiguous names; it never silently selects a newer, untested patch. Numeric IDs remain an optional override. Inherited TOC numbers do not establish Retail/Classic compatibility.
 5. Keep CurseForge's separate repository/webhook auto-packaging disabled when using this workflow, so two systems cannot publish the same release.
 
 ## Track work

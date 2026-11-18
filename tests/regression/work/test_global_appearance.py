@@ -55,6 +55,30 @@ design.minimal.func();assert(not core.db.profile.chatTitleIcons and not core.db.
 design.refined.func();assert(core.db.profile.chatTitleIcons and core.db.profile.chatSelectionIndicator)
 assert(core.db.profile.messageFontSize==17 and core.db.profile.frameWidth==677 and core.db.profile.chatFadeOutDuration==123)
 ''')
+
+lua.execute("""
+local config=modules.Config;config.options=options
+local oldWidth,oldHeight=core.db.profile.windowMinWidth,core.db.profile.windowMinHeight
+core.db.profile.windowMinWidth,core.db.profile.windowMinHeight=520,300
+config:RefreshWindowSizeOptions()
+local found={}
+local function inspect(group)
+ for key,option in pairs(group.args or {})do
+  if option.type=="range"then
+   for _,bound in ipairs({"min","max","softMin","softMax","step"})do assert(option[bound]==nil or type(option[bound])=="number","AceConfig requires numeric range bounds: "..key.."."..bound)end
+   if key=="frameWidth" or key=="frameHeight"then found[key]=option end
+  elseif option.type=="group"then inspect(option)end
+ end
+end
+inspect(options)
+assert(found.frameWidth.min==520 and found.frameHeight.min==300)
+assert(found.frameWidth.softMin==520 and found.frameWidth.softMax>=520)
+assert(options.args.chat.args.appearance.args.headers.args.minimumWidth and options.args.chat.args.appearance.args.headers.args.minimumHeight)
+core.db.profile.windowMinWidth,core.db.profile.windowMinHeight=oldWidth,oldHeight
+config:RefreshWindowSizeOptions()
+""")
+print("Shared dimension settings passed: one exposed width/height pair and live numeric AceConfig bounds.")
+
 print('Global appearance schema passed: actual Chat/Whispers options moved once, saved values preserved, nested Chat sections, scope-safe resets and presentation presets preserve text/scrolling/geometry.')
 # Use the existing frame mock, then load actual ChatTab methods without initializing native handlers.
 exec(open('work/test_whispers.py',encoding='utf-8').read())

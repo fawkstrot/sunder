@@ -152,7 +152,7 @@ function MakeFrame(_, _, parent)
   return o
 end
 
-local parent = {GetFrameLevel = function() return 2 end}
+local parent = {GetFrameLevel = function() return 2 end, GetFrameStrata=function()return "MEDIUM"end}
 local testDock=MakeFrame("Frame",nil,parent)
 for k,v in pairs(Core.Components.DetachedChatDockMixin)do testDock[k]=v end
 testDock.UpdateMoverBounds=function()end
