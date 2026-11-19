@@ -1,6 +1,6 @@
-# Release preparation - 2026-11-19
+# Current release - 2026-11-19
 
-User authorized publishing the current development alpha to CurseForge. Preparing 0.10.0-alpha.4 for Forever 1.60.1; prior uploaded alpha.3 and its immutable tag remain unchanged. Scope includes the documented Fishing, typography, nameplate, window and keyboard/history fixes. GitHub stays a draft prerelease. Automated release validation and upload receipts follow below. Existing native-verification limits remain; no game control or new live verification is claimed.
+User authorized publishing the current development alpha to CurseForge. Alpha.4 was accepted as file 9703400 for Forever 1.60.1; prior uploaded alpha.3 and its immutable tag remain unchanged. Scope includes the documented Fishing, typography, nameplate, window and keyboard/history fixes. GitHub stays a draft prerelease. Automated release validation and upload receipts follow below. Existing native-verification limits remain; no game control or new live verification is claimed.
 
 # Current handoff — 2026-11-16
 
@@ -991,3 +991,7 @@ Replaced the removed MouseIsOver global with frame IsMouseOver, as used in the m
 Final validation: standard, final-source dry-run and deployment-time suites passed; whitespace check passed. Installed Forever files hash-verified, backup `20261119T042317280446Z`; SavedVariables untouched. Clean/manual-upgrade packages rebuilt at unchanged 0.10.0-alpha.3. No commit/publication or game control. Pending user safe /reload and ordinary gameplay, Page Up/Down, Ctrl+F and reload-history verification. Post-fix live behavior has not been observed.
 
 Alpha.4 preparation passed: full standard suite (13 behavior entry points, migration/workflow checks, eight release tests), whitespace and explicit Alpha release preparation. Both version manifests and in-game news updated; packages contain only production addon and optional metadata-only upgrade loader. Local installation remains the previous development preview with the same behavior fixes; release metadata has not been redeployed. Remote rehearsal/upload pending.
+
+2026-11-19: CurseForge accepted **0.10.0-alpha.4** as **Alpha** for WoW Forever **1.60.1**, file **9703400**, from tagged commit **3d5bf75**. [Rehearsal](https://github.com/fawkstrot/sunder/actions/runs/44581365008), both branch/tag CI runs and [upload](https://github.com/fawkstrot/sunder/actions/runs/44581574216) succeeded. Clean and upgrade draft assets match tagged source byte-for-byte. Clean ZIP SHA256: `0eb73977a0ec9413a2845cea207bac2c077db022c47e1976d0ed4900024766f8`. GitHub remains a draft prerelease; CurseForge public approval/visibility is unconfirmed. Do not upload this version again.
+
+Release completed without game input or SavedVariables changes. Installed local preview was not redeployed for the release metadata bump. Native checks listed in the alpha.4 notes remain pending. Release receipt documentation is a follow-up commit; the published tag remains immutable.

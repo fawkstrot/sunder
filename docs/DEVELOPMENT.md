@@ -525,3 +525,5 @@ Resize/alignment/minimums receipt: standard/dry-run/deployment suites passed, in
 Transcript keyboard tests run without the retired MouseIsOver global and use frame IsMouseOver. Ordinary gameplay keys propagate without transcript lookup; preserve paging, hidden-view, native fallback and editor focus coverage. Shutdown history saves tolerate unavailable settings without clearing retained history. Local General.log supplied actual repeated keyboard and reload-time history stacks. See CONTEXT.md for automated/deployment receipts; native gameplay verification remains separate.
 
 2026-11-19 alpha.4 release validation: full standard suite and Alpha package preparation passed, including keyboard/shutdown regressions. See CONTEXT.md and RELEASING.md for remote workflow receipts. Native observation remains separate from these automated checks.
+
+Alpha.4 remote validation completed: rehearsal, branch/tag CI and CurseForge upload passed. Both release ZIPs matched tagged source; CurseForge accepted file 9703400. See RELEASING.md for run links and checksum. GitHub remains draft.

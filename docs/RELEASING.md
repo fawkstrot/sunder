@@ -1,6 +1,6 @@
 # Releasing Sunder
 
-CurseForge project: **1798860** (public visibility not independently confirmed). Current uploaded alpha: **0.10.0-alpha.3**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
+CurseForge project: **1798860** (public visibility not independently confirmed). Current uploaded alpha: **0.10.0-alpha.4**. GitHub repository: `fawkstrot/sunder`. Upload credentials are stored in GitHub Actions secrets, never in this repository. Nothing publishes on a normal commit or push.
 
 The user confirmed green CI, a draft GitHub release and a successful CurseForge upload on 2026-11-11. Do not upload 0.9.11 again. See [session context](CONTEXT.md) for remaining launch checks.
 
@@ -53,3 +53,5 @@ API reference: [CurseForge Upload API](https://support.curseforge.com/support/so
 2026-11-18: CurseForge accepted **0.10.0-alpha.3** as **Alpha** for WoW Forever **1.60.1**, file **9688726**, from tagged commit **e1ad414**. [Rehearsal](https://github.com/fawkstrot/sunder/actions/runs/44370166249), both branch/tag CI runs and the [upload run](https://github.com/fawkstrot/sunder/actions/runs/44370305724) succeeded. Clean and upgrade draft assets were verified byte-for-byte against tagged source; clean ZIP SHA256: `05714be4a5d7a8cfaa1373e6856dc466335c4e37c28f36cb7c9637dd93aec0bb`. GitHub remains a draft prerelease. CurseForge acceptance does not independently establish public visibility. Do not upload this version again.
 
 2026-11-19: Preparing fresh **0.10.0-alpha.4** as Alpha for Forever **1.60.1**, authorized by the user. Local checks and curated release preparation passed. Rehearsal and upload receipts will be recorded after completion; alpha.3 remains immutable. GitHub stays a draft prerelease.
+
+2026-11-19: CurseForge accepted **0.10.0-alpha.4** as **Alpha** for WoW Forever **1.60.1**, file **9703400**, from tagged commit **3d5bf75**. [Rehearsal](https://github.com/fawkstrot/sunder/actions/runs/44581365008), both branch/tag CI runs and [upload](https://github.com/fawkstrot/sunder/actions/runs/44581574216) succeeded. Clean and upgrade draft assets match tagged source byte-for-byte. Clean ZIP SHA256: `0eb73977a0ec9413a2845cea207bac2c077db022c47e1976d0ed4900024766f8`. GitHub remains a draft prerelease; CurseForge public approval/visibility is unconfirmed. Do not upload this version again.
