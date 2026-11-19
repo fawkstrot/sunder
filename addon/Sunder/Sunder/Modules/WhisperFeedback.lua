@@ -13,7 +13,7 @@ function W:RefreshConversationNavigation(preview)
     nav.all:RegisterForClicks("LeftButtonUp")
     if not nav.restoreTooltip then
       nav.restoreTooltip=true
-      nav.all:HookScript("OnEnter",function() if self.minimized then GameTooltip:AddLine("Click to expand this window",1,1,1);GameTooltip:Show() end end)
+      nav.all:HookScript("OnEnter",function() if self.minimized then GameTooltip:AddLine("Click to expand this window",1,1,1);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show() end end)
     end
     nav.all:SetScript("OnClick",function()
       self.hubOpenedAt=GetTime();self.lastUserInteraction=GetTime()
@@ -231,7 +231,7 @@ function W:UpdateMinimizedWhispers()
         row:SetScript("OnClick",function() self:OpenMinimizedWhisper(row.entry) end)
         row:SetScript("OnEnter",function()
           GameTooltip:SetOwner(row,"ANCHOR_RIGHT");GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(row.entry and row.entry.name or "Whisper"),1,1,1)
-          GameTooltip:AddLine("Click to open this message. Mouse-wheel for older whispers.",.7,.75,.8);GameTooltip:Show()
+          GameTooltip:AddLine("Click to open this message. Mouse-wheel for older whispers.",.7,.75,.8);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
         end)
         row:SetScript("OnLeave",function() GameTooltip:Hide() end)
       end

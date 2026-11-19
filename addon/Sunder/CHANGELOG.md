@@ -1,5 +1,18 @@
 # Unreleased
 
+# 0.10.0-alpha.4 (2026-11-19)
+
+For WoW Forever 1.60.1.
+
+- Fixed repeated addon errors during normal key presses. Chat shortcuts now use supported mouse checks and ignore unrelated gameplay keys.
+- Fixed a room-history save error during reload shutdown.
+- Improved Combat Log resizing, shared window minimums and compact minimized room tabs, including centered labels when there are no unread messages.
+- Added optional Fishing Mode with a temporary cast/retrieve key, pole detection, fishing-only auto-loot and a Sunder Fish equipment-set macro with destination weapon artwork. Permanent keybindings stay unchanged; Better Fishing must be disabled before activating this mode.
+- Added cascading font controls for chat, supporting text, menus and bubbles, with optional Ellesmere inheritance and standalone fallbacks.
+- Added opt-in friendly nameplate preferences for names, health bars, colors and dungeon display, with restoration of owned native settings.
+
+Known alpha limits: only WoW Forever is targeted. Automated tests cover these changes; post-fix gameplay, native Fishing actions, typography/bubble appearance and dungeon nameplates still need in-game verification. Existing item-protection limits remain unchanged.
+
 # 0.10.0-alpha.3 (2026-11-18)
 
 For WoW Forever 1.60.1.

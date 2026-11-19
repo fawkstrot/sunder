@@ -58,7 +58,7 @@ function G:RenderRoster()
           button.cancelDoubleClick=nil;button.pressedMember=nil
           if mouse=="RightButton" and MenuUtil and MenuUtil.CreateContextMenu then
             local person=button.member
-            MenuUtil.CreateContextMenu(button,function(_,menu)
+            Core:GetModule("Fonts"):CreateContextMenu(button,function(_,menu)
               menu:CreateTitle(person.name)
               if not options.isolated then Core.Components.WindowManager:AddInspectAction(menu,person.name) end
               if person.online then menu:CreateButton("Open whisper",function()self:OpenWhisper(person)end)end
@@ -80,7 +80,7 @@ function G:RenderRoster()
           local status=person.status
           GameTooltip:AddLine(not person.online and "Offline" or (status==1 or status=="AFK") and "Away" or (status==2 or status=="DND") and "Do not disturb" or "Online",.7,.75,.8)
           GameTooltip:AddLine(person.online and "Click for details. Use the right-side star/pin to organize. Double-click to whisper." or "This member is currently offline.",.7,.75,.8,true)
-          GameTooltip:Show()
+          Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
         end)
         row:SetScript("OnLeave",function(button)button.accent:SetShown(button.selected);GameTooltip:Hide()end)
         row:SetScript("OnHide",function(button)button.pressedMember=nil;button.accent:Hide()end)
@@ -158,6 +158,7 @@ function G:EnsureRoom()
   local h=setmetatable({roomController=self,hostId=options.id,hubTabs={},hubOrder={},hubBorders={},minimized=false},{__index=function(_,key)local value=W[key];if type(value)=="function"then return value end end})
   self.room=h;h.isolatedRoom=options.isolated
   function h:WorkspaceName()return options.title(G)end
+  function h:HasExpandedPeopleList()return profile().rosterShown and (not options.hasRoster or options.hasRoster(G))end
   function h:HubSettings()return state().roomGeometry end
   function h:SingleRowHeader()return true end
   function h:IsConversationList()return false end
@@ -194,7 +195,7 @@ function G:EnsureRoom()
   end
   function h:WorkspaceMenu(owner)
     if not (MenuUtil and MenuUtil.CreateContextMenu)then return end
-    MenuUtil.CreateContextMenu(owner,function(_,menu)
+    Core:GetModule("Fonts"):CreateContextMenu(owner,function(_,menu)
       menu:CreateTitle(options.title(G))
       menu:CreateButton(self.minimized and "Restore window" or "Minimize window",function()self:SetMinimized(not self.minimized)end)
       menu:CreateButton(self.maximized and "Restore window size" or "Maximize window",function()G:ToggleMaximized()end)
@@ -235,7 +236,7 @@ function G:EnsureRoom()
   badge:SetScript("OnEnter",function()
     GameTooltip:SetOwner(badge,"ANCHOR_TOP");GameTooltip:AddLine(tostring(G.unread or 0).." unread messages",1,.8,.4)
     GameTooltip:AddLine(tostring(G.onlineCount or 0).." members online",.7,.75,.8)
-    GameTooltip:AddLine("Click to restore or mark read. No message toasters.",.7,.75,.8);GameTooltip:Show()
+    GameTooltip:AddLine("Click to restore or mark read. No message toasters.",.7,.75,.8);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   badge:SetScript("OnLeave",function()GameTooltip:Hide()end)
   self:UpdateUnread()
@@ -271,7 +272,7 @@ function G:LayoutRoomChrome()
   h.hubMark:ClearAllPoints();h.hubMark:SetPoint("LEFT",h.hubGrip,"RIGHT",pad,0);h.hubMark:SetSize(icon,icon)
   h.hubMark:SetShown(Core.db.profile.chatTitleIcons~=false)
   h.hubTitle:ClearAllPoints();h.hubTitle:SetPoint("LEFT",h.hubMark,"RIGHT",pad,0);h.hubTitle:SetPoint("RIGHT",h.hubChrome,"RIGHT",-right-pad,0)
-  h.minimumWorkspaceWidth=right+pad*4+18+icon+h:InterfaceTextSize()*5
+  h.minimumWorkspaceWidth=Core.Components.WindowManager:RoomHeaderMinimumWidth(h,right)
   h.hubTitle:SetHeight(math.max(1,height-pad));h.hubTitle:SetWordWrap(false);h:WorkspaceFont(h.hubTitle,h:InterfaceTextSize())
   h.hubRule:ClearAllPoints();h.hubRule:SetPoint("BOTTOMLEFT",h.hubChrome,"BOTTOMLEFT");h.hubRule:SetPoint("BOTTOMRIGHT",h.hubChrome,"BOTTOMRIGHT")
   h:PresentCollapsedHeader();h:ApplyHubAppearance();h.hubBackground:Show();h.hubHeaderFill:Show()
@@ -292,7 +293,7 @@ function G:CreatePanel(window)
     GameTooltip:SetOwner(owner,"ANCHOR_TOP");GameTooltip:AddLine(options.caption(G),1,1,1)
     local motd=options.subtitle(G)
     if motd~=""then GameTooltip:AddLine(motd:gsub("|","||"),.65,.7,.76,true)end
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   self.captionHelp:SetScript("OnLeave",function()GameTooltip:Hide()end)
   self.captionHelp:SetScript("OnClick",function()self:SelectInput()end)
@@ -303,7 +304,7 @@ function G:CreatePanel(window)
   self.toggle:HookScript("OnEnter",function()
     GameTooltip:AddLine((self.onlineCount or 0).." online",.7,.75,.8)
     if self.autoCompact then GameTooltip:AddLine("Enlarge the window to expand the roster.",.7,.75,.8,true)end
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   self.guildLabel=panel:CreateFontString(nil,"OVERLAY","SunderChatDockFont")
   self.countLabel=panel:CreateFontString(nil,"OVERLAY","SunderChatDockFont")
@@ -318,7 +319,7 @@ function G:CreatePanel(window)
   self.search:SetScript("OnHide",function(box)box:ClearFocus()end)
   self.search:SetScript("OnEnter",function(box)
     GameTooltip:SetOwner(box,"ANCHOR_LEFT");GameTooltip:AddLine("Find a member",1,1,1)
-    GameTooltip:AddLine("Search member details. Escape clears the search.",.7,.75,.8,true);GameTooltip:Show()
+    GameTooltip:AddLine("Search member details. Escape clears the search.",.7,.75,.8,true);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   self.search:SetScript("OnLeave",function()GameTooltip:Hide()end)
   self.searchIcon=self.search:CreateTexture(nil,"ARTWORK");self.searchIcon:SetTexture("Interface\\AddOns\\Sunder\\Media\\Icons\\search.tga");self.searchIcon:SetSize(11,11);self.searchIcon:SetPoint("RIGHT",-5,0);self.searchIcon:SetVertexColor(.6,.65,.7)
@@ -339,7 +340,7 @@ function G:CreatePanel(window)
     GameTooltip:AddLine((self.onlineCount or 0).." online · "..(self.totalCount or 0).." members in roster",.7,.75,.8)
     local motd=options.subtitle(G)
     if motd~="" then GameTooltip:AddLine(motd:gsub("|","||"),.65,.68,.73,true)end
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   panel:SetScript("OnLeave",function()GameTooltip:Hide()end)
   panel:SetScript("OnShow",function()self:ScheduleRoster(true)end)
@@ -458,7 +459,10 @@ function G:LayoutWindow(window)
   return true
 end
 function G:SaveHistory(allowPartial)
-  if self.restoringHistory and not allowPartial or not profile().remember or not self.frame or self.currentGuild~=options.scope(G) then return end
+  if not Core.db or not Core.db.profile or not Core.db.char then return end
+  local settings=profile()
+  if not settings then return end
+  if self.restoringHistory and not allowPartial or not settings.remember or not self.frame or self.currentGuild~=options.scope(G) then return end
   local frame=self.frame;local lines={};local bytes=0
   if not frame.GetNumMessages or not frame.GetMessageInfo then return end
   local count=frame:GetNumMessages()

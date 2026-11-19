@@ -183,7 +183,12 @@ function DetachedChatDockMixin:CreateMoverOverlay(parent)
       Core.Components.WindowManager:ApplyNativeWindowMinimums(frame)
       return frame, frame:GetWidth(), frame:GetHeight()+Constants.DOCK_HEIGHT
     end,
-    apply = function (width, height) self.tab.chatFrame:SetSize(width, height-Constants.DOCK_HEIGHT) end,
+    apply = function (width, height)
+      local native=self.tab.chatFrame
+      native:SetSize(width,height-Constants.DOCK_HEIGHT)
+      local ui=Core:GetModule("UIManager")
+      ui:RefreshDetachedLayoutSize(ui:GetChatWindow(native),native:GetWidth(),native:GetHeight()+Constants.DOCK_HEIGHT)
+    end,
     finish = function ()
       local frame = self.tab and self.tab.chatFrame
       if frame and not frame.isDocked and not frame.isTemporary and FCF_SavePositionAndDimensions then

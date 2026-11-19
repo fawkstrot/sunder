@@ -50,7 +50,7 @@ function G:LayoutRosterFilters(top,width)
       b.indicator=b:CreateTexture(nil,"OVERLAY");b.indicator:SetPoint("BOTTOMLEFT",3,0);b.indicator:SetPoint("BOTTOMRIGHT",-3,0);b.indicator:SetHeight(1)
       b.icon=b:CreateTexture(nil,"ARTWORK");b.icon:SetTexture("Interface\\AddOns\\Sunder\\Media\\Icons\\favorite.tga");b.icon:SetSize(12,12);b.icon:SetPoint("CENTER");b.icon:SetShown(key=="favorites")
       local function style()wm():StyleFilterButton(b,(self.rosterFilter or "all")==key,b.hovered,theme():InterfaceAccent())end
-      b:SetScript("OnEnter",function()b.hovered=true;style();GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(key=="favorites" and "Favorite members" or label,1,1,1);GameTooltip:AddLine(tip,.7,.75,.8,true);GameTooltip:Show()end)
+      b:SetScript("OnEnter",function()b.hovered=true;style();GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(key=="favorites" and "Favorite members" or label,1,1,1);GameTooltip:AddLine(tip,.7,.75,.8,true);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()end)
       b:SetScript("OnLeave",function()b.hovered=nil;style();GameTooltip:Hide()end)
       b:SetScript("OnClick",function()self:SetRosterFilter(key)end)
     end

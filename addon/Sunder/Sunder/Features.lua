@@ -20,7 +20,7 @@ function Core:BuildOptions()
         intro = {name = "Sunder", type = "header", order = 1},
         emblem = {type="description",name="",order=0,image="Interface\\AddOns\\Sunder\\Media\\Brand\\SunderSettings",imageWidth=96,imageHeight=96},
         welcome = {type = "description", order = 2, fontSize = "medium",
-          name = "Chat brings together chat windows, Whispers and their shared appearance. Item Protection keeps your selected bag items locked. Choose a section below to get started."},
+          name = "Chat brings together chat windows, Whispers and their shared appearance. Item Protection keeps your selected bag items locked. Fishing provides a temporary cast/interact key and fishing auto-loot. Choose a section below to get started."},
         minimap = {name = "Show minimap button", type = "toggle", order = 5,
           get = function () return not Core.db.global.minimap.hide end,
           set = function (_, value) Core:GetModule("Minimap"):SetHidden(not value) end},

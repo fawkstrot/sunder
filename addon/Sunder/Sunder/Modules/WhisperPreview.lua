@@ -306,7 +306,7 @@ function W:ConfigurePreviewTab(tab, c, index)
   tab:SetScript("OnEnter", function ()
     GameTooltip:SetOwner(tab, "ANCHOR_TOPLEFT"); GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(c.name,c), 1, 1, 1)
     GameTooltip:AddLine("Right-click: conversation actions  •  Drag: move to another group", 0.75, 0.75, 0.75)
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   tab:SetScript("OnLeave", function () GameTooltip:Hide() end)
   tab:SetScript("OnMouseDown",function(button,mouse)
@@ -400,7 +400,7 @@ end
 
 function W:PreviewConversationMenu(owner, c)
   if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-  MenuUtil.CreateContextMenu(owner, function (_, menu)
+  Core:GetModule("Fonts"):CreateContextMenu(owner, function (_, menu)
     menu:CreateTitle(c and c.name or "Sample conversations")
     if c then
       menu:CreateButton(c.favorite and "Unfavorite person" or "Favorite person", function () self:PreviewAction("Favorite", c) end)
@@ -520,7 +520,7 @@ function W:EnsureSimulationStatus()
     GameTooltip:AddLine("Quiet periods exercise the temporary 12-second fade timeout.", .7,.75,.8)
     GameTooltip:AddLine("Try minimizing, pinning, favoriting or detaching. Later messages follow that person.", .7,.75,.8)
     GameTooltip:AddLine("Automatically clears at 0:00. Nothing from the test is saved.", .7,.75,.8)
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   bar:SetScript("OnLeave", function () GameTooltip:Hide() end)
 end

@@ -1,7 +1,7 @@
 ## Title: Sunder
 ## Plain Title: Sunder
 ## Author: Sunder contributors; based on Glassy by Solessfir and Glass by mixxorz
-## Version: 0.10.0-alpha.3
+## Version: 0.10.0-alpha.4
 ## X-Curse-Project-ID: 1798860
 ## Notes: Modular messaging and quality-of-life tools. Sunder Chat, Whispers, item protection, and optional Ellesmere integration.
 ## IconTexture: Interface\AddOns\Sunder\Media\Brand\SunderIcon
@@ -127,5 +127,8 @@ Sunder\Modules\PartyHistory.lua
 Sunder\Modules\ChatPractice.lua
 
 Sunder\Modules\ItemProtection.lua
+Sunder\Modules\Fishing.lua
+Sunder\Modules\FishingMacro.lua
+Sunder\Modules\Nameplates.lua
 
 Sunder\Modules\EllesmereEditMode.lua

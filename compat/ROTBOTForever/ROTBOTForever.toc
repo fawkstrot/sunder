@@ -2,7 +2,7 @@
 ## Title: Sunder legacy data loader
 ## Notes: Loads existing ROTBOT Forever settings for Sunder migration. Contains no addon code. Keep enabled for the first Sunder login and logout.
 ## Author: Sunder contributors
-## Version: 0.10.0-alpha.3
+## Version: 0.10.0-alpha.4
 ## SavedVariables: ROTBOTForeverDB
 ## IconTexture: Interface\AddOns\Sunder\Media\Brand\SunderIcon
 

@@ -18,6 +18,9 @@ function Manager:RosterExpandedHeight(host)
   local size=host:InterfaceTextSize()
   return host:HeaderHeight()+self:HeaderGap()+size*4+self:BodyPadding()*5+30
 end
+function Manager:RoomHeaderMinimumWidth(host, actions)
+  return actions+host:HeaderPadding()*4+18+host:ToolbarIconSize()+host:InterfaceTextSize()*5
+end
 function Manager:MinimumWindowSize(host)
   local p=Core.db.profile
   local size=math.max(tonumber(p.messageFontSize) or 13,tonumber(p.tabFontSize) or 13)
@@ -27,7 +30,9 @@ function Manager:MinimumWindowSize(host)
   if host then
     width=math.max(width,host.minimumWorkspaceWidth or 0)
     height=math.max(height,host.minimumContentHeight or 0)
-    if host.roomController then height=math.max(height,self:RosterExpandedHeight(host)) end
+    local people=host.HasExpandedPeopleList and host:HasExpandedPeopleList()
+      or not host.HasExpandedPeopleList and host.IsConversationList and host:IsConversationList()
+    if people then height=math.max(height,self:RosterExpandedHeight(host)) end
   end
   return width,height
 end
@@ -281,11 +286,11 @@ function Manager:CreateGrip(parent,start,stop)
   self:BindDrag(grip,start,stop)
   grip:SetScript("OnMouseDown",function(_,button)if button=="LeftButton"then start()end end)
   grip:SetScript("OnMouseUp",stop)
-  grip:SetScript("OnEnter",function()GameTooltip:SetOwner(grip,"ANCHOR_TOP");GameTooltip:AddLine("Drag to move this window",1,1,1);GameTooltip:Show()end)
+  grip:SetScript("OnEnter",function()GameTooltip:SetOwner(grip,"ANCHOR_TOP");GameTooltip:AddLine("Drag to move this window",1,1,1);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()end)
   grip:SetScript("OnLeave",function()GameTooltip:Hide()end)
   return grip
 end
-function Manager:UpdateUnreadBadge(label,count,size)
+function Manager:UpdateUnreadBadge(label,count,size,compact)
   count=math.max(0,tonumber(count)or 0)
   if not label.unreadPlate then
     label.unreadPlate=label:GetParent():CreateTexture(nil,"BACKGROUND")
@@ -293,7 +298,12 @@ function Manager:UpdateUnreadBadge(label,count,size)
     label.unreadPlate:SetColorTexture(.24,.12,.025,.85)
   end
   label:SetText(count>0 and (count>99 and "99+" or tostring(count))or "")
-  label:SetWidth(math.max(18,(size or 12)*2.2));label:SetHeight((size or 12)+4);label:SetJustifyH("CENTER")
+  local width=math.max(18,(size or 12)*2.2)
+  if compact and count>0 then
+    local measured=label.GetUnboundedStringWidth and label:GetUnboundedStringWidth() or label:GetStringWidth()
+    width=math.max(size or 12,math.ceil(measured))
+  end
+  label:SetWidth(width);label:SetHeight((size or 12)+4);label:SetJustifyH("CENTER")
   label:SetShown(count>0);label.unreadPlate:SetShown(count>0)
 end
 function Manager:RefreshAction(button)
@@ -324,7 +334,7 @@ function Manager:CreateAction(parent,key,tooltip,action,style)
   icon:SetSize(19,19);icon:SetPoint("CENTER");icon:SetTexture(ICONS..key..".tga");icon:SetVertexColor(.74,.8,.88)
   b:SetHighlightTexture("Interface\\Buttons\\WHITE8X8");b:GetHighlightTexture():SetVertexColor(.84,.66,.38,.08)
   function b:ShowActionTooltip()
-    GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(type(tooltip)=="function" and tooltip() or tooltip,1,1,1);GameTooltip:Show()
+    GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(type(tooltip)=="function" and tooltip() or tooltip,1,1,1);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end
   b:SetScript("OnEnter",function()b.hovered=true;self:RefreshAction(b);b:ShowActionTooltip()end)
   b:SetScript("OnLeave",function()b.hovered=nil;self:RefreshAction(b);GameTooltip:Hide()end)
@@ -622,9 +632,9 @@ function Manager:CollapseToward(host,edge)
   if host.minimized then host:SetMinimized(false);return end
   host:HubSettings().minimizeEdge=edge;host:SetMinimized(true)
 end
-function Manager:MaximizedSize(minWidth)
+function Manager:MaximizedSize(minWidth,minHeight)
   local width,height=self:MinimumWindowSize()
-  return math.max(width,minWidth or 0,math.min(1100,UIParent:GetWidth()-32)), math.max(height,math.min(720,UIParent:GetHeight()-64))
+  return math.max(width,minWidth or 0,math.min(1100,UIParent:GetWidth()-32)), math.max(height,minHeight or 0,math.min(720,UIParent:GetHeight()-64))
 end
 function Manager:ToggleMaximized(host,storage)
   if not self:CanMove(host:HubSettings())then return end
@@ -900,7 +910,7 @@ function Manager:CreateTextAction(parent,label,callback)
   local text=b:GetFontString();text:ClearAllPoints();text:SetPoint("LEFT",3,0);text:SetPoint("RIGHT",-3,0);text:SetWordWrap(false)
   local plate=b:CreateTexture(nil,"BACKGROUND");plate:SetAllPoints();plate:SetColorTexture(1,1,1,.04)
   b:SetHighlightTexture("Interface\\Buttons\\WHITE8X8");b:GetHighlightTexture():SetVertexColor(1,1,1,.06)
-  b:SetScript("OnEnter",function()GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(label,1,1,1);GameTooltip:Show()end)
+  b:SetScript("OnEnter",function()GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(label,1,1,1);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()end)
   b:SetScript("OnLeave",function()GameTooltip:Hide()end)
   b:SetScript("OnEnable",function()b:SetAlpha(1)end);b:SetScript("OnDisable",function()b:SetAlpha(.35)end)
   b:SetScript("OnClick",callback)
@@ -1051,7 +1061,8 @@ end
 -- Minimized rooms remain live receivers. This strip owns presentation only;
 -- each host retains its existing geometry, history, editor and unread policy.
 Manager.MINIMIZED_TAB_HEIGHT=26
-Manager.MINIMIZED_TAB_WIDTH=180
+Manager.MINIMIZED_TAB_MIN_WIDTH=48
+Manager.MINIMIZED_TAB_GAP=2
 Manager.MINIMIZED_TAB_PADDING=7
 function Manager:RemoveMinimizedTab(host)
   if self.pendingTabStates then self.pendingTabStates[host]=nil end
@@ -1109,14 +1120,13 @@ function Manager:RefreshMinimizedTabs()
     root:HookScript("OnSizeChanged",function()self:RefreshMinimizedTabs()end)
     root:HookScript("OnHide",function()strip:Hide()end)
     root:HookScript("OnShow",function()self:RefreshMinimizedTabs()end)
+    Core:Subscribe(Constants.EVENTS.UPDATE_CONFIG,function(key)
+      if key=="font" or key=="tabFontSize" then self:RefreshMinimizedTabs()end
+    end)
   end
   local available=math.max(1,root:GetWidth());local size=Core:GetModule("Whispers"):InterfaceTextSize()
   local height=math.max(self.MINIMIZED_TAB_HEIGHT,size+12)
-  local columns=math.max(1,math.floor(available/self.MINIMIZED_TAB_WIDTH))
-  columns=math.min(columns,#hosts);local width=available/columns
-  local stripHeight=math.ceil(#hosts/columns)*height
-  if strip.layoutHeight~=stripHeight then strip.layoutHeight=stripHeight;strip:SetHeight(stripHeight)end
-  if root:IsShown() and not strip:IsShown()then strip:Show()end
+  local x,y=0,0
   local W=Core:GetModule("Whispers")
   for index,host in ipairs(hosts)do
     local button=host.minimizedTab
@@ -1129,8 +1139,9 @@ function Manager:RefreshMinimizedTabs()
       button:SetScript("OnClick",function()self:SetTabMinimized(host,false)end)
       button:SetScript("OnEnter",function()
         GameTooltip:SetOwner(button,"ANCHOR_TOP");GameTooltip:AddLine(host:WorkspaceName(),1,1,1)
+        if host.hostId=="guild" and host.roomController then GameTooltip:AddLine(tostring(host.roomController.onlineCount or 0).." members online",.75,.8,.85)end
         if (button.unreadCount or 0)>0 then GameTooltip:AddLine(button.unreadCount.." unread messages",1,.8,.4)end
-        GameTooltip:AddLine("Restore window",.75,.8,.85);GameTooltip:Show()
+        GameTooltip:AddLine("Restore window",.75,.8,.85);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
       end)
       button:SetScript("OnLeave",function()GameTooltip:Hide()end)
       button:SetScript("OnHide",function()GameTooltip:Hide()end)
@@ -1138,19 +1149,34 @@ function Manager:RefreshMinimizedTabs()
     local controller=host.roomController;local unread=controller and controller.unread or 0
     if not controller then for _,frame in ipairs(host.hubOrder or {})do unread=unread+(W.records[frame] and W.records[frame].unread or 0)end end
     local label=host:WorkspaceName()
-    if host.hostId=="guild" then label=label.." · "..tostring(controller.onlineCount or 0).." online"end
+    if host.hostId=="guild" and label=="Guild Chat" then label="Guild" end
+    if host.hostId=="party" then
+      if label=="Party Chat" then label="Party" elseif label=="Raid Chat" then label="Raid" end
+    end
+    if host.hostId=="guild" then label=label.." · "..tostring(controller.onlineCount or 0)end
+    -- Measure the current font, not a fixed column or the previous constrained width.
+    button:SetText(label);button.unreadCount=unread;host:WorkspaceFont(button.badge,size);self:UpdateUnreadBadge(button.badge,unread,size,true)
+    local font=button:GetFontString();host:WorkspaceFont(font,size)
+    font:SetWordWrap(false)
+    local measured=font.GetUnboundedStringWidth and font:GetUnboundedStringWidth() or font:GetStringWidth()
+    local pad=self.MINIMIZED_TAB_PADDING
+    local reserve=unread>0 and button.badge:GetWidth()+pad or 0
+    local width=math.min(available,math.max(self.MINIMIZED_TAB_MIN_WIDTH,math.ceil(measured)+pad*2+reserve))
+    if x>0 and x+width>available then x=0;y=y+height end
     local r,g,b=host:InterfaceAccent()
-    local stamp=table.concat({label,unread,index,width,height,size,r,g,b},":")
+    local stamp=table.concat({label,unread,index,x,y,width,height,size,r,g,b},":")
     if button.layoutStamp~=stamp then
-      button.layoutStamp=stamp;button:ClearAllPoints();button:SetPoint("TOPLEFT",(index-1)%columns*width,-math.floor((index-1)/columns)*height);button:SetSize(width-2,height-2)
-      button:SetText(label);button.unreadCount=unread;self:UpdateUnreadBadge(button.badge,unread,size)
-      local pad=self.MINIMIZED_TAB_PADDING
-      local font=button:GetFontString();host:WorkspaceFont(font,size);font:ClearAllPoints();font:SetPoint("LEFT",pad,0);font:SetPoint("RIGHT",-(unread>0 and button.badge:GetWidth()+pad*2 or pad),0);font:SetWordWrap(false);font:SetJustifyH("LEFT")
+      button.layoutStamp=stamp;button:ClearAllPoints();button:SetPoint("TOPLEFT",x,-y);button:SetSize(width,height-2)
+      font:ClearAllPoints();font:SetPoint("LEFT",pad,0);font:SetPoint("RIGHT",-(unread>0 and button.badge:GetWidth()+pad*2 or pad),0);font:SetWordWrap(false);font:SetJustifyH(unread>0 and "LEFT" or "CENTER")
       self:StyleFilterButton(button,unread>0,false,host:InterfaceAccent())
       button.plate:SetColorTexture(.04,.05,.045,.94)
     end
     if not button:IsShown()then button:Show()end
+    x=x+width+self.MINIMIZED_TAB_GAP
   end
+  local stripHeight=y+height
+  if strip.layoutHeight~=stripHeight then strip.layoutHeight=stripHeight;strip:SetHeight(stripHeight)end
+  if root:IsShown() and not strip:IsShown()then strip:Show()end
 end
 function Manager:MinimizedToastAnchor(host)
   if host.tabMinimized and self.minimizedStrip then return self.minimizedStrip end
@@ -1162,7 +1188,7 @@ end
 function Manager:KeyboardTranscript(fallback)
   local target
   for candidate in pairs(self.keyboardViews or {})do
-    if candidate:IsVisible() and MouseIsOver(candidate) and (not target or candidate:GetFrameLevel()>target:GetFrameLevel())then target=candidate end
+    if candidate:IsVisible() and candidate:IsMouseOver() and (not target or candidate:GetFrameLevel()>target:GetFrameLevel())then target=candidate end
   end
   target=target or (self.keyboardTranscript and self.keyboardTranscript:IsVisible() and self.keyboardTranscript) or fallback
   if not target then
@@ -1189,6 +1215,7 @@ function Manager:RegisterTranscriptKeys(view,page)
   driver:SetScript("OnKeyDown",function(frame,key)
     frame:SetPropagateKeyboardInput(true)
     if InCombatLockdown() or GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus() then return end
+    if key~="PAGEUP" and key~="PAGEDOWN" and not (key=="F" and IsControlKeyDown()) then return end
     local target=self:KeyboardTranscript()
     if not target then return end
     if key=="PAGEUP" or key=="PAGEDOWN" then

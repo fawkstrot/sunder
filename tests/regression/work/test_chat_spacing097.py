@@ -607,10 +607,15 @@ local pages=0;wm:RegisterTranscriptKeys(view,function(direction)pages=pages+dire
 local driver=wm.keyboardDriver
 function driver:SetPropagateKeyboardInput(value)self.propagates=value end
 local oldMouse,oldFocus,oldCombat=MouseIsOver,GetCurrentKeyBoardFocus,InCombatLockdown
-MouseIsOver=function(candidate)return candidate==view end
+MouseIsOver=nil -- Removed native global must not be required.
+function view:IsMouseOver()return true end
 InCombatLockdown=function()return false end
 GetCurrentKeyBoardFocus=function()return nil end
 local key=driver:GetScript("OnKeyDown")
+local oldRouter=wm.KeyboardTranscript
+wm.KeyboardTranscript=function()error("ordinary key entered transcript routing")end
+key(driver,"W");assert(driver.propagates,"movement key was swallowed")
+wm.KeyboardTranscript=oldRouter
 key(driver,"PAGEUP");assert(pages==-1 and not driver.propagates)
 key(driver,"PAGEDOWN");assert(pages==0 and not driver.propagates)
 GetCurrentKeyBoardFocus=function()return {}end
@@ -619,7 +624,7 @@ GetCurrentKeyBoardFocus=function()return nil end;view:Hide()
 key(driver,"PAGEUP");assert(pages==0,"hidden transcript retained keys")
 local oldGet=Core.GetModule;wm.keyboardTranscript=nil
 function Core:GetModule(name,...)if name=="UIManager"then return {GetSlidingMessageFrame=function()return view end}end;return oldGet(self,name,...)end
-MouseIsOver=function()return false end;view:Show()
+view.IsMouseOver=function()return false end;view:Show()
 key(driver,"PAGEUP");assert(pages==-1 and not driver.propagates,"native selected chat was not used without hover")
 Core.GetModule=oldGet
 MouseIsOver,GetCurrentKeyBoardFocus,InCombatLockdown=oldMouse,oldFocus,oldCombat
@@ -870,7 +875,10 @@ overlay:SetFrameStrata("DIALOG")
 local settings={}
 local self={tab={chatFrame=f.native},StopWindowDrag=function()end,WindowSettings=function()return settings end}
 function f.native:IsProtected()return false end
-f.native:HookScript("OnSizeChanged",function(frame)parent:SetSize(frame:GetWidth(),frame:GetHeight()+Constants.DOCK_HEIGHT)end)
+-- Resolve anchored geometry without synthesizing an OnSizeChanged on the shell.
+-- This reproduces the missing notification that the old callback-only path relied on.
+function parent:GetWidth()return f.native:GetWidth()end
+function parent:GetHeight()return f.native:GetHeight()+Constants.DOCK_HEIGHT end
 ''' + resize_callbacks + '''
 f.adapter:RefreshLayoutGeometry()
 for _,handle in ipairs({self.roomResize,self.resizeHandle})do
@@ -880,7 +888,17 @@ for _,handle in ipairs({self.roomResize,self.resizeHandle})do
  assert(handle.resizeState and handle:GetScript("OnUpdate"),"native host resize never starts")
  cursorX,cursorY=160,60;handle:GetScript("OnUpdate")(handle)
  assert(f.native:GetWidth()==width+60 and f.native:GetHeight()==height+40,"held native size did not change")
- assert(f.adapter:GetWidth()==parent:GetWidth(),"viewport lagged held resize")
+ assert(f.adapter:GetWidth()==parent:GetWidth(),"viewport lagged held resize without a shell notification")
+ local pad=Core.Components.WindowManager:BodyPadding()
+ assert(f.adapter.viewport:GetWidth()==parent:GetWidth()-pad-Core.Components.WindowManager:ScrollRightInset(pad),"clipped display width lagged resize")
+ local railHeight=f.adapter.scrollRail:GetHeight();f.adapter:UpdateScrollRail()
+ assert(f.adapter.scrollRail:GetHeight()==railHeight and railHeight>0 and railHeight<=f.adapter:GetHeight()-8,"rail needed a later refresh after held resize")
+ assert(f.adapter.scrollRail.points.TOPRIGHT.relative==f.adapter,"rail lost its resized content anchor")
+ local offset=f.native:GetScrollOffset();f.native:Display();assert(f.native:GetScrollOffset()==offset,"resize lost native readback")
+ local layoutWidth=f.adapter.layoutWidth;f.native.isDocked=true
+ Core:GetModule("UIManager"):RefreshDetachedLayoutSize(Core:GetModule("UIManager"):GetChatWindow(f.native),123,123)
+ assert(f.adapter.layoutWidth==layoutWidth,"stale detached notification resized a docked renderer")
+ f.native.isDocked=false
  assert(self.roomResize:GetFrameLevel()>f.native.FontStringContainer:GetFrameLevel())
  handle:GetScript("OnMouseUp")(handle,"LeftButton")
  assert(not handle.resizeState and not handle:GetScript("OnUpdate"))

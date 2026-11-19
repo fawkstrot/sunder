@@ -43,6 +43,7 @@ A clean install uses the `Sunder/` folder from the normal release ZIP. Existing 
 - `/sunder whispers`, `/sunder appearance`, `/sunder items`: feature settings.
 - `/sunder messages`: open Whispers; `/sunder favorites`: its Favorites filter.
 - `/sunder guild`: open Guild Chat; `/sunder party` or `/sunder raid`: open the shared group room.
+- `/sunder fish`: toggle Fishing Mode; `/sunder fish options`: key, pole detection and fishing auto-loot settings (alpha).
 - `/sunder lock`: standalone layout editing; Ellesmere Edit UI is also supported.
 - Previous slash commands and saved item-lock bindings remain compatible.
 
@@ -52,4 +53,8 @@ See [migration](docs/MIGRATION.md), [releases](docs/RELEASING.md), and [CurseFor
 
 MIT; retain bundled notices. Chat began as Glassy/Glass. Original contributors and library licenses are preserved in the addon. See [LICENSE](LICENSE) and `addon/Sunder/UPSTREAM_README.md`.
 
-Feature guides: [window management](docs/WINDOW_MANAGEMENT.md), [Whispers history](docs/WHISPER_HISTORY.md), [Guild Chat](docs/GUILD_CHAT.md), [Party/Raid Chat](docs/PARTY_CHAT.md), and [item protection](docs/ITEM_PROTECTION.md).
+Feature guides: [window management](docs/WINDOW_MANAGEMENT.md), [Whispers history](docs/WHISPER_HISTORY.md), [Guild Chat](docs/GUILD_CHAT.md), [Party/Raid Chat](docs/PARTY_CHAT.md), [item protection](docs/ITEM_PROTECTION.md), and [Fishing](docs/FISHING.md).
+
+Font inheritance, menu typography and native/Ellesmere bubble controls: [Typography guide](docs/TYPOGRAPHY.md).
+
+Friendly player visibility: [Nameplates](docs/NAMEPLATES.md) offers opt-in native names/health bars, class colors and dungeon preferences through `/sunder nameplates`.

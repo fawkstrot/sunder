@@ -36,7 +36,7 @@ local function showRecipeMenu(recipeID, text)
     return false
   end
   local name = type(text) == "string" and text:match("%[(.-)%]") or nil
-  MenuUtil.CreateContextMenu(nil, function (_, rootDescription)
+  Core:GetModule("Fonts"):CreateContextMenu(nil, function (_, rootDescription)
     if name then rootDescription:CreateTitle(name) end
     local tracked = TradeSkill.IsRecipeTracked(recipeID, false)
     rootDescription:CreateButton(L(tracked and "Untrack Recipe" or "Track Recipe"), function ()
@@ -65,6 +65,7 @@ function Hyperlinks:ModifyLinkMenus()
   local whisperWindowText = _G.MOVE_TO_WHISPER_WINDOW
   local function redirectUnitMenu(_, rootDescription, contextData)
     if not self.handlingClick or not contextData then return end
+    Core:GetModule("Fonts"):StyleMenu(rootDescription)
     local name = contextData.name
     -- Battle.net names arrive as protected |K strings that only Blizzard's copy can resolve.
     local copyable = (not _G.canaccessvalue or _G.canaccessvalue(name)) and type(name) == "string"
@@ -171,7 +172,7 @@ function Hyperlinks:OnEnable()
         ShowUIPanel(GameTooltip)
         GameTooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
         GameTooltip:SetHyperlink(link)
-        GameTooltip:Show()
+        Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
       end
     end
   end)

@@ -103,7 +103,11 @@ config={Print=function(_,text) printMessage=text end}
 eui={SkinWindow=function() end,IsActive=function() return false end,GetAccentColor=function() end}
 Core={defaults={profile={}},Components={},features={},Libs={LSM={HashTable=function() return {} end,
 Fetch=function(_,_,name) return name end}}, db={profile={editBoxAnchor={position="BELOW",yOfs=-2}},char={},global={}}}
-function Core:GetModule(name) return ({Whispers=W,UIManager=ui,Config=config,Ellesmere=eui})[name] end
+fontAdapter={ResolvePath=function(_,_,selected) return selected and selected~="INHERIT" and selected or "Fonts/FRIZQT__.TTF" end,
+ ApplyLabel=function(_,label,size)label:SetFont("Fonts/FRIZQT__.TTF",size,"")end,
+ StyleMenu=function()end,StyleTree=function()end,StyleTooltip=function()end,
+ CreateContextMenu=function(_,...) return MenuUtil.CreateContextMenu(...) end}
+function Core:GetModule(name) return ({Whispers=W,UIManager=ui,Config=config,Ellesmere=eui,Fonts=fontAdapter})[name] end
 callbacks={}
 function Core.db.RegisterCallback(_,event,fn) callbacks[event]=fn end
 function Core:RegisterFeature(id,spec) self.features[id]=spec end

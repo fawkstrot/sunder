@@ -163,7 +163,7 @@ local function makeLabel(parent, size)
   local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   local path, _, flags = label:GetFont()
   if path then label:SetFont(path, size, flags) end
-  if Ellesmere.skin and Ellesmere.skin.Font then pcall(Ellesmere.skin.Font, label) end
+  Core:GetModule("Fonts"):ApplyLabel(label, size)
   label:SetJustifyH("LEFT")
   label:SetWordWrap(true)
   return label
@@ -449,6 +449,7 @@ local function renderOption(self, ctx, chain, path)
     return
   end
 
+  if not ctx.prebuild then Core:GetModule("Fonts"):StyleTree(frame) end
   ctx.y = ctx.y - (height or 0)
   dim(ctx, frame, disabled)
 end

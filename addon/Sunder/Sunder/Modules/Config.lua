@@ -450,7 +450,9 @@ end
 function C:OnSlashCommand(input)
   input = input or ""
 
-  if input == "items" then
+  if input == "fish" or input:match("^fish%s") then
+    Core:GetModule("Fishing"):Command(input:match("^fish%s+(.*)$") or "toggle")
+  elseif input == "items" then
     self:OpenSettings("itemProtection")
   elseif input == "protect" then
     Core:GetModule("ItemProtection"):ToggleHovered()
@@ -476,6 +478,8 @@ function C:OnSlashCommand(input)
     self:OpenSettings("whispers")
   elseif input == "appearance" then
     self:OpenSettings("appearance")
+  elseif input == "nameplates" then
+    self:OpenSettings("nameplates")
   elseif input == "chat" then
     self:OpenSettings("chat")
   elseif input == "minimap" then
@@ -529,6 +533,7 @@ function C:OpenSettings(section)
   AceConfigDialog:Open("Sunder", settingsWindow)
   AceConfigDialog:SelectGroup("Sunder", unpack(path))
   settingsWindow:Show()
+  Core:GetModule("Fonts"):StyleTree(settingsWindow.frame)
 end
 
 local function debugName(region)

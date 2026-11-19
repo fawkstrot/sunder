@@ -11,7 +11,11 @@ assert(W.previewTabScroll.points.TOPRIGHT.x==-W.headerActionWidth-W:NavigationWi
 assert(W.previewBody.points.TOPLEFT.y==-W:HeaderHeight()-W:HeaderGap()-W:BodyPadding())
 assert(not W.hubActionButtons.Detach:IsShown() and not W.hubActionButtons.Search:IsShown())
 assert(W.hubActionButtons.Windows:IsShown() and W.hubActionButtons.CollapseTop:IsShown() and W.hubActionButtons.CollapseBottom:IsShown())
-assert(W.minimumWorkspaceWidth>=W.headerTitleEnd+W.headerActionWidth+W:NavigationWidth()+120)
+if W.IsConversationList and W:IsConversationList() then
+ assert(W.minimumWorkspaceWidth==Core.Components.WindowManager:RoomHeaderMinimumWidth(W,W.headerActionWidth),"people list reserved hidden inline tabs")
+else
+ assert(W.minimumWorkspaceWidth>=W.headerTitleEnd+W.headerActionWidth+W:NavigationWidth()+120)
+end
 local active=W.previewConversations[W.previewSelected]
 local last=W.previewConversations[#W.previewConversations]
 W:PreviewAction('Pin',last)

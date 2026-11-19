@@ -63,9 +63,71 @@ function Core:BuildAppearanceOptions(chat, whispers)
   if general.textLeftPadding then general.textLeftPadding.name = "Header text padding" end
   local inset = group("Header alignment", 4, take(general, {"textLeftPadding"})); inset.inline = true
   local typography = group("Typography", 1, {
-    intro = explain("Message fonts, sizes and spacing apply to main chat, undocked chats and all conversations. Chat tab labels and editor text have their own controls. Your existing preferences are preserved."),
+    intro = explain("One font cascade covers chat, rooms, menus, supporting text and native bubbles: Ellesmere, then the saved Sunder role font, then Sunder fallback, then the game font. Sizes and outlines have their own controls. Your saved preferences are preserved."),
     text = text, labels = label, editor = input, inset = inset,
   })
+  local config = Core:GetModule("Config")
+  typography.args.cascade = group("Font inheritance", 0.1, {
+    follow = field("followEllesmereFont", "toggle", "Inherit Ellesmere font", 1, {width="full",
+      desc="Use Ellesmere's global font even when its Sunder skin is off. Turn off to use Sunder's saved fonts. Sizes and outlines remain controlled here."}),
+    fallback = config.CreateFontOption("font", 2),
+    source = {type="description", order=3, name=function()
+      local fonts=Core:GetModule("Fonts")
+      local _, source=fonts:ResolvePath()
+      local name=source=="Sunder" and Core.db.profile.font or "Global font"
+      if source=="Ellesmere" and _G.EllesmereUI and _G.EllesmereUI.GetFontName then
+        local ok,value=pcall(_G.EllesmereUI.GetFontName)
+        if ok and type(value)=="string" then name=value end
+      elseif source=="Game" then name="Native font" end
+      return "Current shared font: "..source.." — "..name..". Role-specific fonts below are fallbacks while inheritance is active."
+    end},
+  })
+  typography.args.cascade.args.fallback.name="Sunder fallback font"
+  typography.args.interface = group("Menus & supporting text", 5, {
+    interfaceFont=config.CreateFontOption("interfaceFont",1),
+    interfaceFontFlags=config.CreateFontOutlineOption("interfaceFontFlags",2),
+    menuFont=config.CreateFontOption("menuFont",3),
+    menuFontFlags=config.CreateFontOutlineOption("menuFontFlags",4),
+  })
+  typography.args.interface.args.interfaceFont.name="Supporting text font"
+  typography.args.interface.args.menuFont.name="Context menu font"
+  typography.args.bubbles = group("Chat bubbles", 6, {
+    enabled=field("styleBubbleFonts","toggle","Style native bubble text",1,{width="full"}),
+    font=config.CreateFontOption("bubbleFont",2),
+    outline=config.CreateFontOutlineOption("bubbleFontFlags",3),
+    size=field("bubbleFontSize","range","Font size",4,{min=8,max=32,step=1}),
+    scope=explain("Styles accessible native overhead bubbles without changing which channels show bubbles. Restricted instance bubbles remain native. When Ellesmere's custom bubbles are enabled, their own font, size and outline settings take priority.",0),
+  })
+  local function inheritButton(key, order)
+    return {type="execute",name="Use Sunder fallback",order=order,
+      desc="Clear this role's saved font choice. It will follow the shared fallback whenever Ellesmere inheritance is unavailable or off.",
+      func=function()Core.db.profile[key]="";refresh()end}
+  end
+  text.args.inherit=inheritButton("messageFont",1.01)
+  label.args.inherit=inheritButton("tabFont",1.01)
+  input.args.inherit=inheritButton("editBoxFont",1.01)
+  typography.args.interface.args.interfaceInherit=inheritButton("interfaceFont",1.01)
+  typography.args.interface.args.menuInherit=inheritButton("menuFont",3.01)
+  typography.args.bubbles.args.inherit=inheritButton("bubbleFont",2.01)
+  local fonts = Core:GetModule("Fonts")
+  local function customBubbleOption(key,kind,name,order,extra)
+    local option={type=kind,name=name,order=order,
+      hidden=function()return not fonts:BubbleOwner()end,
+      get=function()local owner,cfg=fonts:BubbleOwner();local defaults=owner and owner.Defaults and owner.Defaults();return cfg and (cfg[key] or defaults and defaults[key])end,
+      set=function(_,value)fonts:SetExternalBubbleSetting(key,value)end}
+    for k,v in pairs(extra or {})do option[k]=v end
+    return option
+  end
+  local bubbleOptions=typography.args.bubbles.args
+  bubbleOptions.external=explain("Ellesmere custom bubbles are active. The controls below edit that renderer's existing settings; Sunder's native-bubble preferences are retained for fallback.",5)
+  bubbleOptions.external.hidden=function()return not fonts:BubbleOwner()end
+  bubbleOptions.externalFont=customBubbleOption("font","select","Ellesmere bubble font",6,{values=function()return fonts:ExternalBubbleFonts()end})
+  bubbleOptions.externalSize=customBubbleOption("fontSize","range","Ellesmere bubble size",7,{min=8,max=32,step=1})
+  bubbleOptions.externalOutline=customBubbleOption("outline","select","Ellesmere bubble outline",8,
+    {values={__global="Inherit Ellesmere outline",none="None",outline="Outline",thick="Thick outline"}})
+  for _,key in ipairs({"enabled","font","outline","size","inherit"})do
+    bubbleOptions[key].disabled=function()return fonts:BubbleOwner() and true or false end
+  end
   local surfaces = group("Surfaces & colors", 3, {
     intro = explain("Shared backgrounds style chat, Whispers and custom groups together by default. Compact headers, edge fades and borderless surfaces keep everything in the same visual family. Unlink Whispers on the Whisper windows page to use the custom overrides below."),
     labels = group("Labels & selection accent", 1, take(general, {"tabTextColor", "tabHighlightTextColor"})),

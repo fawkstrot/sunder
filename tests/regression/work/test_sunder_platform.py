@@ -40,6 +40,8 @@ C_AddOns = {GetAddOnMetadata = function() return "0.1.0" end}
 vars = {}
 ''')
 lua.execute((root/'Sunder/init.lua').read_text(encoding='utf-8'), 'Sunder', lua.globals().vars)
+# Geometry/settings fixtures use a typography boundary; dedicated test_fonts runs the real implementation.
+lua.execute('modules.Fonts.StyleTree=function()end;modules.Fonts.StyleTooltip=function()end;modules.Fonts.ApplyLabel=function()end;modules.Fonts.BubbleOwner=function()end;modules.Fonts.ResolvePath=function()return "Native.ttf","Game"end')
 lua.execute((root/'Sunder/Migration.lua').read_text(encoding='utf-8'), 'Sunder', lua.globals().vars)
 lua.execute((root/'Sunder/constants.lua').read_text(encoding='utf-8'), 'Sunder', lua.globals().vars)
 lua.execute('''

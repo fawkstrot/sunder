@@ -483,3 +483,45 @@ Combat Log resize follow-up: native-host fixture starts with mismatched strata a
 Glassy comparison regression: assert the native Combat Log geometry frame has click/motion/wheel disabled, including after simulated re-enabling followed by layout refresh. The actual clipped viewport retains hyperlink/mouse/wheel input and advances native scrolling once per wheel callback; legacy clamp insets are cleared. Direct grip callbacks alone do not establish that the physical mouse can reach them. User's absent hover highlight is a reported input observation, not an observed Lua resize failure.
 
 2026-11-18 native result: user confirmed the pointer-ownership repair worked. Record this as user-reported live resize validation, separately from fixture coverage for edit-mode resizing, filters, links and combat restrictions.
+
+## Fishing integration — 2026-11-18
+
+See [FISHING.md](FISHING.md) for module ownership, temporary binding/combat rules, saved defaults, equipment macros, fishing-only auto-loot, client limits and the live checklist. Run the standard CLI suite, which now includes `work/test_fishing.py`. Preview deployment does not authorize a release. The user requests that they perform game input/reload themselves; do not take control of WoW.
+
+Fishing macro follow-up: FishingMacro.lua owns character-local captured gear and exact-body-owned native macro generation. `test_fishing.py` now validates capture/update/ownership/capacity/combat and next-frame refresh. Native gear swapping and macro UI/action-bar behavior remain a user-run check.
+
+Fishing equipment sets supersede individual gear capture. FishingMacro.lua owns character-local set IDs, live dropdown values and native manager guidance; work/fishing_sets.lua extends the fishing CLI fixture with role validation, renamed/deleted sets, retired stale macros and exact-body legacy upgrade. Macro/set UI behavior remains a user-run in-game check.
+
+Fishing macro icon/tooltip now resolve the next destination set’s main-hand item. Equipment-set fixtures cover both directions, item tooltip IDs, icon-only cache refresh and set-icon fallback alongside the existing combat/ownership checks.
+
+User-directed macro policy change: Sunder Fish is managed by name, even after manual edits. Prefer character storage, reuse an account copy otherwise, and create a character copy when absent during configured refresh. Regression covers replacement in place, storage precedence, unrelated-name preservation and recreation. No body-ownership conflict prompt remains.
+
+## Shared typography — 2026-11-18
+
+[Typography](TYPOGRAPHY.md) documents the Ellesmere → saved Sunder role → Sunder base → native cascade, native/custom bubble ownership, scoped menus/settings/tooltips, live refresh and user verification checklist. `Fonts.lua` is the single face resolver; `test_fonts.py` exercises the production helpers through the standard CLI. Never solve font mismatches by overwriting every global game font or by changing stored fallback preferences. Native visual/instance behavior remains a separate in-game check.
+
+Typography validation receipt: final standard/dry-run/deployment suites passed; native installation hash-verified under backup `20261118T223424113030Z`; both local packages rebuilt. No gameplay input or live visual verification occurred. See CONTEXT.md for the separate automated/deployed/pending-native record.
+
+## Native friendly nameplates — 2026-11-18
+
+See [NAMEPLATES.md](NAMEPLATES.md) for CVar ownership, native presentation scope, source provenance and dungeon simulation options. Standard CLI includes test_nameplates.py; optional local-source integration executes the actual Blizzard UpdateShowOnlyName method. This is flag propagation with simulated receivers, not full native protected rendering. WoWless/wow-ui-sim were researched but not installed. User-run real dungeon checks remain required.
+
+Validation completed: standard CLI suite and final-source dry-run/deployment suites passed (13 behavior entry points, 8 release tests, migration/workflow checks and Lua/resource checks). Focused nameplate test explicitly passed actual downloaded Blizzard UpdateShowOnlyName flag propagation with simulated dungeon receivers, plus reload-persistent external ownership yielding. Installed Forever files hash-verified; backup 20261118T223834236391Z; account SavedVariables untouched by deployment. Clean/manual-upgrade packages rebuilt at unchanged 0.10.0-alpha.3. No commit, publication or game interaction. User reload and /sunder nameplates enablement, real dungeon health/color/visibility and combat verification remain pending. Optional font overrides and custom markers are not implemented.
+
+## Compact minimized tabs — 2026-11-18
+
+WindowManager now measures minimized labels and compact unread badges rather than reserving 180 px columns. Standard titles are shortened and Guild online context is retained in the tooltip. The real-room integration regression in test_party_chat.py covers 300 px packing, 900 px non-stretching, narrow/large-font wrapping, long custom names and 99+ badge growth, alongside existing persistence, combat deferral, restore and toaster behavior. See WINDOW_MANAGEMENT.md. Automated, deployment and native-observation results are recorded separately in CONTEXT.md.
+
+Compact-tab validation receipt: final standard/dry-run/deployment suites passed; installed hashes verified, backup `20261118T224547410162Z`; clean/upgrade packages rebuilt. Native visual review remains pending after user reload.
+
+## Resize, tab alignment and minimums — 2026-11-18
+
+The native Combat Log resize regression now resolves anchored shell dimensions without sending a synthetic shell size event. Both real grip callback sets must update viewport width and rail geometry during held movement, retain native readback and reject docked/stale notifications. General/native versus room configured minima are compared in outer-window coordinates. Expanded-list sizing and common room-header calculations replace divergent reserves; people-list mode has no hidden inline-tab allowance. Minimized zero-unread labels must be centered with symmetric insets and no badge placeholder. See WINDOW_MANAGEMENT.md and CONTEXT.md for implementation and validation receipts.
+
+Resize/alignment/minimums receipt: standard/dry-run/deployment suites passed, installed files hash-verified with backup `20261118T225621750851Z`, and both local packages rebuilt. Post-fix native observation is pending; the supplied screenshot records the pre-fix failure.
+
+## Keyboard error regression - 2026-11-18
+
+Transcript keyboard tests run without the retired MouseIsOver global and use frame IsMouseOver. Ordinary gameplay keys propagate without transcript lookup; preserve paging, hidden-view, native fallback and editor focus coverage. Shutdown history saves tolerate unavailable settings without clearing retained history. Local General.log supplied actual repeated keyboard and reload-time history stacks. See CONTEXT.md for automated/deployment receipts; native gameplay verification remains separate.
+
+2026-11-19 alpha.4 release validation: full standard suite and Alpha package preparation passed, including keyboard/shutdown regressions. See CONTEXT.md and RELEASING.md for remote workflow receipts. Native observation remains separate from these automated checks.

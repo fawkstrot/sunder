@@ -176,6 +176,10 @@ function nativeTarget:SetSize(w,h)self.width=math.max(w,self.engineWidth);self.h
 function nativeTarget:IsProtected()return true end
 function nativeTarget:GetName()return 'ChatFrame2' end
 nativeTarget.isDocked=false
+resizePreviousGetModule=Core.GetModule
+local ui={GetChatWindow=function(_,frame)return {chatFrame=frame}end,
+ RefreshDetachedLayoutSize=function(_,window,w,h)assert(window.chatFrame==nativeTarget and w==nativeTarget.width and h==nativeTarget.height+Constants.DOCK_HEIGHT);nativeTarget.contentSynced=true end}
+function Core:GetModule(name)if name=="UIManager"then return ui end;return resizePreviousGetModule(self,name)end
 self={tab={chatFrame=nativeTarget},StopWindowDrag=function()end,WindowSettings=function()return {}end}
 overlay=MakeFrame();parent=MakeFrame()
 """)
@@ -189,6 +193,7 @@ for _,handle in ipairs({self.resizeHandle,self.roomResize})do
     cursorX,cursorY=-10000,10000;handle:UpdateResize()
     assert(nativeTarget.width==limits[1] and nativeTarget.height+Constants.DOCK_HEIGHT==limits[2], 'native held resize differs from shared visible bounds')
     assert(nativeTarget.engineHeight==limits[2]-Constants.DOCK_HEIGHT,'stale native engine minimum')
+    assert(nativeTarget.contentSynced,'resize did not notify the content owner');nativeTarget.contentSynced=nil
     handle:FinishResize()
   end
 end
@@ -200,6 +205,7 @@ assert(modern.height==999,'engine minimum changed in combat')
 combat=false
 Core.db.profile.windowMinWidth,Core.db.profile.windowMinHeight=nil,nil
 """)
+lua.execute('Core.GetModule=resizePreviousGetModule;resizePreviousGetModule=nil')
 print('Native minimum regression passed: legacy/modern engine limits, both held grips, shared settings and combat guard.')
 
 # Main mover consumes the same complete root height as detached/Whispers shells.

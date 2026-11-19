@@ -45,14 +45,27 @@ Core:NewModule("UIManager", "AceHook-3.0")
 Core:NewModule("WhisperTabs")
 Core:NewModule("Whispers", "AceHook-3.0")
 Core:NewModule("ItemProtection")
+Core:NewModule("Fishing")
+Core:NewModule("Nameplates")
 Core:NewModule("GuildChat")
 Core:NewModule("PartyChat")
 
 -- Default settings
 Core.defaults = {
   profile = {
+    fishing = {key = "SPACE", autoPole = false, autoLoot = true},
+    nameplates = {enabled=false, mode="bars", instanceMode="inherit", nameColor="class", barColor="class", size=0},
     -- General
     font = "Friz Quadrata TT",
+    followEllesmereFont = true,
+    interfaceFont = "",
+    interfaceFontFlags = "",
+    menuFont = "",
+    menuFontFlags = "",
+    bubbleFont = "",
+    bubbleFontFlags = "",
+    bubbleFontSize = 13,
+    styleBubbleFonts = true,
     tabFont = "",
     messageFont = "",
     editBoxFont = "",
@@ -209,25 +222,9 @@ function Core:OnEnable()
   self.printBuffer = {}
 end
 
--- The default font follows EllesmereUI's UI font when its skinning is enabled for Sunder, otherwise the game's.
+-- Refresh the effective cascade without rewriting the user's fallback preferences.
 function Core:SelectDefaultFont()
-  local path = self:GetModule("Ellesmere"):GetFontPath()
-    or _G.GameFontNormal and _G.GameFontNormal:GetFont() or _G.STANDARD_TEXT_FONT
-  local media = self.Libs.LSM:HashTable("font")
-  local selected = self.Libs.LSM:GetDefault("font")
-  for _, name in ipairs(self.Libs.LSM:List("font")) do
-    if path and media[name]:lower():gsub("/", "\\") == path:lower():gsub("/", "\\") then
-      selected = name
-      break
-    end
-  end
-
-  self.db:RegisterDefaults(nil)
-  if self.db.profile.font == "Sunder: Game default" then
-    self.db.profile.font = nil
-  end
-  self.defaults.profile.font = selected
-  self.db:RegisterDefaults(self.defaults)
+  if self.db.profile.font == "Sunder: Game default" then self.db.profile.font = nil end
   self:Dispatch(Constants.ACTIONS.UpdateConfig("font"))
 end
 

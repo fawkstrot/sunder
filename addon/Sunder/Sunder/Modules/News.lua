@@ -8,10 +8,7 @@ local OPEN_NEWS = Constants.EVENTS.OPEN_NEWS
 -- Set Core.SupportURL once the Sunder issue tracker exists.
 
 local function setLabelFont(label, size)
-  if _G.GameFontHighlight then
-    local path, _, flags = _G.GameFontHighlight:GetFont()
-    label:SetFont(path, size, flags)
-  end
+  Core:GetModule("Fonts"):ApplyLabel(label, size)
 end
 
 local function setGlassBackground(widget)

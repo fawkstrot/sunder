@@ -108,7 +108,7 @@ function Launcher:OnEnable()
       for _, record in pairs(whispers.records or {}) do unread = unread + record.unread end
       GameTooltip:AddLine("Unread whispers: "..unread, 1, 0.82, 0)
     end
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   button:SetScript("OnLeave", function () GameTooltip:Hide() end)
   Minimap:HookScript("OnSizeChanged", function () self:UpdatePosition() end)

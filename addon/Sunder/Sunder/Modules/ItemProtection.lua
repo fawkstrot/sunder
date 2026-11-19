@@ -274,7 +274,7 @@ function P:AddBadge(itemButton)
     if saved and not (self.owned and self.owned[item.guid] and self:IsLocked(item.location)) then
       GameTooltip:AddLine("Protection saved; native lock is not active.",1,.45,.2)
     end
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   badge:SetScript("OnLeave",function()GameTooltip:Hide()end)
   badge:Hide();self.badges[itemButton]=badge

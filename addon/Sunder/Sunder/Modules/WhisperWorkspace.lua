@@ -263,7 +263,7 @@ function W:WorkspaceMenu(owner, frame)
   if self.previewActive then return self:PreviewConversationMenu(owner, self.previewConversations[self.previewSelected or 1]) end
   if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
   W:EnsureWorkspaces()
-  MenuUtil.CreateContextMenu(owner, function (_, menu)
+  Core:GetModule("Fonts"):CreateContextMenu(owner, function (_, menu)
     menu:CreateButton("Open Whispers", function () W:OpenMessages() end)
     menu:CreateButton(self.maximized and "Restore window size" or "Maximize window",function()Core.Components.WindowManager:ToggleMaximized(self)end)
     menu:CreateButton("Rename this window", function () self:PromptWorkspaceName() end)
@@ -312,7 +312,7 @@ function W:CreateWindowControls(chrome)
   rename:SetScript("OnEnter", function ()
     GameTooltip:SetOwner(rename, "ANCHOR_TOP"); GameTooltip:AddLine(self:WorkspaceName(), 1, 1, 1)
     if self.previewActive then GameTooltip:AddLine("Local sample conversations. No whispers are sent.", 0.7, 0.75, 0.8) end
-    GameTooltip:AddLine(self.roomController and "Drag to move • Double-click to maximize • Right-click for window actions" or "Double-click to maximize  •  Right-click for window actions", 0.7, 0.75, 0.8); GameTooltip:Show()
+    GameTooltip:AddLine(self.roomController and "Drag to move • Double-click to maximize • Right-click for window actions" or "Double-click to maximize  •  Right-click for window actions", 0.7, 0.75, 0.8); Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   rename:SetScript("OnLeave", function () GameTooltip:Hide() end)
   do
@@ -628,7 +628,7 @@ function W:CreateConversationNavigation(scroll, child, preview)
     GameTooltip:AddLine((nav.unreadTotal or 0).." unread messages", 1, 0.75, 0.25)
     GameTooltip:AddLine("Click to search and jump to any person", 0.7, 0.75, 0.8)
     if (nav.hiddenUnread or 0) > 0 then GameTooltip:AddLine(nav.hiddenUnread.." unread conversations outside this view", 1, 0.75, 0.25) end
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   all:SetScript("OnLeave", function () GameTooltip:Hide() end)
   nav.all = all
@@ -904,13 +904,8 @@ function W:WorkspaceFont(label, size)
     end
     return
   end
-  local integration = Core:GetModule("Ellesmere")
-  local selected = self:Settings().headerFont
-  local path = selected and selected ~= "INHERIT" and Core.Libs.LSM:Fetch("font", selected, true)
-  if not path and integration.GetFontPath then path = integration:GetFontPath() end
-  local native = GameFontNormal
-  if not path and native and native.GetFont then path = native:GetFont() end
-  if path then label:SetFont(path, size, self:Settings().headerFontFlags or "") end
+  local fonts = Core:GetModule("Fonts")
+  fonts:ApplyLabel(label, size, "headerFont")
 end
 
 function W:ConfigureTabPin(tab, record, action)
@@ -1003,8 +998,14 @@ function W:ApplyWorkspaceMetrics()
   self.hubTitle:SetHeight(height - pad * 2)
   self:WorkspaceFont(self.hubTitle, metric("headerFontSize", 14, 10, 22))
   -- Reserve a readable title between the grip and toolbar even with large controls.
-  self.minimumWorkspaceWidth = self:SingleRowHeader() and (right + self.headerTitleEnd + self:NavigationWidth() + 120) or (right + pad * 3 + 18 + icon + 3 + 90)
-  if self.hub:GetWidth() < self.minimumWorkspaceWidth then self.hub:SetWidth(self.minimumWorkspaceWidth) end
+  local manager=Core.Components.WindowManager
+  local inlineTabs=self:SingleRowHeader() and not (self.IsConversationList and self:IsConversationList())
+  self.minimumWorkspaceWidth = inlineTabs and (right+self.headerTitleEnd+self:NavigationWidth()+120)
+    or manager:RoomHeaderMinimumWidth(self,right)
+  if not self.minimized and not self.collapseAnimation then
+    local w,h=manager:ClampWindowSize(self.hub:GetWidth(),self.hub:GetHeight(),self)
+    if w~=self.hub:GetWidth() or h~=self.hub:GetHeight() then self.hub:SetSize(w,h)end
+  end
   self.hubRule:ClearAllPoints(); self.hubRule:SetPoint("BOTTOMLEFT", self.hubChrome, "BOTTOMLEFT")
   self.hubRule:SetPoint("BOTTOMRIGHT", self.hubChrome, "BOTTOMRIGHT")
   self.tabScroll:SetHeight(self:ConversationTabHeight()); self.tabChild:SetHeight(self:ConversationTabHeight())

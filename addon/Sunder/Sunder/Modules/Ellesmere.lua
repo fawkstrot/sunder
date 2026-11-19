@@ -79,6 +79,14 @@ end
 
 -- Sunder's AceGUI windows are created once and only hidden, so a skinned frame never returns to AceGUI's pool.
 function Ellesmere:SkinWindow(window, parts)
+  local fonts = Core:GetModule("Fonts")
+  if fonts.StyleTree then
+    fonts:StyleTree(window.frame)
+    if not window.frame.sunderFontHook and window.frame.HookScript then
+      window.frame.sunderFontHook = true
+      window.frame:HookScript("OnShow", function(frame) fonts:StyleTree(frame) end)
+    end
+  end
   if window.sizer_se then window.frame.windowResizeGrip=window.sizer_se end
   for _,part in ipairs(parts or {}) do
     if part.scrollFrame and part.scrollBar then
@@ -89,6 +97,7 @@ function Ellesmere:SkinWindow(window, parts)
   end
   if self.skin then
     skinSafely(skinWindow, self.skin, window, parts)
+    if fonts.StyleTree then fonts:StyleTree(window.frame) end
   else
     self.pendingWindows[#self.pendingWindows + 1] = {window = window, parts = parts}
   end
@@ -107,9 +116,15 @@ function Ellesmere:GetAccentColor()
 end
 
 function Ellesmere:GetFontPath()
+  -- Typography does not depend on the optional Blizzard-skin child addon.
+  local ui = _G.EllesmereUI
+  if ui and type(ui.GetFontPath) == "function" then
+    local ok, path = pcall(ui.GetFontPath)
+    if ok and type(path) == "string" and path ~= "" then return path end
+  end
   if not self:IsActive() or not self.skin.GetFont then return nil end
-  local path = self.skin.GetFont()
-  return type(path) == "string" and path ~= "" and path or nil
+  local ok, path = pcall(self.skin.GetFont)
+  return ok and type(path) == "string" and path ~= "" and path or nil
 end
 
 -- Re-reads the accent and font when EllesmereUI's looks change, then refreshes everything that uses them.

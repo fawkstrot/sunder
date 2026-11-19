@@ -168,6 +168,16 @@ function UIManager:ReleaseChatWindow(chatFrame)
   return true
 end
 
+function UIManager:RefreshDetachedLayoutSize(window, width, height)
+  local renderer=window and window.slidingMessageFrame
+  local layout=window and window.detachedLayout
+  local native=window and window.chatFrame
+  if not renderer or not layout or native.isDocked or renderer.chatFrame~=native
+    or renderer.detachedContainer~=layout.container or renderer:GetParent()~=layout.container then return end
+  renderer:SetLayoutSize(width,height)
+  if self.combatLogBar and self.combatLogBar.slidingMessageFrame==renderer then self.combatLogBar:UpdateLayout()end
+end
+
 function UIManager:CreateDetachedLayout(window)
   local chatFrame = window.chatFrame
   local container = CreateFrame("Frame", nil, UIParent)
@@ -185,14 +195,12 @@ function UIManager:CreateDetachedLayout(window)
   self.container:AddHoverRegion(container)
 
   container:SetScript("OnSizeChanged", function ()
-    local renderer = window.slidingMessageFrame
-    if chatFrame.isDocked or not renderer or renderer.chatFrame ~= chatFrame
-      or renderer.detachedContainer ~= container then return end
-
-    renderer:SetLayoutSize(container:GetWidth(), container:GetHeight())
-    if self.combatLogBar and self.combatLogBar.slidingMessageFrame == renderer then
-      self.combatLogBar:UpdateLayout()
-    end
+    self:RefreshDetachedLayoutSize(window, container:GetWidth(), container:GetHeight())
+  end)
+  -- The native frame is the size owner. Anchored shell notifications can arrive
+  -- later; do not leave the content at its last explicit layout dimensions.
+  chatFrame:HookScript("OnSizeChanged", function(frame)
+    self:RefreshDetachedLayoutSize(window, frame:GetWidth(), frame:GetHeight() + Constants.DOCK_HEIGHT)
   end)
   Core.Components.WindowManager:RegisterNativeSurface(container,layout.dock)
   return layout

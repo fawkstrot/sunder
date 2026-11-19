@@ -274,7 +274,7 @@ function P:RenderHistoryList()
         row.rule=row:CreateTexture(nil,"BORDER");row.rule:SetPoint("BOTTOMLEFT",4,0);row.rule:SetPoint("BOTTOMRIGHT",-4,0);row.rule:SetHeight(1);row.rule:SetColorTexture(.7,.75,.8,.065)
         row:SetHighlightTexture("Interface\\Buttons\\WHITE8X8");row:GetHighlightTexture():SetVertexColor(1,1,1,.035)
         row:SetScript("OnClick",function()self:SelectHistory(row.key)end)
-        row:SetScript("OnEnter",function()GameTooltip:SetOwner(row,"ANCHOR_RIGHT");GameTooltip:AddLine("Previous group",1,1,1);for _,person in ipairs(otherMembers(row.record))do GameTooltip:AddLine(wm():FormatPersonName(person.name,person),.7,.75,.8)end;GameTooltip:Show()end)
+        row:SetScript("OnEnter",function()GameTooltip:SetOwner(row,"ANCHOR_RIGHT");GameTooltip:AddLine("Previous group",1,1,1);for _,person in ipairs(otherMembers(row.record))do GameTooltip:AddLine(wm():FormatPersonName(person.name,person),.7,.75,.8)end;Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()end)
         row:SetScript("OnLeave",function()GameTooltip:Hide()end)
       end
       row.key=record.key;row.record=record;row:SetSize(width,height);row:ClearAllPoints();row:SetPoint("TOPLEFT",0,-(i-1)*height)

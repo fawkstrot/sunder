@@ -68,7 +68,7 @@ function Core.Components.CreateReadOnlyTranscript(parent, source)
         for _,rename in ipairs(change.renamed or {}) do
           GameTooltip:AddLine(manager:FormatPersonName(rename.before.name,rename.before).." → "..manager:FormatPersonName(rename.after.name,rename.after),.65,.7,.75)
         end
-        GameTooltip:Show()
+        Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
       end)
       row:SetScript("OnLeave",function()GameTooltip:Hide()end)
     end

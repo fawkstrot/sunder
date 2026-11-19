@@ -88,6 +88,7 @@ if Menu and Menu.ModifyMenu and MenuUtil and ToggleChannelFrame then
           Core:GetModule("ChatCopy"):ShowSearch(chatFrame)
         end))
       end
+      Core:GetModule("Fonts"):StyleMenu(rootDescription)
     end
   end)
 end
@@ -335,7 +336,7 @@ function ChatTabMixin:Init(slidingMessageFrame, dock)
         GameTooltip:AddLine(L("Drag to reorder"), 0.8, 0.8, 0.8)
         GameTooltip:AddLine(L("Shift-click to copy"), 0.8, 0.8, 0.8)
         GameTooltip:AddLine(L("Right-click for chat options"), 0.8, 0.8, 0.8)
-        GameTooltip:Show()
+        Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
       end
     end)
   end

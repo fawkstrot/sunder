@@ -359,7 +359,7 @@ function W:AddHubTab(frame)
     GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(W:ConversationName(frame)), 1, 1, 1)
     GameTooltip:AddLine("Click: read  •  Right-click: conversation actions", 0.75, 0.75, 0.75)
     GameTooltip:AddLine("Shift-click: pin  •  Middle-click: close", 0.75, 0.75, 0.75)
-    GameTooltip:Show()
+    Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
   end)
   tab:SetScript("OnLeave", function () GameTooltip:Hide() end)
   self.hubTabs[frame] = tab
@@ -386,7 +386,7 @@ end
 
 function W:ConversationMenu(frame, owner)
   if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
-  MenuUtil.CreateContextMenu(owner, function (_, menu)
+  Core:GetModule("Fonts"):CreateContextMenu(owner, function (_, menu)
     local record=W.records and W.records[frame]
     if record then Core.Components.WindowManager:AddInspectAction(menu,record.target or record.key)end
     menu:CreateButton(W:IsFavorite(frame) and "Remove from Favorites" or "Add to Favorites", function () W:ToggleFavorite(frame) end)

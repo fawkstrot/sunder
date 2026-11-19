@@ -35,7 +35,7 @@ function MoverDialogMixin:Init()
   self:SetPoint("TOP", 0, -50)
   self:Hide()
 
-  self:SetScript("OnShow", function() PlaySound(SOUNDKIT.IG_MAINMENU_OPTION) end)
+  self:SetScript("OnShow", function() PlaySound(SOUNDKIT.IG_MAINMENU_OPTION); Core:GetModule("Fonts"):StyleTree(self) end)
   self:SetScript("OnHide", function() PlaySound(SOUNDKIT.GS_TITLE_OPTION_EXIT) end)
 
   self.header = self:CreateTexture(nil, "ARTWORK")

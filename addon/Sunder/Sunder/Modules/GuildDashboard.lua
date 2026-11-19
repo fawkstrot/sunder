@@ -23,7 +23,7 @@ local function filterButton(parent,label,callback)
   b.indicator=b:CreateTexture(nil,"OVERLAY");b.indicator:SetPoint("BOTTOMLEFT");b.indicator:SetPoint("BOTTOMRIGHT");b.indicator:SetHeight(1)
   function b:Refresh()wm():StyleFilterButton(self,self.selected,self.hovered,theme():InterfaceAccent())end
   b:SetScript("OnClick",callback)
-  b:SetScript("OnEnter",function()b.hovered=true;b:Refresh();if b.tip then GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(b.tip, .8,.83,.88,true);GameTooltip:Show()end end)
+  b:SetScript("OnEnter",function()b.hovered=true;b:Refresh();if b.tip then GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(b.tip, .8,.83,.88,true);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()end end)
   b:SetScript("OnLeave",function()b.hovered=nil;b:Refresh();GameTooltip:Hide()end)
   b:SetScript("OnHide",function()b.hovered=nil;b:Refresh()end)
   return b
@@ -287,9 +287,9 @@ function G:RenderGuildDashboardRows()
           GameTooltip:AddLine((person.level and person.level>0 and person.level.." · " or "")..text(person.class),.7,.75,.8)
           GameTooltip:AddLine(text(person.rank).." · "..(person.online and text(person.zone) or "Offline"),.65,.7,.75)
           if Core.db.profile.guildChat.publicNotes and person.note~="" then GameTooltip:AddLine(text(person.note),.65,.7,.75,true)end
-          GameTooltip:Show()
+          Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
         elseif current.kind=="class" or current.kind=="zone" then
-          GameTooltip:SetOwner(row,"ANCHOR_RIGHT");GameTooltip:AddLine(current.label,.9,.92,.94);GameTooltip:AddLine(current.kind=="class" and (current.entry.count.." online / "..current.entry.total.." members") or current.entry.preview,.75,.8,.85,true);GameTooltip:AddLine("Click to view members",.65,.7,.75);GameTooltip:Show()
+          GameTooltip:SetOwner(row,"ANCHOR_RIGHT");GameTooltip:AddLine(current.label,.9,.92,.94);GameTooltip:AddLine(current.kind=="class" and (current.entry.count.." online / "..current.entry.total.." members") or current.entry.preview,.75,.8,.85,true);GameTooltip:AddLine("Click to view members",.65,.7,.75);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
         end
         if current.kind=="member" or current.kind=="class" or current.kind=="zone" then row.fill:SetColorTexture(1,1,1,.04)end
       end)

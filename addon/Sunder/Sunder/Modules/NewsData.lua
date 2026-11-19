@@ -59,3 +59,9 @@ table.insert(Core.NewsEntries,1,{name="Sunder 0.10.0-alpha.3 (2026-11-18)",items
 - Conversation storage offers a review near 4 MiB instead of automatically deleting history.
 - WoW Forever 1.60.1 alpha. Legacy records may lack dates or character details.
 ]]}})
+
+table.insert(Core.NewsEntries,1,{name="Sunder 0.10.0-alpha.4 (2026-11-19)",items={[[
+Fixed repeated keyboard errors and a reload-time room history error. Improved Combat Log resizing, window minimums and compact minimized tabs.
+]],[[
+Added optional Fishing Mode and equipment-set macro, cascading font and bubble controls, and opt-in native friendly nameplate settings. See the feature guides for setup and current alpha verification limits.
+]]}})

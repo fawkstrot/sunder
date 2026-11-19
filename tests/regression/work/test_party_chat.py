@@ -463,15 +463,30 @@ local ui=Core:GetModule("UIManager");local main=ui.container
 ui.container=CreateFrame("Frame",nil,UIParent);ui.container:SetSize(610,340)
 local W=Core:GetModule("Whispers");local G=Core:GetModule("GuildChat")
 local guild,party=G.room,Party.room
+local savedMinWidth,savedMinHeight=Core.db.profile.windowMinWidth,Core.db.profile.windowMinHeight
+Core.db.profile.windowMinWidth,Core.db.profile.windowMinHeight=1000,800
+for _,host in ipairs({W,guild,party})do
+ local w,h=wm:ClampWindowSize(1,1,host);assert(w==1000 and h==800,"room diverged from shared configured minimum")
+end
+local nw,nh=wm:ClampNativeWindowSize(1,1)
+assert(nw==1000 and nh+Constants.DOCK_HEIGHT==800,"native minimum used a different outer size")
+local mw,mh=wm:MaximizedSize(1100,900);assert(mw>=1100 and mh>=900,"maximize dropped the content minimum height")
+Core.db.profile.windowMinWidth,Core.db.profile.windowMinHeight=savedMinWidth,savedMinHeight
+local originalWorkspaceName=W.WorkspaceName;W.WorkspaceName=function()return "Whispers"end
+function methods:SetJustifyH(value)self.justifyH=value end
 assert(guild.hubActionButtons.Minimize and party.hubActionButtons.Minimize and W.hubActionButtons.Minimize)
 if guild.minimized then guild:SetMinimized(false,true)end
 guild.hub:Show();local width,height=guild.hub:GetWidth(),guild.hub:GetHeight()
+local previousSubscribe=Core.Subscribe;local tabConfigChanged
+Core.Subscribe=function(_,event,fn)assert(event==Constants.EVENTS.UPDATE_CONFIG);tabConfigChanged=fn end
 wm:SetTabMinimized(guild,true)
+Core.Subscribe=previousSubscribe
+assert(tabConfigChanged,"minimized tabs did not subscribe to typography changes")
 assert(guild.tabMinimized and guild.minimized and not guild.hub:IsShown())
 assert(Core.db.char.guildChat.open and Core.db.char.guildChat.tabMinimized,"minimize was saved as close")
 assert(guild.minimizedTab:IsShown() and wm.minimizedStrip.points.BOTTOMLEFT.relative==ui.container)
 G.unread=8;G.onlineCount=12;G:UpdateUnread()
-assert(guild.minimizedTab.badge:GetText()=="8" and guild.minimizedTab:GetText():find("12 online",1,true))
+assert(guild.minimizedTab.badge:GetText()=="8" and guild.minimizedTab:GetText()=="Guild · 12")
 assert(guild.minimizedTab:GetFontString().points.RIGHT.x==-(guild.minimizedTab.badge:GetWidth()+wm.MINIMIZED_TAB_PADDING*2),"tab label overlaps its unread badge")
 guild.hub:Show();assert(not guild.hub:IsShown(),"automatic presentation escaped the minimized tab")
 local stamp=guild.minimizedTab.layoutStamp;wm:RefreshMinimizedTabs();assert(stamp==guild.minimizedTab.layoutStamp)
@@ -479,6 +494,10 @@ wm:RemoveMinimizedTab(guild);G:RestoreWindow();assert(guild.tabMinimized and not
 assert(wm.minimizedStrip:GetParent()==UIParent,"General collapse would clip the tab strip")
 wm:SetTabMinimized(party,true);Party.unread=3;Party:UpdateUnread()
 assert(party.minimizedTab.badge:GetText()=="3")
+Party.unread=0;Party:UpdateUnread()
+assert(party.minimizedTab:GetFontString().justifyH=="CENTER" and not party.minimizedTab.badge:IsShown(),"empty unread slot or off-center tab label")
+assert(party.minimizedTab:GetFontString().points.RIGHT.x==-wm.MINIMIZED_TAB_PADDING,"zero unread reserved badge space")
+Party.unread=3;Party:UpdateUnread();assert(party.minimizedTab:GetFontString().justifyH=="LEFT")
 assert(Party:FilterMessage(ChatFrame1,"CHAT_MSG_PARTY")==not not Party.grouped,"tab minimization changed duplicate suppression")
 local oldSelected=W.selected;W.selected=nil
 wm:SetTabMinimized(W,true)
@@ -490,7 +509,35 @@ W:StartMessageSimulation();W:StopPreview();assert(W.tabMinimized and not W.hub:I
 W:EnsureMinimizedWhisperTray();W:UpdateMinimizedWhispers()
 assert(W.minimizedWhisperTray.anchorWindow==wm.minimizedStrip,"toasters did not follow General")
 ui.container:SetWidth(300);wm:RefreshMinimizedTabs()
-assert(wm.minimizedStrip:GetHeight()>=3*wm.MINIMIZED_TAB_HEIGHT,"narrow General clipped minimized tabs")
+assert(wm.minimizedStrip:GetHeight()==wm.MINIMIZED_TAB_HEIGHT,"three compact tabs should fit a 300px General: "..guild.minimizedTab:GetText().."="..guild.minimizedTab:GetWidth()..", "..party.minimizedTab:GetText().."="..party.minimizedTab:GetWidth()..", "..W.minimizedTab:GetText().."="..W.minimizedTab:GetWidth())
+local function assertTabBounds()
+ local previous
+ for _,host in ipairs({guild,W,party})do
+  local b=host.minimizedTab;local point=b.points.TOPLEFT
+  assert(b:GetWidth()>0 and point.x>=0 and point.x+b:GetWidth()<=ui.container:GetWidth(),"tab exceeded General width")
+  if previous and previous.y==point.y then assert(point.x>=previous.right+wm.MINIMIZED_TAB_GAP,"tabs overlap")end
+  previous={y=point.y,right=point.x+b:GetWidth()}
+ end
+end
+assertTabBounds()
+local compactWidth=party.minimizedTab:GetWidth()
+ui.container:SetWidth(900);wm:RefreshMinimizedTabs()
+assert(party.minimizedTab:GetWidth()==compactWidth,"tab stretched to fill unused General space")
+ui.container:SetWidth(150);wm:RefreshMinimizedTabs()
+assert(wm.minimizedStrip:GetHeight()>wm.MINIMIZED_TAB_HEIGHT,"narrow tabs did not wrap")
+assertTabBounds()
+local oldMeasure=methods.GetUnboundedStringWidth
+function methods:GetUnboundedStringWidth()return self:GetStringWidth()*3 end
+ui.container:SetWidth(300);tabConfigChanged("font")
+assert(wm.minimizedStrip:GetHeight()>wm.MINIMIZED_TAB_HEIGHT,"larger font metrics did not reflow")
+assertTabBounds()
+methods.GetUnboundedStringWidth=oldMeasure
+G.unread=999;G:UpdateUnread();assert(guild.minimizedTab.badge:GetText()=="99+")
+assertTabBounds()
+local oldName=W.WorkspaceName;W.WorkspaceName=function()return string.rep("Long name ",20)end
+wm:RefreshMinimizedTabs();assert(W.minimizedTab:GetWidth()==300,"long custom name was not bounded")
+assertTabBounds();W.WorkspaceName=oldName
+ui.container:SetWidth(300);wm:RefreshMinimizedTabs()
 local oldCombat=InCombatLockdown;InCombatLockdown=function()return true end
 wm:SetTabMinimized(guild,false);assert(guild.tabMinimized and wm.pendingTabStates[guild]==false)
 InCombatLockdown=oldCombat;wm.tabStateEvents:GetScript("OnEvent")(wm.tabStateEvents)
@@ -503,6 +550,6 @@ Party:CloseRoom();assert(not party.tabMinimized and not party.minimizedTab:IsSho
 assert(not wm.minimizedStrip:IsShown() and not wm.minimizedStrip:GetScript("OnUpdate"))
 local extra=W:CreateWorkspace("Tab cleanup");wm:SetTabMinimized(extra,true);W:RemoveWorkspace(extra.hostId)
 assert(not extra.tabMinimized and not extra.minimizedTab:IsShown() and not wm.minimizedHosts[extra],"deleted workspace retained a ghost tab")
-ui.container=main
+ui.container=main;W.WorkspaceName=originalWorkspaceName
 """)
-print("Minimized tabs passed: shared actions, saved open state, automatic-show guard, unread/online labels, General toaster anchor, narrow wrapping, combat deferral, exact restoration, close cleanup and no idle driver.")
+print("Minimized tabs passed: shared actions, saved open state, automatic-show guard, unread/online labels, General toaster anchor, content-fit widths, compact 300px row, wide-window stability, narrow/large-font wrapping, long names, badge growth, combat deferral, exact restoration, close cleanup and no idle driver.")

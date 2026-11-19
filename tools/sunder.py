@@ -59,7 +59,7 @@ def check():
 def tests():
     check()
     env=dict(os.environ,SUNDER_ADDON_ROOT=str(ADDON),PYTHONDONTWRITEBYTECODE='1',PYTHONIOENCODING='utf-8')
-    cases=['work/test_guild_chat.py','work/test_party_chat.py','work/test_global_appearance.py','work/test_archive.py','work/test_chat_spacing097.py','work/test_bank_sort098.py','work/test_edit_registration0910.py','work/test_settings094.py','work/test_item_clicks093.py','work/sunder-tests/test_editors_bounds.py']
+    cases=['work/test_nameplates.py','work/test_fonts.py','work/test_fishing.py','work/test_guild_chat.py','work/test_party_chat.py','work/test_global_appearance.py','work/test_archive.py','work/test_chat_spacing097.py','work/test_bank_sort098.py','work/test_edit_registration0910.py','work/test_settings094.py','work/test_item_clicks093.py','work/sunder-tests/test_editors_bounds.py']
     for case in cases:
         result=subprocess.run([sys.executable,'-c',"import os,runpy,sys;runpy.run_path(sys.argv[1],init_globals={'os':os},run_name='__main__')",case],cwd=ROOT/'tests/regression',env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8')
         if result.returncode:

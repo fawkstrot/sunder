@@ -70,7 +70,7 @@ function W:EnsurePeopleFilters()
       b.hovered=true;self:StylePeopleFilter(b)
       GameTooltip:SetOwner(b,"ANCHOR_TOP");GameTooltip:AddLine(label,1,1,1)
       if key=="unread" then GameTooltip:AddLine((b.unreadTotal or 0).." unread messages",1,.8,.35) end
-      GameTooltip:AddLine(key=="all" and "Every conversation, with favorites first." or key=="unread" and "People with messages you have not read." or "Starred people and saved contacts.",.7,.75,.8);GameTooltip:Show()
+      GameTooltip:AddLine(key=="all" and "Every conversation, with favorites first." or key=="unread" and "People with messages you have not read." or "Starred people and saved contacts.",.7,.75,.8);Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
     end)
     b:SetScript("OnLeave",function() b.hovered=nil;b.pressed=nil;self:StylePeopleFilter(b);GameTooltip:Hide() end)
     b:SetScript("OnMouseDown",function() b.pressed=true;self:StylePeopleFilter(b) end)
@@ -182,7 +182,7 @@ function W:RenderSavedPersonRow(contact,child,y,savedRowIndex,isFavorite)
       if mouse=="RightButton" then
         local history=Core:GetModule("WhisperTabs",true)
         if MenuUtil and MenuUtil.CreateContextMenu then
-          MenuUtil.CreateContextMenu(button,function(_,menu)
+          Core:GetModule("Fonts"):CreateContextMenu(button,function(_,menu)
             menu:CreateButton("Open conversation",function() W:OpenSavedFavorite(button.contact) end)
             Core.Components.WindowManager:AddInspectAction(menu,button.contact.target or button.contact.key)
             if history and button.contact.archiveKey then
@@ -197,7 +197,7 @@ function W:RenderSavedPersonRow(contact,child,y,savedRowIndex,isFavorite)
       GameTooltip:SetOwner(button,"ANCHOR_RIGHT");GameTooltip:AddLine(Core.Components.WindowManager:FormatPersonName(button.contact.target,button.contact),1,1,1)
       GameTooltip:AddLine("Click to open this conversation without sending a message.",.7,.75,.8)
       if button.contact.archiveKey then GameTooltip:AddLine("Right-click for saved history, search or confirmed deletion.",.7,.75,.8) end
-      GameTooltip:Show()
+      Core:GetModule("Fonts"):StyleTooltip(GameTooltip);GameTooltip:Show()
     end)
     b:SetScript("OnLeave",function()GameTooltip:Hide()end)
   end

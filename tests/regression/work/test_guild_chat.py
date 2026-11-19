@@ -221,6 +221,10 @@ frame.history={}
 for i=1,230 do frame.history[i]={text="guild line "..i,typeID=i%2==0 and 40 or 41,serverTime=1000+i}end
 G:SaveHistory();local saved=Core.db.char.guildRoomHistory
 assert(saved.key=="Test Guild@Forever" and #saved.lines==100)
+local priorProfile=Core.db.profile
+Core.db.profile={}
+G:SaveHistory();assert(Core.db.char.guildRoomHistory==saved,"shutdown replaced retained history")
+Core.db.profile=priorProfile
 for _,line in ipairs(saved.lines)do assert(line.typeID==40)end
 frame.history={};G.restoredFrame=nil;G:RestoreHistory();assert(#frame.history==12)
 drain();assert(#frame.history==100 and frame.history[1].serverTime==1032)
